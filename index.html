@@ -3,14 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>콕스타 (Cockstar)</title>
+    <title>콕스타 (COCKSTAR)</title>
+    
     <!-- Pretendard 폰트 (디자인 가이드) -->
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"
     />
+
+    <!-- 
+      [PWA & UI 개선]
+      PWA를 위한 설정 및 모바일 최적화 태그입니다.
+    -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="COCKSTAR" />
+    <meta name="theme-color" content="#00B16A" />
+
+    <!-- [PWA] 홈 화면 아이콘 (public 폴더의 icon-192.png) -->
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    
+    <!-- [PWA] 매니페스트 파일 연결 (public/manifest.json) -->
+    <link rel="manifest" href="/manifest.json" />
+
     <style>
-      /* 기본 폰트 및 스크롤바 숨기기 */
+      /* [UI 개선]
+        기본 폰트 설정 및 스크롤바 숨기기.
+        body의 overflow, background-color 등은 App.jsx의 Tailwind가 제어하도록 제거합니다.
+      */
       body {
         font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui,
           Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo',
@@ -18,17 +38,8 @@
           'Segoe UI Symbol', sans-serif;
         margin: 0;
         padding: 0;
-        /* 모바일 앱처럼 보이도록 스크롤바 숨기기 */
-        overflow: hidden;
-      }
-      /* (선택 사항) 데스크탑에서도 모바일처럼 보이게 배경색 추가 */
-      html {
-        background-color: #f0f0f0;
-      }
-      #root {
-        /* React 앱이 전체 화면을 차지하도록 설정 */
-        height: 100vh;
-        overflow-y: auto; /* 스크롤은 앱 내부에서 처리 */
+        /* iOS에서 스크롤 바운스 시 배경색이 흰색으로 보이도록 함 */
+        background-color: #ffffff; 
       }
 
       /* Firefox 스크롤바 숨기기 */
@@ -46,7 +57,7 @@
     <noscript>이 앱을 실행하려면 JavaScript를 활성화해야 합니다.</noscript>
     <div id="root"></div>
     
-    <!-- [수정] React 앱을 실행하는 스크립트 태그 추가 -->
+    <!-- React 앱을 실행하는 스크립트 태그 -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
