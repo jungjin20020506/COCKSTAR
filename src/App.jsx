@@ -22,12 +22,13 @@ import {
 // [FIX] 'import.meta.env' is not available in this preview environment.
 // Using placeholders. You must set up .env.local in your actual Vite project.
 const firebaseConfig = {
-    apiKey: "YOUR_VITE_API_KEY_HERE", // import.meta.env.VITE_API_KEY,
-    authDomain: "YOUR_VITE_AUTH_DOMAIN_HERE", // import.meta.env.VITE_AUTH_DOMAIN,
-    projectId: "YOUR_VITE_PROJECT_ID_HERE", // import.meta.env.VITE_PROJECT_ID,
-    storageBucket: "YOUR_VITE_STORAGE_BUCKET_HERE", // import.meta.env.VITE_STORAGE_BUCKET,
-    messagingSenderId: "YOUR_VITE_MESSAGING_SENDER_ID_HERE", // import.meta.env.VITE_MESSAGING_SENDER_ID,
-    appId: "YOUR_VITE_APP_ID_HERE" // import.meta.env.VITE_APP_ID
+  apiKey: "AIzaSyC-eeHazZ3kVj7aQicdtlnhEmLbbTJHgGE",
+  authDomain: "noerror-14ce3.firebaseapp.com",
+  projectId: "noerror-14ce3",
+  storageBucket: "noerror-14ce3.firebasestorage.app",
+  messagingSenderId: "279065154821",
+  appId: "1:279065154821:web:812570dde2bdde560a936c",
+  measurementId: "G-PFGZGHT9T4"
 };
 
 // Firebase 앱 초기화
