@@ -1,0 +1,23 @@
+{
+  "short_name": "COCKSTAR",
+  "name": "COCKSTAR - 콕스타",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#00B16A",
+  "background_color": "#F5F5F5",
+  "description": "배드민턴 올인원 플랫폼, 콕스타"
+}
