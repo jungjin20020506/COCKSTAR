@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>콕스타 (COCKSTAR)</title>
-    
+    <title>콕스타 (Cockstar)</title>
+
     <!-- Pretendard 폰트 (디자인 가이드) -->
     <link
       rel="stylesheet"
@@ -18,9 +18,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="COCKSTAR" />
+    <!-- [PWA] 브라우저 상단바 색상 (메인 그린) -->
     <meta name="theme-color" content="#00B16A" />
 
-    <!-- [PWA] 홈 화면 아이콘 (public 폴더의 icon-192.png) -->
+    <!-- [PWA] 홈 화면 아이콘 (public/icon-192.png) -->
     <link rel="apple-touch-icon" href="/icon-192.png" />
     
     <!-- [PWA] 매니페스트 파일 연결 (public/manifest.json) -->
@@ -29,7 +30,7 @@
     <style>
       /* [UI 개선]
         기본 폰트 설정 및 스크롤바 숨기기.
-        body의 overflow, background-color 등은 App.jsx의 Tailwind가 제어하도록 제거합니다.
+        body의 overflow, background-color 등은 App.jsx의 Tailwind가 제어합니다.
       */
       body {
         font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui,
@@ -40,6 +41,10 @@
         padding: 0;
         /* iOS에서 스크롤 바운스 시 배경색이 흰색으로 보이도록 함 */
         background-color: #ffffff; 
+      }
+      #root {
+        /* [UI 개선] App.jsx가 전체 높이를 제어하도록 height 제거 */
+        overflow-y: auto; /* 스크롤은 앱 내부에서 처리 */
       }
 
       /* Firefox 스크롤바 숨기기 */
