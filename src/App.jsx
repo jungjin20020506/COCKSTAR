@@ -15,7 +15,7 @@ import {
     setDoc, 
     getDoc, 
     onSnapshot,
-    // [신규] Firestore 기능 추가
+    // [신규] Firestore 기능
     collection, 
     query, 
     where, 
