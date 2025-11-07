@@ -15,7 +15,7 @@ import {
     setDoc, 
     getDoc, 
     onSnapshot,
-    // [신규] Firestore 기능
+    // [신규] Firestore 기능 추가
     collection, 
     query, 
     where, 
@@ -225,7 +225,12 @@ function AuthModal({ onClose, setPage }) {
             onClose();
         } catch (err) {
             console.error("Google 로그인 오류:", err);
-            setError(getFirebaseErrorMessage(err));
+            // OAuth 오류는 콘솔에만 표시하고, 사용자에게는 간단히 안내
+            if (err.code === 'auth/operation-not-allowed' || err.code === 'auth/unauthorized-domain') {
+                 setError('현재 Google 로그인을 사용할 수 없습니다. 관리자에게 문의하세요.');
+            } else {
+                 setError(getFirebaseErrorMessage(err));
+            }
         } finally {
             setLoading(false);
         }
@@ -1061,11 +1066,9 @@ function GamePage({ user, userData, onLoginClick }) {
     const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
 
     // [신규] Firestore 'rooms' 컬렉션 경로
-    // [수정] 'artifacts', 'appId' 등 복잡한 경로를 제거하고,
-    // 실제 사용 중이신 최상위 'rooms' 컬렉션으로 변경합니다.
     const roomsCollectionRef = collection(db, "rooms");
 
-   // [신규] 모임방 목록 실시간 구독 (로비 뷰가 활성화될 때)
+    // [신규] 모임방 목록 실시간 구독 (로비 뷰가 활성화될 때)
     useEffect(() => {
         if (!user || currentView !== 'lobby') {
             setLoadingRooms(false); // 로그아웃 상태거나 로비가 아니면 로딩 중지
@@ -1093,7 +1096,7 @@ function GamePage({ user, userData, onLoginClick }) {
                     return timeB.toDate().getTime() - timeA.toDate().getTime(); // 'desc' (최신순)
                 }
                 // 임시 값(null 등)은 정렬 순서를 유지
-                if (timeA) return -1;
+                if (timeA) return -1; // timeA가 임시값이면 (최신) 맨 위로
                 if (timeB) return 1;
                 return 0;
             });
@@ -1108,6 +1111,7 @@ function GamePage({ user, userData, onLoginClick }) {
         // 클린업 함수
         return () => unsubscribe();
     }, [user, currentView, roomsCollectionRef]); // [수정] 의존성 배열에 roomsCollectionRef 추가
+
     // [신규] 검색어 필터링
     const filteredRooms = useMemo(() => {
         return rooms.filter(room => 
@@ -1409,11 +1413,33 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         });
 
         // 2. 플레이어 목록 구독
-        const unsubPlayers = onSnapshot(query(playersCollectionRef, orderBy("entryTime", "asc")), (snapshot) => {
-            const playersData = snapshot.docs.reduce((acc, doc) => {
-                acc[doc.id] = { id: doc.id, ...doc.data() };
+        // [수정] orderBy("entryTime", "asc") 제거.
+        // serverTimestamp()와 클라이언트 orderBy는 충돌을 일으켜 'l.toDate' 오류를 발생시킵니다.
+        const unsubPlayers = onSnapshot(playersCollectionRef, (snapshot) => {
+            // [신규] 데이터를 먼저 배열로 변환
+            const playersDataArray = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // [신규] 클라이언트(JS)에서 직접 정렬
+            playersDataArray.sort((a, b) => {
+                const timeA = a.entryTime;
+                const timeB = b.entryTime;
+
+                // entryTime이 실제 Timestamp 객체일 때만 .toDate()로 비교
+                if (timeA && typeof timeA.toDate === 'function' && timeB && typeof timeB.toDate === 'function') {
+                    return timeA.toDate().getTime() - timeB.toDate().getTime(); // 'asc' (오래된 순)
+                }
+                // null이나 임시 값(아직 서버에 기록 안 됨)은 정렬 순서를 유지하거나 뒤로 보냅니다.
+                if (timeA) return -1;
+                if (timeB) return 1;
+                return 0;
+            });
+
+            // [수정] 정렬된 배열을 reduce로 다시 {id: player} 형태의 객체로 변환
+            const playersData = playersDataArray.reduce((acc, player) => {
+                acc[player.id] = player;
                 return acc;
             }, {});
+            
             setPlayers(playersData);
             setLoading(false); // 플레이어 목록까지 받아야 로딩 완료
         }, (err) => {
@@ -1631,9 +1657,6 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         );
     }
     
-    // (임시) 플레이어 목록 렌더링 (참고용)
-    // [수정] waitingPlayers는 useMemo로 이동
-
     return (
         <div className="flex flex-col h-full bg-white">
             {/* 1. 경기방 헤더 */}
