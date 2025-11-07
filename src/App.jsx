@@ -573,7 +573,7 @@ function HomePageHeader({ onSearchClick, onBellClick }) {
 function SubPageHeader({ page, onBackClick }) {
     const title = page === 'game' ? '경기' :
                   page === 'store' ? '스토어' :
-                  page === 'community' ? '커뮤니M' : '내 정보';
+                  page === 'community' ? '커뮤니티' : '내 정보'; // '커뮤니M' -> '커뮤니티' 오타 수정
     return (
         // #19. shadow-sm, bg-white로 배경색 명시 (기존 backdrop-blur 유지)
         <header className="sticky top-0 bg-white/80 backdrop-blur-md z-10 p-4 shadow-sm flex items-center">
@@ -715,7 +715,7 @@ export default function App() {
                         <TabButton
                             icon={Trophy}
                             label="경기"
-                            isActive={page ===D === 'game'}
+                            isActive={page === 'game'} // [수정] 'page ===D === 'game'' -> 'page === 'game'' 오타 수정
                             onClick={() => setPage('game')}
                         />
                         <TabButton
