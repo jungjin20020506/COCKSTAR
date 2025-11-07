@@ -955,12 +955,12 @@ function HomePage({ user, setPage }) {
             <section>
                 <SectionHeader title="신상 스토어" onMoreClick={() => setPage('store')} />
                 {/* [수정] 마퀴 -> 스와이프 컨테이너로 변경 */}
+                {/* [신규] CSS 제어용 주석 (위치 수정) */}
                 <div 
                     ref={storeContainerRef}
                     // [수정] overflow-x-auto, hide-scrollbar, cursor-grab 추가
                     className="w-full overflow-x-auto hide-scrollbar cursor-grab" // active:cursor-grabbing은 JS로 제어
                     
-                    {/* [신규] CSS로 브라우저 기본 스크롤 동작 제어 (새로고침 방지) */}
                     style={{ overscrollBehaviorX: 'contain', touchAction: 'pan-x' }}
 
                     // [수정] 마우스 이벤트만 남김 (터치 이벤트는 useEffect에서 수동 등록)
