@@ -552,8 +552,15 @@ function HomePageHeader({ onSearchClick, onBellClick }) {
     return (
         // #19. border-b 제거, shadow-sm 적용. bg-white로 배경색 명시
         <header className="sticky top-0 bg-white z-10 p-4 shadow-sm flex justify-between items-center">
-            {/* COCKSTAR 로고 이미지 (public/logo.png) */}
-            <img src="/logo.png" alt="COCKSTAR" className="h-6" /> {/* 로고 높이 h-6 (24px) */}
+            {/* [수정] 이미지 로고를 세련된 텍스트 로고로 변경 */}
+            {/* - text-3xl: 폰트 크기를 키움 (30px)
+              - font-extrabold: 가장 굵은 글씨체
+              - text-[#00B16A]: 메인 초록색 적용
+              - tracking-tighter: 글자 사이 간격을 좁혀 더 세련되게
+            */}
+            <h1 className="text-3xl font-extrabold text-[#00B16A] tracking-tighter">
+                COCKSTAR
+            </h1>
             
             <div className="flex space-x-5 text-xl text-gray-700">
                 <button onClick={onSearchClick} className="hover:text-[#1E1E1E]">
