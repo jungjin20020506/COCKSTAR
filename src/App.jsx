@@ -542,32 +542,32 @@ function HomePage({ user, setPage }) {
             </div>
         </button>
     );
-    
-    // 마퀴에 표시할 스토어 데이터
-    const storeItems = [
-        { title: "요넥스 신상 의류", brand: "YONEX", image: "https://placehold.co/160x128/E0F2F1/00695C?text=YONEX" },
-        { title: "빅터 신상 라켓", brand: "VICTOR", image: "https://placehold.co/160x128/E3F2FD/01579B?text=VICTOR" },
-        { title: "테크니스트 V2", brand: "TECHNIST", image: "https://placehold.co/160x128/F1F8E9/33691E?text=TECHNIST" },
-        { title: "리닝 에어로우", brand: "LI-NING", image: "https://placehold.co/160x128/FFF8E1/E65100?text=LI-NING" },
-    ];
-
-    return (
-        <main className="flex-1 overflow-y-auto p-5 space-y-10 hide-scrollbar">
-            
-            {/* (1) 섹션: 메인 배너 (요청 #3) */}
-            <MainBanner />
-
-            {/* (2) 섹션: 신상 스토어 (요청 #4 - 마퀴) */}
+            {/* (2) 섹션: 신상 스토어 (요청 #4 - 마퀴 -> 스와이프로 수정) */}
             <section>
                 <SectionHeader title="신상 스토어" onMoreClick={() => setPage('store')} />
-                <div className="w-full overflow-hidden marquee-container">
-                    <div className="animate-marquee">
+                {/* [수정] 마퀴 -> 스와이프 컨테이너로 변경 */}
+                <div 
+                    ref={storeContainerRef}
+                    // [수정] overflow-x-auto, hide-scrollbar, cursor-grab 추가
+                    className="w-full overflow-x-auto hide-scrollbar cursor-grab active:cursor-grabbing"
+                    // [신규] 스와이프 이벤트 핸들러 추가
+                    onMouseDown={handleStoreDragStart}
+                    onMouseMove={handleStoreDragMove}
+                    onMouseUp={handleStoreDragEnd}
+                    onMouseLeave={handleStoreDragEnd}
+                    onTouchStart={handleStoreDragStart}
+                    onTouchMove={handleStoreDragMove}
+                    onTouchEnd={handleStoreDragEnd}
+                >
+                    {/* [수정] animate-marquee 클래스 제거, flex로 변경 */}
+                    <div className="flex"> 
                         {/* [아이디어 #1] 스켈레톤 로딩 */}
                         {loading ? (
-                            [...Array(8)].map((_, i) => <SkeletonStoreCard key={i} />)
+                            // [수정] 스켈레톤 카드 4개만 표시
+                            [...Array(4)].map((_, i) => <SkeletonStoreCard key={i} />)
                         ) : (
-                            /* 마퀴 효과를 위해 2번 반복 렌더링 */
-                            [...storeItems, ...storeItems].map((item, index) => (
+                            /* [수정] 마퀴용 2번 반복 제거 */
+                            storeItems.map((item, index) => (
                                 <StoreCard 
                                     key={index}
                                     title={item.title} 
@@ -576,6 +576,8 @@ function HomePage({ user, setPage }) {
                                 />
                             ))
                         )}
+                        {/* [신규] 마지막 아이템 뒤에 여백을 주기 위한 요소 */}
+                        <div className="flex-shrink-0 w-1 h-1"></div>
                     </div>
                 </div>
             </section>
