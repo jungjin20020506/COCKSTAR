@@ -14,7 +14,7 @@ import {
     doc, 
     setDoc, 
     getDoc, 
-    onSnapshot, 
+    onSnapshot,
     // [신규] Firestore 기능 추가
     collection, 
     query, 
@@ -27,7 +27,7 @@ import {
 } from 'firebase/firestore';
 import {
     Home, Trophy, Store, Users, User, X, Loader2, ArrowLeft, ShieldCheck, ShoppingBag, MessageSquare,
-    Search, Bell, MapPin, Heart, ChevronRight, Plus, Archive,
+    Search, Bell, MapPin, Heart, ChevronRight, Plus, Archive, // EmptyState 아이콘
     // [신규] 아이콘 추가
     Lock, Edit3, Clock, AlertCircle, Calendar, Users2, BarChart2,
     CheckCircle, // [신규]
@@ -110,32 +110,30 @@ function SkeletonCard() {
     );
 }
 
-// [신규] 경기방 목록 스켈레톤
-function SkeletonRoomCard() {
-    return (
-        <div className="w-full p-4 bg-white rounded-xl shadow-lg animate-pulse">
-            <div className="h-5 bg-gray-200 rounded-md w-3/4 mb-3"></div>
-            <div className="flex gap-4 mb-4">
-                <div className="h-4 bg-gray-200 rounded-full w-1/4"></div>
-                <div className="h-4 bg-gray-200 rounded-full w-1/3"></div>
-            </div>
-            <div className="flex justify-between items-center">
-                <div className="h-4 bg-gray-200 rounded-md w-1/3"></div>
-                <div className="h-8 bg-gray-200 rounded-lg w-1/4"></div>
-            </div>
-        </div>
-    );
-}
-
 function SkeletonStoreCard() {
      return (
-        <div className="w-40 flex-shrink-0 animate-pulse mr-4"> {/* [수정] 마진 추가 */}
+        <div className="w-40 flex-shrink-0 mr-4 animate-pulse"> {/* mr-4 추가 */}
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
                 <div className="w-full h-32 object-cover bg-gray-200"></div>
                 <div className="p-3">
                     <div className="h-5 bg-gray-200 rounded-md w-3/4 mb-2"></div>
                     <div className="h-4 bg-gray-200 rounded-md w-1/2"></div>
                 </div>
+            </div>
+        </div>
+    );
+}
+
+// [신규] 로비 스켈레톤
+function SkeletonRoomCard() {
+    return (
+        <div className="bg-white rounded-xl shadow-lg p-4 animate-pulse">
+            <div className="h-6 bg-gray-200 rounded-md w-1/2 mb-3"></div>
+            <div className="h-4 bg-gray-200 rounded-md w-3/4 mb-4"></div>
+            <div className="flex flex-wrap gap-2">
+                <div className="h-6 bg-gray-200 rounded-full w-1/4"></div>
+                <div className="h-6 bg-gray-200 rounded-full w-1/4"></div>
+                <div className="h-6 bg-gray-200 rounded-full w-1/3"></div>
             </div>
         </div>
     );
@@ -375,36 +373,59 @@ function AuthModal({ onClose, setPage }) {
 // [신규] 모임 생성 모달 (GamePage용)
 // ===================================================================================
 function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
+    // 폼 상태
     const [roomName, setRoomName] = useState('');
     const [location, setLocation] = useState('');
     const [description, setDescription] = useState('');
-    const [levelLimit, setLevelLimit] = useState('N조'); // D조, C조, B조, A조, S조, N조(제한없음)
-    const [memberLimit, setMemberLimit] = useState(20);
+    const [levelLimit, setLevelLimit] = useState('N조'); // 급수 제한
+    const [maxPlayers, setMaxPlayers] = useState(20); // 인원 제한
+    const [usePassword, setUsePassword] = useState(false);
     const [password, setPassword] = useState('');
+    
+    // 유효성 검사 및 로딩
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+
+    // 모달이 열릴 때 상태 초기화
+    useEffect(() => {
+        if (isOpen) {
+            setRoomName('');
+            setLocation('');
+            setDescription('');
+            setLevelLimit('N조');
+            setMaxPlayers(20);
+            setUsePassword(false);
+            setPassword('');
+            setError('');
+            setLoading(false);
+        }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-        if (!roomName.trim() || !location.trim()) {
-            setError('방 제목과 장소는 필수입니다.');
+
+        if (!roomName.trim()) {
+            setError('모임방 제목을 입력해주세요.');
             return;
         }
-        if (roomName.length > 30) {
-            setError('방 제목은 30자 이내로 입력해주세요.');
+
+        if (usePassword && !password) {
+            setError('비밀번호를 입력해주세요.');
             return;
         }
 
         setLoading(true);
+
         const newRoomData = {
             name: roomName,
-            location: location,
-            description: description,
+            location: location || '장소 미정',
+            description: description || '모임 소개가 없습니다.',
             levelLimit: levelLimit,
-            memberLimit: Number(memberLimit),
-            password: password,
-            // 방장(admin) 정보
+            maxPlayers: maxPlayers,
+            password: usePassword ? password : '',
             adminUid: user.uid,
             adminName: userData?.name || '방장',
             // Firestore 서버 시간 기준 생성
@@ -418,28 +439,19 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
         };
 
         try {
-            await onSubmit(newRoomData);
-            // 성공 시 모달 닫기 및 폼 초기화
-            onClose();
-            setRoomName('');
-            setLocation('');
-            setDescription('');
-            setLevelLimit('N조');
-            setMemberLimit(20);
-            setPassword('');
+            await onSubmit(newRoomData); // 부모 컴포넌트(GamePage)에서 addDoc 처리
+            onClose(); // 성공 시 모달 닫기
         } catch (err) {
-            console.error("Error creating room: ", err);
-            setError('모임 생성에 실패했습니다. 잠시 후 다시 시도해주세요.');
+            console.error("Error creating room:", err);
+            setError("모임방 생성에 실패했습니다. 다시 시도해주세요.");
         } finally {
             setLoading(false);
         }
     };
 
-    if (!isOpen) return null;
-
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl p-6 w-full max-w-md relative shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl p-6 w-full max-w-lg relative text-[#1E1E1E] shadow-2xl max-h-[90vh] overflow-y-auto">
                 <button
                     onClick={onClose}
                     className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
@@ -448,109 +460,115 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
                     <X size={24} />
                 </button>
                 
-                <h2 className="text-2xl font-bold text-center mb-6 text-[#1E1E1E]">
-                    새 모임 만들기
-                </h2>
+                <h2 className="text-xl font-bold text-center mb-6">새 모임방 만들기</h2>
 
                 {error && <p className="text-red-500 text-center mb-4 bg-red-100 p-3 rounded-lg text-sm">{error}</p>}
 
-                <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto pr-2">
-                    {/* 방 제목 (필수) */}
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* 방 제목 */}
                     <div>
                         <label className="block text-sm font-bold text-gray-700 mb-1">방 제목 <span className="text-red-500">*</span></label>
                         <input
                             type="text"
-                            placeholder="예: 수원시 주말 40대 A조 모임"
+                            placeholder="예: 콕스타 3040 정모 (A-C조)"
                             value={roomName}
                             onChange={(e) => setRoomName(e.target.value)}
                             required
-                            className="w-full p-3 bg-gray-100 rounded-lg text-gray-900 border-2 border-gray-200 focus:border-[#00B16A] focus:outline-none text-base"
+                            className="w-full p-3 bg-gray-100 rounded-lg text-base border border-gray-200 focus:border-[#00B16A] focus:ring-1 focus:ring-[#00B16A] focus:outline-none"
                         />
                     </div>
-                    
-                    {/* 장소 (필수) */}
+
+                    {/* 장소 */}
                     <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1">장소 <span className="text-red-500">*</span></label>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">장소</label>
                         <input
                             type="text"
-                            placeholder="예: OO 체육관"
+                            placeholder="예: 콕스타 전용 체육관"
                             value={location}
                             onChange={(e) => setLocation(e.target.value)}
-                            required
-                            className="w-full p-3 bg-gray-100 rounded-lg text-gray-900 border-2 border-gray-200 focus:border-[#00B16A] focus:outline-none text-base"
+                            className="w-full p-3 bg-gray-100 rounded-lg text-base border border-gray-200 focus:border-[#00B16A] focus:ring-1 focus:ring-[#00B16A] focus:outline-none"
                         />
                     </div>
-                    
-                    {/* 모임 소개 (선택) */}
+
+                    {/* 소개 */}
                     <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1">모임 소개</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">소개</label>
                         <textarea
-                            placeholder="모임에 대한 간단한 소개를 적어주세요. (참가비, 준비물 등)"
+                            placeholder="모임에 대해 간단히 소개해주세요."
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             rows={3}
-                            className="w-full p-3 bg-gray-100 rounded-lg text-gray-900 border-2 border-gray-200 focus:border-[#00B16A] focus:outline-none text-base"
+                            className="w-full p-3 bg-gray-100 rounded-lg text-base border border-gray-200 focus:border-[#00B16A] focus:ring-1 focus:ring-[#00B16A] focus:outline-none"
                         />
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                        {/* 급수 제한 (선택) */}
-                        <div>
+
+                    {/* 급수 제한 / 인원 제한 */}
+                    <div className="flex gap-4">
+                        <div className="flex-1">
                             <label className="block text-sm font-bold text-gray-700 mb-1">입장 급수</label>
                             <select
                                 value={levelLimit}
                                 onChange={(e) => setLevelLimit(e.target.value)}
-                                className="w-full p-3 bg-gray-100 rounded-lg text-gray-900 border-2 border-gray-200 focus:border-[#00B16A] focus:outline-none text-base"
+                                className="w-full p-3 bg-gray-100 rounded-lg text-base border border-gray-200 focus:border-[#00B16A] focus:ring-1 focus:ring-[#00B16A] focus:outline-none"
                             >
-                                <option value="N조">제한 없음 (N조)</option>
-                                <option value="D조">D조 이상</option>
-                                <option value="C조">C조 이상</option>
-                                <option value="B조">B조 이상</option>
-                                <option value="A조">A조 이상</option>
+                                <option value="N조">전체 급수</option>
                                 <option value="S조">S조 이상</option>
+                                <option value="A조">A조 이상</option>
+                                <option value="B조">B조 이상</option>
+                                <option value="C조">C조 이상</option>
+                                <option value="D조">D조 이상</option>
+                                <option value="E조">E조 이상</option>
                             </select>
                         </div>
-                        
-                        {/* 인원 제한 (선택) */}
-                        <div>
+                        <div className="flex-1">
                             <label className="block text-sm font-bold text-gray-700 mb-1">인원 제한</label>
-                            <input
+                             <input
                                 type="number"
+                                value={maxPlayers}
+                                onChange={(e) => setMaxPlayers(Math.max(4, parseInt(e.target.value) || 4))}
                                 min="4"
-                                max="100"
-                                step="2"
-                                value={memberLimit}
-                                onChange={(e) => setMemberLimit(e.target.value)}
-                                className="w-full p-3 bg-gray-100 rounded-lg text-gray-900 border-2 border-gray-200 focus:border-[#00B16A] focus:outline-none text-base"
+                                step="1"
+                                className="w-full p-3 bg-gray-100 rounded-lg text-base border border-gray-200 focus:border-[#00B16A] focus:ring-1 focus:ring-[#00B16A] focus:outline-none"
                             />
                         </div>
                     </div>
 
-                    {/* 비밀번호 (선택) */}
+                    {/* 비밀번호 */}
                     <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1">비밀번호 (선택)</label>
-                        <input
-                            type="password"
-                            placeholder="비공개 방으로 만들려면 입력"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full p-3 bg-gray-100 rounded-lg text-gray-900 border-2 border-gray-200 focus:border-[#00B16A] focus:outline-none text-base"
-                        />
+                        <label className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                checked={usePassword}
+                                onChange={(e) => setUsePassword(e.target.checked)}
+                                className="h-4 w-4 rounded text-[#00B16A] focus:ring-[#00B16A]"
+                            />
+                            <span className="text-sm font-bold text-gray-700">비밀번호 설정</span>
+                        </label>
+                        {usePassword && (
+                            <input
+                                type="password"
+                                placeholder="비밀번호 입력"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full p-3 mt-2 bg-gray-100 rounded-lg text-base border border-gray-200 focus:border-[#00B16A] focus:ring-1 focus:ring-[#00B16A] focus:outline-none"
+                            />
+                        )}
                     </div>
 
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full mt-4 py-3 bg-[#00B16A] text-white font-bold rounded-lg text-base hover:bg-green-600 transition-colors disabled:bg-gray-400 flex items-center justify-center"
-                    >
-                        {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : '모임 만들기'}
-                    </button>
+                    <div className="pt-2">
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full py-3 bg-[#00B16A] text-white font-bold rounded-lg text-base hover:bg-green-700 transition-colors disabled:bg-gray-400 flex items-center justify-center"
+                        >
+                            {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : '모임방 만들기'}
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
     );
 }
-
 
 // ===================================================================================
 // 페이지 컴포넌트들 (UI 원칙 적용)
@@ -603,10 +621,15 @@ function MainBanner() {
         if (containerRef.current) {
             containerRef.current.style.transition = 'none'; // 드래그 중에는 transition 제거
         }
+        // [수정] 텍스트 선택 방지 (드래그 시작 시)
+        e.preventDefault();
     };
 
     const handleDragMove = (e) => {
         if (!isDraggingRef.current) return;
+        // [수정] 페이지 스크롤 방지 (드래그 이동 시)
+        e.preventDefault();
+        
         const currentX = e.clientX || e.touches[0].clientX;
         const diff = dragStartXRef.current - currentX;
         
@@ -703,15 +726,6 @@ function HomePage({ user, setPage }) {
     // [아이디어 #1] 스켈레톤 로딩을 위한 상태
     const [loading, setLoading] = useState(true);
 
-    // [수정] '신상 스토어' 섹션 로직 추가
-    const storeContainerRef = useRef(null);
-    const isDraggingRef = useRef(false);
-    // [수정] isHoveringRef 제거
-    const dragStartXRef = useRef(0);
-    const scrollLeftRef = useRef(0);
-    const animationFrameRef = useRef(null);
-    const storeContentWidthRef = useRef(0);
-
     // 1.5초 후 로딩 상태 해제 (데이터 로딩 시뮬레이션)
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -719,149 +733,6 @@ function HomePage({ user, setPage }) {
         }, 1500);
         return () => clearTimeout(timer); // 컴포넌트 언마운트 시 타이머 제거
     }, []);
-
-    // [신규] '신상 스토어' 자동 스크롤 로직
-    useEffect(() => {
-        // [수정] 로딩이 끝나야(loading === false) 애니메이션을 시작합니다.
-        if (loading) {
-            // 로딩 중(스켈레톤 표시 중)에는 애니메이션을 실행하지 않습니다.
-            return;
-        }
-
-        // [수정] 로딩이 끝난 후, 실제 카드 DOM이 렌더링될 시간을 100ms 줍니다.
-        const startTimer = setTimeout(() => {
-            if (!storeContainerRef.current) return;
-
-            // [수정] 너비 계산을 이 시점으로 이동 (로딩 끝난 후 실제 너비)
-            storeContentWidthRef.current = storeContainerRef.current.scrollWidth / 2;
-
-            // [수정] 만약 너비가 0이면 (DOM이 아직 반영 안 됨) 100ms 후 재시도
-            if (storeContentWidthRef.current === 0) {
-                setTimeout(() => {
-                    if (storeContainerRef.current) {
-                         storeContentWidthRef.current = storeContainerRef.current.scrollWidth / 2;
-                    }
-                }, 100);
-            }
-
-            const animateScroll = () => {
-                if (storeContainerRef.current && !isDraggingRef.current) {
-                    // 스크롤 속도 (0.5px 씩)
-                    storeContainerRef.current.scrollLeft += 0.5; 
-                    
-                    // [수정] 너비가 0일 때(초기 계산 전)는 루프를 실행하지 않음
-                    if (storeContentWidthRef.current === 0) {
-                        // 스켈레톤 -> 실제 카드로 바뀐 후 너비 재계산
-                        storeContentWidthRef.current = storeContainerRef.current.scrollWidth / 2;
-                    }
-    
-                    // [수정] "순간이동" 버그를 잡는 핵심 로직입니다.
-                    // 스크롤이 1번 세트의 끝(storeContentWidthRef.current)을 넘어가면
-                    if (storeContentWidthRef.current > 0 && 
-                        storeContainerRef.current.scrollLeft >= storeContentWidthRef.current) {
-                        
-                        // 1번 세트 끝에 도달하면, 
-                        // (현재 스크롤 위치 - 1번 세트 너비) = 2번 세트에서 스크롤된 거리
-                        // 그 거리를 1번 세트의 시작점(0)에 더해줍니다.
-                        const newScrollLeft = storeContainerRef.current.scrollLeft - storeContentWidthRef.current;
-                        storeContainerRef.current.scrollLeft = newScrollLeft;
-                    }
-                }
-                animationFrameRef.current = requestAnimationFrame(animateScroll);
-            };
-
-            // 애니메이션 시작
-            animationFrameRef.current = requestAnimationFrame(animateScroll);
-
-        }, 100); // 100ms 딜레이 (DOM 반영 시간)
-
-        return () => {
-            // 컴포넌트 언마운트 시 애니메이션 프레임 정리
-            if (animationFrameRef.current) {
-                cancelAnimationFrame(animationFrameRef.current);
-            }
-            clearTimeout(startTimer);
-        };
-    }, [loading]); // [수정] 'loading' 상태가 변경될 때마다 이 Effect를 재실행
-    
-    // [신규] '신상 스토어' 수동 터치 리스너 (Passive Error 해결)
-    useEffect(() => {
-        const container = storeContainerRef.current;
-        if (!container) return;
-
-        // [신규] 'touchstart' 이벤트 (e.preventDefault()를 위해 non-passive로 등록)
-        // handleStoreDragStart를 직접 호출하지 않고 터치 전용 로직을 만듭니다.
-        const onTouchStart = (e) => {
-            e.preventDefault(); // 브라우저 기본 동작(선택 등) 방지
-            
-            isDraggingRef.current = true;
-            dragStartXRef.current = e.touches[0].clientX; // touch 이벤트이므로 e.touches[0] 사용
-            scrollLeftRef.current = container.scrollLeft;
-            container.style.cursor = 'grabbing';
-        };
-
-        // [신규] 'touchmove' 이벤트 (e.preventDefault()를 위해 non-passive로 등록)
-        const onTouchMove = (e) => {
-            if (!isDraggingRef.current) return;
-            e.preventDefault(); // 브라우저 스크롤/새로고침 방지
-
-            const currentX = e.touches[0].clientX; // touch 이벤트이므로 e.touches[0] 사용
-            const dx = currentX - dragStartXRef.current;
-            container.scrollLeft = scrollLeftRef.current - dx;
-        };
-
-        // [신규] 'touchend' 이벤트 (드래그 종료 로직)
-        // handleStoreDragEnd는 e 객체가 필요 없으므로 재사용
-        const onTouchEnd = () => {
-            handleStoreDragEnd();
-        };
-
-        // 리스너 등록 (passive: false가 핵심)
-        container.addEventListener('touchstart', onTouchStart, { passive: false });
-        container.addEventListener('touchmove', onTouchMove, { passive: false });
-        
-        // touchmove와 달리, touchend/touchcancel은 passive 여부가 중요하지 않습니다.
-        // React의 onTouchEnd를 그대로 사용해도 되지만, 통일성을 위해 여기서 등록합니다.
-        container.addEventListener('touchend', onTouchEnd);
-        container.addEventListener('touchcancel', onTouchEnd); // 예외 상황 처리
-
-        // 클린업 함수
-        return () => {
-            container.removeEventListener('touchstart', onTouchStart);
-            container.removeEventListener('touchmove', onTouchMove);
-            container.removeEventListener('touchend', onTouchEnd);
-            container.removeEventListener('touchcancel', onTouchEnd);
-        };
-
-    }, []); // 마운트 시 한 번만 실행
-
-    // [신규] '신상 스토어' 드래그 시작 핸들러 (마우스 전용으로 수정)
-    const handleStoreDragStart = (e) => {
-        // e.preventDefault(); // (옵션) 마우스 드래그 시 텍스트 선택 방지
-        isDraggingRef.current = true;
-        dragStartXRef.current = e.clientX; // 마우스 전용
-        scrollLeftRef.current = storeContainerRef.current.scrollLeft;
-        storeContainerRef.current.style.cursor = 'grabbing';
-    };
-
-    // [신규] '신상 스토어' 드래그 이동 핸들러 (마우스 전용으로 수정)
-    const handleStoreDragMove = (e) => {
-        if (!isDraggingRef.current) return;
-        // e.preventDefault(); // (옵션)
-        const currentX = e.clientX; // 마우스 전용
-        const dx = currentX - dragStartXRef.current;
-        storeContainerRef.current.scrollLeft = scrollLeftRef.current - dx;
-    };
-
-    // [신규] '신상 스토어' 드래그 종료 핸들러 (마우스 + 터치 공용)
-    const handleStoreDragEnd = () => {
-        isDraggingRef.current = false;
-        // [수정] isHoveringRef.current = false; 라인 제거
-        storeContainerRef.current.style.cursor = 'grab';
-    };
-
-    // [수정] handleStoreHoverStart, handleStoreHoverEnd 함수 전체 제거
-
 
     const SectionHeader = ({ title, onMoreClick }) => (
         <div className="flex justify-between items-center mb-4">
@@ -875,17 +746,6 @@ function HomePage({ user, setPage }) {
         </div>
     );
 
-    const storeItems = [
-        { title: "요넥스 신상 의류", brand: "Yonex", image: "https://placehold.co/160x128/00B16A/FFFFFF?text=Yonex" },
-        { title: "빅터 신상 라켓", brand: "Victor", image: "https://placehold.co/160x128/FFD700/000000?text=Victor" },
-        { title: "리닝 백", brand: "Li-Ning", image: "https://placehold.co/160x128/1E1E1E/FFFFFF?text=Li-Ning" },
-        { title: "아디다스 슈즈", brand: "Adidas", image: "https://placehold.co/160x128/F5F5F5/1E1E1E?text=Adidas" },
-        { title: "테크니스트 셔틀콕", brand: "Technist", image: "https://placehold.co/160x128/008a50/FFFFFF?text=Technist" },
-    ];
-
-    // [신규] 무한 스크롤을 위해 아이템 목록 2배로
-    const duplicatedStoreItems = [...storeItems, ...storeItems];
-
     const StoreCard = ({ image, title, brand }) => (
         <div className="w-40 flex-shrink-0 mr-4"> {/* 마퀴용 간격(mr-4) 추가 */}
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -894,7 +754,6 @@ function HomePage({ user, setPage }) {
                     alt={title} 
                     className="w-full h-32 object-cover bg-gray-200"
                     loading="lazy" // (아이디어 #4)
-                    draggable="false" // [신규] 드래그 시 이미지 고스트 방지
                 />
                 <div className="p-3">
                     <p className="font-bold text-base text-[#1E1E1E] mt-1 truncate">{title}</p>
@@ -949,12 +808,144 @@ function HomePage({ user, setPage }) {
         </button>
     );
 
+    // =================================================================
+    // [신규] '신상 스토어' 마퀴 + 드래그 로직 (수정 완료)
+    // =================================================================
+    const storeContainerRef = useRef(null);
+    const scrollContentRef = useRef(null);
+    const scrollAmountRef = useRef(0);
+    const animationFrameRef = useRef(null);
+    const isDraggingRef = useRef(false);
+    const dragStartXRef = useRef(0);
+    const scrollLeftRef = useRef(0);
+    const lastScrollPosRef = useRef(0); // [신규] 점프 시 위치 보정용
+    const contentWidthRef = useRef(0); // [신규] 콘텐츠 총 너비
+
+    // 목업 데이터
+    const storeItems = [
+        { title: "요넥스 신상 의류", brand: "Yonex", image: "https://placehold.co/160x128/34A853/FFFFFF?text=Yonex+1" },
+        { title: "빅터 신상 라켓", brand: "Victor", image: "https://placehold.co/160x128/4285F4/FFFFFF?text=Victor+2" },
+        { title: "미즈노 런버드", brand: "Mizuno", image: "https://placehold.co/160x128/EA4335/FFFFFF?text=Mizuno+3" },
+        { title: "리닝 에어로넛", brand: "Li-Ning", image: "https://placehold.co/160x128/FBBC05/000000?text=Li-Ning+4" },
+        { title: "아디다스 배드민턴", brand: "Adidas", image: "https://placehold.co/160x128/1E1E1E/FFFFFF?text=Adidas+5" },
+    ];
+    // 무한 루프를 위해 2배로 복제
+    const doubledStoreItems = [...storeItems, ...storeItems];
+
+    // 자동 스크롤 애니메이션
+    const animateScroll = () => {
+        if (!storeContainerRef.current || !scrollContentRef.current || isDraggingRef.current) {
+            animationFrameRef.current = requestAnimationFrame(animateScroll);
+            return;
+        }
+
+        // [수정] 점프 로직 (5번 -> 1번)
+        if (scrollAmountRef.current >= contentWidthRef.current) {
+            // 5번 -> 1번으로 점프
+            scrollAmountRef.current -= contentWidthRef.current;
+            lastScrollPosRef.current = scrollAmountRef.current; // 점프한 위치 기록
+        } else if (scrollAmountRef.current < 0) {
+            // (왼쪽 드래그) 1번 -> 5번으로 점프
+             scrollAmountRef.current += contentWidthRef.current;
+             lastScrollPosRef.current = scrollAmountRef.current; // 점프한 위치 기록
+        } else {
+             // 부드럽게 스크롤
+            scrollAmountRef.current += 0.5; // 스크롤 속도
+            
+            // lastScrollPos를 현재 위치로 부드럽게 보간 (드래그 후 부드러운 시작)
+            if (Math.abs(lastScrollPosRef.current - scrollAmountRef.current) > 1) {
+                 lastScrollPosRef.current += (scrollAmountRef.current - lastScrollPosRef.current) * 0.1;
+            } else {
+                 lastScrollPosRef.current = scrollAmountRef.current;
+            }
+        }
+        
+        storeContainerRef.current.scrollLeft = lastScrollPosRef.current;
+
+        animationFrameRef.current = requestAnimationFrame(animateScroll);
+    };
+
+    // [수정] 로딩 상태 변경 시 및 1회만 실행
+    useEffect(() => {
+        if (loading || !scrollContentRef.current) return;
+
+        // 1세트의 너비(5개 카드)를 계산
+        contentWidthRef.current = scrollContentRef.current.scrollWidth / 2;
+        
+        // 애니메이션 시작
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = requestAnimationFrame(animateScroll);
+        
+        return () => {
+            cancelAnimationFrame(animationFrameRef.current);
+        };
+    }, [loading]); // 로딩이 끝나면 너비를 다시 계산하고 애니메이션 시작
+
+    // [신규] '신상 스토어' 드래그 시작 핸들러
+    const handleStoreDragStart = (e) => {
+        // [수정] e.preventDefault() 추가 (텍스트 선택 등 기본 동작 방지)
+        e.preventDefault();
+        
+        isDraggingRef.current = true;
+        dragStartXRef.current = e.clientX || e.touches[0].clientX;
+        scrollLeftRef.current = storeContainerRef.current.scrollLeft;
+        storeContainerRef.current.style.cursor = 'grabbing';
+    };
+
+    // [신규] '신상 스토어' 드래그 이동 핸들러
+    const handleStoreDragMove = (e) => {
+        if (!isDraggingRef.current) return;
+        
+        // [수정] e.preventDefault() 추가 (페이지 스크롤, 새로고침 등 방지)
+        e.preventDefault(); 
+        
+        const currentX = e.clientX || e.touches[0].clientX;
+        const dx = currentX - dragStartXRef.current; // 시작점으로부터의 변화량
+        
+        // [수정] scrollAmountRef와 lastScrollPosRef를 직접 업데이트
+        scrollAmountRef.current = scrollLeftRef.current - dx;
+        lastScrollPosRef.current = scrollAmountRef.current;
+        storeContainerRef.current.scrollLeft = scrollAmountRef.current;
+    };
+
+    // [신규] '신상 스토어' 드래그 종료 핸들러
+    const handleStoreDragEnd = () => {
+        isDraggingRef.current = false;
+        if (storeContainerRef.current) {
+            storeContainerRef.current.style.cursor = 'grab';
+        }
+        // 자동 스크롤이 animateScroll 루프에서 자동으로 재개됨
+    };
+    
+    // [신규] 터치 이벤트 수동 등록 (Passive 오류 방지)
+     useEffect(() => {
+        const container = storeContainerRef.current;
+        if (!container) return;
+
+        const onTouchStart = (e) => handleStoreDragStart(e);
+        const onTouchMove = (e) => handleStoreDragMove(e);
+        const onTouchEnd = (e) => handleStoreDragEnd(e);
+
+        container.addEventListener('touchstart', onTouchStart, { passive: false });
+        container.addEventListener('touchmove', onTouchMove, { passive: false });
+        container.addEventListener('touchend', onTouchEnd, { passive: true });
+        container.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+        return () => {
+            container.removeEventListener('touchstart', onTouchStart);
+            container.removeEventListener('touchmove', onTouchMove);
+            container.removeEventListener('touchend', onTouchEnd);
+            container.removeEventListener('touchcancel', onTouchEnd);
+        };
+    }, [storeContainerRef.current]); // [수정] ref.current를 의존성으로
+
+
     return (
-        <main className="p-4 space-y-8 bg-gray-50"> {/* 넉넉한 여백 */}
+        <main className="flex-grow p-4 space-y-6">
             
             {/* (1) 섹션: 메인 배너 */}
             <MainBanner />
-
+            
             {/* (2) 섹션: 신상 스토어 (요청 #4 - 마퀴 -> 스와이프로 수정) */}
             <section>
                 <SectionHeader title="신상 스토어" onMoreClick={() => setPage('store')} />
@@ -964,34 +955,34 @@ function HomePage({ user, setPage }) {
                     // [수정] overflow-x-auto, hide-scrollbar, cursor-grab 추가
                     className="w-full overflow-x-auto hide-scrollbar cursor-grab" // active:cursor-grabbing은 JS로 제어
                     
+                    {/* [신규] CSS로 브라우저 기본 스크롤 동작 제어 (새로고침 방지) */}
+                    style={{ overscrollBehaviorX: 'contain', touchAction: 'pan-x' }}
+
                     // [수정] 마우스 이벤트만 남김 (터치 이벤트는 useEffect에서 수동 등록)
                     onMouseDown={handleStoreDragStart}
                     onMouseMove={handleStoreDragMove}
                     onMouseUp={handleStoreDragEnd}
                     onMouseLeave={handleStoreDragEnd} // 마우스가 컨테이너 밖으로 나가면 드래그 종료
-                    // onTouchStart={handleStoreDragStart}  <- 제거
-                    // onTouchMove={handleStoreDragMove}  <- 제거
-                    // onTouchEnd={handleStoreDragEnd}      <- 제거 (useEffect로 이동)
                 >
                     {/* [수정] animate-marquee 클래스 제거, flex로 변경 */}
-                    <div className="flex"> 
+                    <div ref={scrollContentRef} className="flex"> 
                         {/* [아이디어 #1] 스켈레톤 로딩 */}
                         {loading ? (
                             // [수정] 스켈레톤 카드 4개만 표시
                             [...Array(4)].map((_, i) => <SkeletonStoreCard key={i} />)
                         ) : (
-                            /* [수정] 무한 루프를 위해 2배로 늘린 아이템 사용 */
-                            duplicatedStoreItems.map((item, index) => (
+                            /* [수정] 마퀴용 2번 반복 */
+                            doubledStoreItems.map((item, index) => (
                                 <StoreCard 
-                                    key={index} // key는 index로 설정 (목록이 정적이므로)
+                                    key={index}
                                     title={item.title} 
                                     brand={item.brand} 
                                     image={item.image} 
                                 />
                             ))
                         )}
-                        {/* [신규] 마지막 아이템 뒤에 여백을 주기 위한 요소 (필요 시) */}
-                        {/* <div className="flex-shrink-0 w-1 h-1"></div> */}
+                        {/* [신규] 마지막 아이템 뒤에 여백을 주기 위한 요소 */}
+                        <div className="flex-shrink-0 w-1 h-1"></div>
                     </div>
                 </div>
             </section>
@@ -1060,8 +1051,8 @@ function GamePage({ user, userData, onLoginClick }) {
     // [신규] '로비' / '경기방' 뷰 전환
     const [currentView, setCurrentView] = useState('lobby'); // 'lobby', 'room'
     const [selectedRoomId, setSelectedRoomId] = useState(null);
-    
-    // [신규] 모임방 목록(로비) 관련 상태
+
+    // [신규] 로비 상태
     const [rooms, setRooms] = useState([]);
     const [loadingRooms, setLoadingRooms] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -1070,44 +1061,48 @@ function GamePage({ user, userData, onLoginClick }) {
     const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
 
     // [신규] Firestore 'rooms' 컬렉션 경로
+    // [수정] 'artifacts', 'appId' 등 복잡한 경로를 제거하고,
+    // 실제 사용 중이신 최상위 'rooms' 컬렉션으로 변경합니다.
     const roomsCollectionRef = collection(db, "rooms");
 
     // [신규] 모임방 목록 실시간 구독 (로비 뷰가 활성화될 때)
     useEffect(() => {
-        // 사용자가 로그인했고, 로비 뷰에 있을 때만 구독
-        if (user && currentView === 'lobby') {
-            setLoadingRooms(true);
-            
-            // 생성된 시간(createdAt)의 내림차순(desc)으로 정렬
-            const q = query(roomsCollectionRef, orderBy("createdAt", "desc"));
-            
-            const unsubscribe = onSnapshot(q, (querySnapshot) => {
-                const roomsData = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                setRooms(roomsData);
-                setLoadingRooms(false);
-            }, (error) => {
-                console.error("Error fetching rooms: ", error);
-                setLoadingRooms(false);
-            });
-
-            // 클린업 함수: 컴포넌트 언마운트 시 또는 뷰가 바뀔 때 구독 해제
-            return () => unsubscribe();
+        if (!user || currentView !== 'lobby') {
+            setLoadingRooms(false); // 로그아웃 상태거나 로비가 아니면 로딩 중지
+            return;
         }
+
+        setLoadingRooms(true);
+        const q = query(roomsCollectionRef, orderBy("createdAt", "desc"));
+
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+            const roomsData = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            setRooms(roomsData);
+            setLoadingRooms(false);
+        }, (error) => {
+            console.error("Error fetching rooms: ", error);
+            setLoadingRooms(false);
+        });
+
+        // 클린업 함수
+        return () => unsubscribe();
     }, [user, currentView, roomsCollectionRef]); // [수정] 의존성 배열에 roomsCollectionRef 추가
 
     // [신규] 검색어 필터링
-    const filteredRooms = rooms.filter(room => 
-        room.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        room.location.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredRooms = useMemo(() => {
+        return rooms.filter(room => 
+            room.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            room.location.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [rooms, searchTerm]);
 
-    // [신규] 모임 생성 처리
-    const handleCreateRoomSubmit = async (newRoomData) => {
+    // [신규] 모임 생성 (Modal에서 호출)
+    const handleCreateRoom = async (newRoomData) => {
         if (!user) {
-            alert("로그인이 필요합니다.");
+            onLoginClick(); // 혹시 모를 비로그인 상태 방지
             return;
         }
         
@@ -1119,31 +1114,19 @@ function GamePage({ user, userData, onLoginClick }) {
     };
 
     // [신규] 모임방 입장
-    const handleEnterRoom = (roomId, roomPassword = "") => {
-        const room = rooms.find(r => r.id === roomId);
-        if (!room) return;
-
-        // 비밀번호 확인
-        if (room.password && room.password !== "") {
-            const enteredPassword = prompt("비밀번호를 입력하세요:");
-            if (enteredPassword !== room.password) {
-                alert("비밀번호가 틀렸습니다.");
-                return;
-            }
-        }
-        
-        // (참고: 실제 '입장' 로직(플레이어 추가)은 GameRoomView 내부에서 처리)
+    const handleEnterRoom = (roomId) => {
         setSelectedRoomId(roomId);
         setCurrentView('room');
     };
 
-    // [신규] 로비로 나가기
+    // [신규] 모임방 나가기 (GameRoomView에서 호출)
     const handleExitRoom = () => {
         setSelectedRoomId(null);
         setCurrentView('lobby');
     };
-    
-    // --- 1. 로그인 확인 ---
+
+
+    // 1. 로그인 필요 뷰
     if (!user || !userData) {
         return (
             <LoginRequiredPage
@@ -1154,8 +1137,6 @@ function GamePage({ user, userData, onLoginClick }) {
             />
         );
     }
-    
-    // --- 2. 뷰 라우팅 ---
     
     // 2-1. 경기방 뷰
     if (currentView === 'room') {
@@ -1173,64 +1154,61 @@ function GamePage({ user, userData, onLoginClick }) {
     // 2-2. 로비 뷰 (기본)
     return (
         <div className="relative h-full flex flex-col">
-            {/* 모임 생성 모달 */}
-            <CreateRoomModal
-                isOpen={showCreateRoomModal}
-                onClose={() => setShowCreateRoomModal(false)}
-                onSubmit={handleCreateRoomSubmit}
-                user={user}
-                userData={userData}
-            />
-            
-            {/* 로비 콘텐츠 */}
-            <div className="p-4 flex-shrink-0">
-                {/* 검색창 */}
+            {/* 로비 헤더 (검색창) */}
+            <div className="p-4 bg-white border-b border-gray-200">
                 <div className="relative">
-                    <input 
+                    <input
                         type="text"
-                        placeholder="모임 이름 또는 장소로 검색"
+                        placeholder="모임방 이름 또는 장소 검색"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full p-3 pl-10 bg-white rounded-lg shadow-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#00B16A]"
+                        className="w-full p-3 pl-10 bg-gray-100 rounded-lg text-base border border-gray-200 focus:border-[#00B16A] focus:ring-1 focus:ring-[#00B16A] focus:outline-none"
                     />
                     <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 </div>
             </div>
 
-            {/* 모임 목록 */}
-            <div className="flex-grow overflow-y-auto p-4 pt-0 space-y-4 hide-scrollbar">
+            {/* 로비 본문 (방 목록) */}
+            <main className="flex-grow overflow-y-auto bg-gray-50 p-4 space-y-4 hide-scrollbar">
                 {loadingRooms ? (
                     <>
                         <SkeletonRoomCard />
                         <SkeletonRoomCard />
                         <SkeletonRoomCard />
                     </>
-                ) : filteredRooms.length === 0 ? (
-                    <EmptyState
-                        icon={AlertCircle}
-                        title="열린 모임이 없습니다"
-                        description={searchTerm ? "검색 결과가 없습니다." : "새로운 모임을 만들어보세요!"}
-                        buttonText="모임 만들기"
-                        onButtonClick={() => setShowCreateRoomModal(true)}
-                    />
-                ) : (
+                ) : filteredRooms.length > 0 ? (
                     filteredRooms.map(room => (
                         <RoomCard 
                             key={room.id} 
                             room={room} 
-                            onEnter={() => handleEnterRoom(room.id, room.password)} 
+                            onEnter={() => handleEnterRoom(room.id)}
                         />
                     ))
+                ) : (
+                    <EmptyState
+                        icon={Archive}
+                        title="개설된 모임방이 없습니다"
+                        description={searchTerm ? "검색 결과가 없습니다." : "새로운 모임방을 만들어보세요!"}
+                    />
                 )}
-            </div>
-            
-            {/* 모임 만들기 FAB (플로팅 버튼) */}
+            </main>
+
+            {/* 모임 생성 (CTA) 버튼 */}
             <button
                 onClick={() => setShowCreateRoomModal(true)}
                 className="absolute bottom-6 right-6 bg-[#00B16A] text-white w-14 h-14 rounded-full shadow-lg shadow-green-500/30 flex items-center justify-center transition-transform transform hover:scale-110"
             >
-                <Edit3 size={24} />
+                <Plus size={28} />
             </button>
+
+            {/* 모임 생성 모달 */}
+            <CreateRoomModal
+                isOpen={showCreateRoomModal}
+                onClose={() => setShowCreateRoomModal(false)}
+                onSubmit={handleCreateRoom}
+                user={user}
+                userData={userData}
+            />
         </div>
     );
 }
@@ -1241,44 +1219,42 @@ function RoomCard({ room, onEnter }) {
     
     // Firestore Timestamp를 Date 객체로 변환
     const formatDate = (timestamp) => {
-        if (!timestamp) return '시간 정보 없음';
-        const date = timestamp.toDate();
-        // 예: 11. 07 (금) 13:05
-        return `${date.getMonth() + 1}. ${date.getDate()} (${'일월화수목금토'[date.getDay()]}) ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        // [수정] timestamp가 존재하고, .toDate 메서드를 가지고 있는지 *먼저* 확인합니다.
+        if (timestamp && typeof timestamp.toDate === 'function') {
+            const date = timestamp.toDate();
+            // 예: 11. 07 (금) 13:05
+            return `${date.getMonth() + 1}. ${date.getDate()} (${'일월화수목금토'[date.getDay()]}) ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        }
+        
+        // .toDate가 없거나 timestamp가 null이면 (예: 서버가 아직 쓰기 전)
+        return '방금 전'; // 오류 대신 '방금 전'으로 표시
     };
 
     return (
         <div 
-            className="bg-white rounded-xl shadow-lg p-4 w-full text-left transition-shadow hover:shadow-md cursor-pointer"
+            className="bg-white rounded-xl shadow-lg p-4 cursor-pointer transition-shadow hover:shadow-md"
             onClick={onEnter}
         >
             <div className="flex justify-between items-start mb-2">
-                {/* 방 제목 및 관리자 */}
-                <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-bold text-[#1E1E1E] truncate">{room.name}</h3>
-                    <p className="text-sm text-gray-500 truncate">
-                        방장: {room.adminName || '정보 없음'}
-                    </p>
-                </div>
-                {/* 비밀방 아이콘 */}
-                {room.password && <Lock size={16} className="text-gray-400 ml-2 flex-shrink-0" />}
+                <h3 className="text-lg font-bold text-[#1E1E1E] mr-2">{room.name}</h3>
+                {room.password && (
+                    <Lock size={16} className="text-gray-400 flex-shrink-0" />
+                )}
             </div>
             
-            {/* 장소 */}
-            <div className="flex items-center text-sm text-gray-600 mb-3">
-                <MapPin size={16} className="mr-2 flex-shrink-0 text-gray-400" />
-                <span className="truncate">{room.location || '장소 미정'}</span>
-            </div>
+            <p className="text-sm text-gray-600 mb-3 truncate">
+                <MapPin size={14} className="inline mr-1" />
+                {room.location}
+            </p>
 
-            {/* 태그: 인원, 급수, 생성 시간 */}
             <div className="flex flex-wrap gap-2 items-center text-sm">
                 <span className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-gray-700 font-medium">
-                    <Users2 size={14} /> 
-                    {room.playerCount || 0} / {room.memberLimit || 'N'}명
+                    <Users size={14} />
+                    {room.playerCount || 0} / {room.maxPlayers}
                 </span>
                 <span className={`flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full font-medium ${levelColor}`}>
                     <BarChart2 size={14} />
-                    {room.levelLimit || 'N조'}
+                    {room.levelLimit === 'N조' ? '전체 급수' : `${room.levelLimit} 이상`}
                 </span>
                 <span className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-gray-500 font-medium">
                     <Clock size={14} />
@@ -1551,12 +1527,15 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
             // 3. 스왑(Swap) 로직
             if (playerInTargetSlot && sourceFound) {
                 // 소스 위치를 다시 찾아야 함 (null이 되었으므로)
+                let swapped = false; // [수정] 스왑이 한 번만 일어나도록 플래그 추가
                 Object.keys(currentScheduledMatches).forEach(mIdx => {
+                    if (swapped) return; // 이미 스왑했으면 종료
                     const sIdx = currentScheduledMatches[mIdx].indexOf(null); // 방금 null로 만든 소스 위치
                     if (sIdx > -1) {
                          // playerInTargetSlot을 원래 소스 위치로 이동
                         currentScheduledMatches[mIdx][sIdx] = playerInTargetSlot;
                         sourceFound = false; // 스왑 완료
+                        swapped = true; // [수정] 플래그 설정
                     }
                 });
             }
@@ -1577,12 +1556,17 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
             if (targetLoc) {
                 // 타겟 위치에 소스 플레이어 배치
                 currentScheduledMatches[targetLoc.matchIndex][targetLoc.slotIndex] = sourcePlayerId;
+                
+                // [수정] 스왑 로직 플래그 추가
+                let swapped = false;
                 // 소스 위치를 다시 찾아 타겟 플레이어 배치
                 Object.keys(currentScheduledMatches).forEach(mIdx => {
+                    if (swapped) return;
                     const sIdx = currentScheduledMatches[mIdx].indexOf(null); // 방금 null로 만든 소스 위치
                     if (sIdx > -1) {
                         currentScheduledMatches[mIdx][sIdx] = targetPlayerId;
                         sourceFound = false;
+                        swapped = true;
                     }
                 });
             }
@@ -1607,16 +1591,22 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     // --- 렌더링 ---
     
     if (loading) {
-        return <LoadingSpinner text="모임방 입장 중..." />;
+        return (
+            <div className="flex-grow flex items-center justify-center bg-white">
+                <LoadingSpinner text="모임방 입장 중..." />
+            </div>
+        );
     }
-    
+
     if (error) {
         return (
-            <div className="p-4">
-                <EmptyState icon={AlertCircle} title="오류 발생" description={error} />
-                <button 
+            <div className="flex-grow flex flex-col items-center justify-center bg-white p-4">
+                <AlertCircle size={48} className="text-red-500 mb-4" />
+                <h3 className="text-lg font-bold text-red-600 mb-2">오류 발생</h3>
+                <p className="text-gray-600 text-center mb-6">{error}</p>
+                <button
                     onClick={onExitRoom}
-                    className="mt-4 w-full py-2 bg-gray-200 text-gray-700 font-bold rounded-lg"
+                    className="px-6 py-2 bg-gray-600 text-white text-sm font-bold rounded-lg shadow-md hover:bg-gray-700 transition-colors"
                 >
                     로비로 돌아가기
                 </button>
@@ -1634,7 +1624,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                 <div className="flex items-center gap-2 min-w-0">
                     <button 
                         onClick={onExitRoom} 
-                        className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-[#1E1E1E] transition-colors"
+                        className="mr-1 p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-[#1E1E1E] transition-colors"
                     >
                         <ArrowLeft size={24} />
                     </button>
@@ -1642,8 +1632,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                         {roomData?.name || '로딩 중...'}
                     </h1>
                 </div>
-                <div className="flex items-center gap-3">
-                    {/* (TODO) 휴식 버튼 등 */}
+                <div className="flex items-center gap-3 flex-shrink-0">
                     <span className="text-sm font-semibold text-gray-600 flex items-center gap-1">
                         <Users size={16} /> {Object.keys(players).length}
                     </span>
@@ -1657,16 +1646,20 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
             </header>
 
             {/* 2. 탭 네비게이션 (과거 앱 구조 참고) */}
-            <nav className="flex-shrink-0 flex border-b border-gray-200 bg-white sticky top-32 z-10">
-                <button 
+            <nav className="flex-shrink-0 flex bg-white border-b border-gray-200 sticky top-[137px] z-10">
+                <button
                     onClick={() => setActiveTab('matching')}
-                    className={`flex-1 py-3 text-center font-bold ${activeTab === 'matching' ? 'text-[#00B16A] border-b-2 border-[#00B16A]' : 'text-gray-500'}`}
+                    className={`flex-1 py-3 text-center text-sm font-bold border-b-2 ${
+                        activeTab === 'matching' ? 'border-[#00B16A] text-[#00B16A]' : 'border-transparent text-gray-500'
+                    }`}
                 >
                     매칭
                 </button>
-                <button 
+                <button
                     onClick={() => setActiveTab('inProgress')}
-                    className={`flex-1 py-3 text-center font-bold ${activeTab === 'inProgress' ? 'text-[#00B16A] border-b-2 border-[#00B16A]' : 'text-gray-500'}`}
+                    className={`flex-1 py-3 text-center text-sm font-bold border-b-2 ${
+                        activeTab === 'inProgress' ? 'border-[#00B16A] text-[#00B16A]' : 'border-transparent text-gray-500'
+                    }`}
                 >
                     경기 진행
                 </button>
@@ -1797,9 +1790,12 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                     /* "경기 진행" 탭 */
                     <div className="space-y-6">
                         <section className="bg-white rounded-xl shadow-sm p-4">
-                            <h2 className="text-lg font-bold text-[#1E1E1E] mb-3">경기 진행</h2>
-                            {/* (TODO) In-Progress Court List (구버전 참고) 구현 */}
-                            <EmptyState icon={Trophy} title="진행 중인 경기가 없습니다" description="경기가 시작되면 이곳에 표시됩니다." />
+                            <h2 className="text-lg font-bold text-[#1E1E1E] mb-3">경기 진행 중 (TODO)</h2>
+                            <EmptyState
+                                icon={Trophy}
+                                title="진행 중인 경기가 없습니다"
+                                description="'매칭' 탭에서 경기를 배정한 후 '경기 시작'을 눌러주세요."
+                            />
                         </section>
                     </div>
                 )}
@@ -2055,7 +2051,6 @@ export default function App() {
             case 'home':
                 return <HomePage user={userData} setPage={setPage} />;
             case 'game':
-                // [수정] GamePage에 user와 userData 프롭스 전달
                 return <GamePage user={user} userData={userData} onLoginClick={handleLoginClick} />;
             case 'store':
                 return <StorePage />;
