@@ -1070,7 +1070,7 @@ function GamePage({ user, userData, onLoginClick }) {
     const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
 
     // [신규] Firestore 'rooms' 컬렉션 경로
-    const roomsCollectionRef = collection(db, "artifacts", appId, "public", "data", "rooms");
+    const roomsCollectionRef = collection(db, "rooms");
 
     // [신규] 모임방 목록 실시간 구독 (로비 뷰가 활성화될 때)
     useEffect(() => {
