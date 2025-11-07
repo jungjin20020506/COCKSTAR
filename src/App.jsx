@@ -689,6 +689,8 @@ function HomePage({ user, setPage }) {
             {/* (1) 섹션: 메인 배너 */}
             <MainBanner />
 
+            // ... (HomePage 컴포넌트 내부) ...
+
             {/* (2) 섹션: 신상 스토어 (요청 #4 - 마퀴 -> 스와이프로 수정) */}
             <section>
                 <SectionHeader title="신상 스토어" onMoreClick={() => setPage('store')} />
@@ -698,16 +700,17 @@ function HomePage({ user, setPage }) {
                     // [수정] overflow-x-auto, hide-scrollbar, cursor-grab 추가
                     className="w-full overflow-x-auto hide-scrollbar cursor-grab" // active:cursor-grabbing은 JS로 제어
                     
+                    {/* [신규] CSS로 브라우저 기본 스크롤 동작 제어 (새로고침 방지) */}
+                    style={{ overscrollBehaviorX: 'contain', touchAction: 'pan-x' }}
+
                     // [수정] 마우스 이벤트만 남김 (터치 이벤트는 useEffect에서 수동 등록)
                     onMouseDown={handleStoreDragStart}
                     onMouseMove={handleStoreDragMove}
                     onMouseUp={handleStoreDragEnd}
                     onMouseLeave={handleStoreDragEnd} // 마우스가 컨테이너 밖으로 나가면 드래그 종료
-                    // onTouchStart={handleStoreDragStart}  <- 제거
-                    // onTouchMove={handleStoreDragMove}  <- 제거
-                    // onTouchEnd={handleStoreDragEnd}      <- 제거 (useEffect로 이동)
                 >
                     {/* [수정] animate-marquee 클래스 제거, flex로 변경 */}
+
                     <div className="flex"> 
                         {/* [아이디어 #1] 스켈레톤 로딩 */}
                         {loading ? (
