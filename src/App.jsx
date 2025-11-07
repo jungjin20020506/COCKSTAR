@@ -480,34 +480,58 @@ function HomePage({ user, setPage }) {
 
     // [신규] '신상 스토어' 자동 스크롤 로직
     useEffect(() => {
-        const animateScroll = () => {
-            // [수정] isHoveringRef.current 조건 제거
-            if (storeContainerRef.current && !isDraggingRef.current) {
-                // 스크롤 속도 (0.5px 씩)
-                storeContainerRef.current.scrollLeft += 0.5; 
-                
-                if (storeContentWidthRef.current === 0) {
-                    // (최초 1회) 컨텐츠 절반 너비 계산 (무한 루프 기준점)
-                    storeContentWidthRef.current = storeContainerRef.current.scrollWidth / 2;
-                }
+        // [수정] 로딩이 끝나야(loading === false) 애니메이션을 시작합니다.
+        if (loading) {
+            // 로딩 중(스켈레톤 표시 중)에는 애니메이션을 실행하지 않습니다.
+            return;
+        }
 
-                // 스크롤이 절반을 넘어가면 (두 번째 세트 시작점)
-                if (storeContainerRef.current.scrollLeft >= storeContentWidthRef.current) {
-                    // 스크롤 위치를 0으로 리셋 (첫 번째 세트 시작점)
-                    storeContainerRef.current.scrollLeft = 0; 
-                }
-            }
-            animationFrameRef.current = requestAnimationFrame(animateScroll);
-        };
-
-        // 1.5초(로딩 시뮬레이션) 후에 스크롤 시작
+        // [수정] 로딩이 끝난 후, 실제 카드 DOM이 렌더링될 시간을 100ms 줍니다.
         const startTimer = setTimeout(() => {
-             // 컴포넌트 마운트 시 최초 너비 계산
-            if(storeContainerRef.current) {
-                storeContentWidthRef.current = storeContainerRef.current.scrollWidth / 2;
+            if (!storeContainerRef.current) return;
+
+            // [수정] 너비 계산을 이 시점으로 이동 (로딩 끝난 후 실제 너비)
+            storeContentWidthRef.current = storeContainerRef.current.scrollWidth / 2;
+
+            // [수정] 만약 너비가 0이면 (DOM이 아직 반영 안 됨) 100ms 후 재시도
+            if (storeContentWidthRef.current === 0) {
+                setTimeout(() => {
+                    if (storeContainerRef.current) {
+                         storeContentWidthRef.current = storeContainerRef.current.scrollWidth / 2;
+                    }
+                }, 100);
             }
+
+            const animateScroll = () => {
+                if (storeContainerRef.current && !isDraggingRef.current) {
+                    // 스크롤 속도 (0.5px 씩)
+                    storeContainerRef.current.scrollLeft += 0.5; 
+                    
+                    // [수정] 너비가 0일 때(초기 계산 전)는 루프를 실행하지 않음
+                    if (storeContentWidthRef.current === 0) {
+                        // 스켈레톤 -> 실제 카드로 바뀐 후 너비 재계산
+                        storeContentWidthRef.current = storeContainerRef.current.scrollWidth / 2;
+                    }
+    
+                    // [수정] "순간이동" 버그를 잡는 핵심 로직입니다.
+                    // 스크롤이 1번 세트의 끝(storeContentWidthRef.current)을 넘어가면
+                    if (storeContentWidthRef.current > 0 && 
+                        storeContainerRef.current.scrollLeft >= storeContentWidthRef.current) {
+                        
+                        // 1번 세트 끝에 도달하면, 
+                        // (현재 스크롤 위치 - 1번 세트 너비) = 2번 세트에서 스크롤된 거리
+                        // 그 거리를 1번 세트의 시작점(0)에 더해줍니다.
+                        const newScrollLeft = storeContainerRef.current.scrollLeft - storeContentWidthRef.current;
+                        storeContainerRef.current.scrollLeft = newScrollLeft;
+                    }
+                }
+                animationFrameRef.current = requestAnimationFrame(animateScroll);
+            };
+
+            // 애니메이션 시작
             animationFrameRef.current = requestAnimationFrame(animateScroll);
-        }, 1500);
+
+        }, 100); // 100ms 딜레이 (DOM 반영 시간)
 
         return () => {
             // 컴포넌트 언마운트 시 애니메이션 프레임 정리
@@ -516,8 +540,8 @@ function HomePage({ user, setPage }) {
             }
             clearTimeout(startTimer);
         };
-    }, []); // 빈 배열: 마운트 시 1회 실행
-
+    }, [loading]); // [수정] 'loading' 상태가 변경될 때마다 이 Effect를 재실행
+    
     // [신규] '신상 스토어' 수동 터치 리스너 (Passive Error 해결)
     useEffect(() => {
         const container = storeContainerRef.current;
@@ -689,8 +713,6 @@ function HomePage({ user, setPage }) {
             {/* (1) 섹션: 메인 배너 */}
             <MainBanner />
 
-            // ... (HomePage 컴포넌트 내부) ...
-
             {/* (2) 섹션: 신상 스토어 (요청 #4 - 마퀴 -> 스와이프로 수정) */}
             <section>
                 <SectionHeader title="신상 스토어" onMoreClick={() => setPage('store')} />
@@ -700,17 +722,16 @@ function HomePage({ user, setPage }) {
                     // [수정] overflow-x-auto, hide-scrollbar, cursor-grab 추가
                     className="w-full overflow-x-auto hide-scrollbar cursor-grab" // active:cursor-grabbing은 JS로 제어
                     
-                    {/* [신규] CSS로 브라우저 기본 스크롤 동작 제어 (새로고침 방지) */}
-                    style={{ overscrollBehaviorX: 'contain', touchAction: 'pan-x' }}
-
                     // [수정] 마우스 이벤트만 남김 (터치 이벤트는 useEffect에서 수동 등록)
                     onMouseDown={handleStoreDragStart}
                     onMouseMove={handleStoreDragMove}
                     onMouseUp={handleStoreDragEnd}
                     onMouseLeave={handleStoreDragEnd} // 마우스가 컨테이너 밖으로 나가면 드래그 종료
+                    // onTouchStart={handleStoreDragStart}  <- 제거
+                    // onTouchMove={handleStoreDragMove}  <- 제거
+                    // onTouchEnd={handleStoreDragEnd}      <- 제거 (useEffect로 이동)
                 >
                     {/* [수정] animate-marquee 클래스 제거, flex로 변경 */}
-
                     <div className="flex"> 
                         {/* [아이디어 #1] 스켈레톤 로딩 */}
                         {loading ? (
