@@ -1065,8 +1065,8 @@ function GamePage({ user, userData, onLoginClick }) {
     // 실제 사용 중이신 최상위 'rooms' 컬렉션으로 변경합니다.
     const roomsCollectionRef = collection(db, "rooms");
 
-    // [신규] 모임방 목록 실시간 구독 (로비 뷰가 활성화될 때)
-  useEffect(() => {
+   // [신규] 모임방 목록 실시간 구독 (로비 뷰가 활성화될 때)
+    useEffect(() => {
         if (!user || currentView !== 'lobby') {
             setLoadingRooms(false); // 로그아웃 상태거나 로비가 아니면 로딩 중지
             return;
@@ -1108,7 +1108,6 @@ function GamePage({ user, userData, onLoginClick }) {
         // 클린업 함수
         return () => unsubscribe();
     }, [user, currentView, roomsCollectionRef]); // [수정] 의존성 배열에 roomsCollectionRef 추가
-
     // [신규] 검색어 필터링
     const filteredRooms = useMemo(() => {
         return rooms.filter(room => 
