@@ -169,7 +169,7 @@ function AuthModal({ onClose, setPage }) {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-            {/* [UI 개선] rounded-xl 적용 */}
+            {/* [UI 개선 #15] 둥근 모서리 rounded-xl 적용 */}
             <div className="bg-gray-800 rounded-xl p-8 w-full max-w-md relative text-white shadow-2xl">
                 <button
                     onClick={onClose}
@@ -257,7 +257,7 @@ function AuthModal({ onClose, setPage }) {
 }
 
 // ===================================================================================
-// 페이지 컴포넌트들 (UI 개선안 적용)
+// 페이지 컴포넌트들 (UI 개선안 전체 적용)
 // ===================================================================================
 
 /**
@@ -265,12 +265,12 @@ function AuthModal({ onClose, setPage }) {
  */
 function HomePage({ user, setPage }) {
     
-    // [UI 개선] 섹션 타이틀 (11, 12, 14)
+    // [UI 개선 #11, #12, #14] 섹션 타이틀
     const SectionHeader = ({ title, onMoreClick }) => (
         <div className="flex justify-between items-center mb-4">
-            {/* 11. H2 강조 (text-xl), 12. 자간 (tracking-tight) */}
+            {/* #11. H2 강조 (text-xl), #12. 자간 (tracking-tight) */}
             <h2 className="text-xl font-bold text-[#1E1E1E] tracking-tight">{title}</h2>
-            {/* 14. '더보기' 버튼 (font-semibold, text-gray-700) */}
+            {/* #14. '더보기' 버튼 (font-semibold, text-gray-700) */}
             <button 
                 onClick={onMoreClick} 
                 className="text-sm font-semibold text-gray-700 hover:text-[#00B16A] flex items-center"
@@ -280,39 +280,40 @@ function HomePage({ user, setPage }) {
         </div>
     );
 
-    // [UI 개선] 스토어 카드 (2, 4, 15, 20)
+    // [UI 개선 #2, #4, #15, #20] 스토어 카드
     const StoreCard = ({ image, title, brand }) => (
         <div className="w-40 flex-shrink-0">
-            {/* 2. bg-white, 4. shadow-lg, 15. rounded-xl */}
+            {/* #2. bg-white, #4. shadow-lg, #15. rounded-xl */}
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-                {/* 20. 이미지 플레이스홀더 교체 (img 태그 사용) */}
+                {/* #20. 이미지 플레이스홀더 교체 (img 태그 사용) */}
                 <img 
                     src={image || "https://placehold.co/160x128/F5F5F5/BDBDBD?text=Store"} 
                     alt={title} 
-                    className="w-full h-32 object-cover"
+                    className="w-full h-32 object-cover" 
                 />
                 <div className="p-3">
-                    <p className="font-bold text-[#1E1E1E] truncate text-[16px]">{title}</p>
-                    {/* 6. 회색 통일 (text-gray-600) */}
+                    <p className="font-bold text-[#1E1E1E] mt-1 truncate text-[16px]">{title}</p>
+                    {/* #6. 회색 통일 (text-gray-600) */}
                     <p className="text-[14px] text-gray-600 font-medium">{brand}</p>
                 </div>
             </div>
         </div>
     );
 
-    // [UI 개선] 경기 카드 (2, 3, 4, 10, 15, 16, 17, 18, 22)
+    // [UI 개선 #2, #3, #4, #10, #15, #16, #17, #18, #22] 경기 카드
     const GameCard = ({ title, tags, location, current, total }) => (
         <button 
             onClick={() => setPage('game')}
-            // 2. bg-white, 3. border 제거, 4. shadow-lg, 10. p-4, 15. rounded-xl
+            // #2. bg-white, #3. border 제거, #4. shadow-lg, #10. p-4, #15. rounded-xl
             className="w-full p-4 bg-white rounded-xl shadow-lg text-left transition-transform transform hover:scale-[1.02]"
         >
+            {/* #13. 줄 간격 (기본값으로도 충분) */}
             <p className="font-bold text-[16px] text-[#1E1E1E] mb-2">{title}</p>
             <div className="flex flex-wrap gap-2 mb-3">
                 {tags.map((tag, index) => (
                     <span 
                         key={index} 
-                        // 16. 태그 축소, 17. 태그 컬러 단순화
+                        // #16. 태그 축소 (py-0.5), #17. 태그 컬러 단순화 (bg-gray-100)
                         className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-700"
                     >
                         #{tag.label}
@@ -320,21 +321,21 @@ function HomePage({ user, setPage }) {
                 ))}
             </div>
             <div className="flex justify-between items-center">
-                {/* 6. 회색 통일, 18. 아이콘 크기 (size 16) */}
+                {/* #6. 회색 통일, #18. 아이콘 크기 (size 16) */}
                 <span className="text-[14px] text-gray-600 flex items-center">
                     <MapPin size={16} className="mr-1" /> {location}
                 </span>
-                {/* 22. 인원 수 표시 (괄호 제거, 폰트 수정) */}
+                {/* #22. 인원 수 표시 (괄호 제거, 폰트 수정) */}
                 <span className="text-sm font-semibold text-gray-700">{current} / {total}명</span>
             </div>
         </button>
     );
 
-    // [UI 개선] 커뮤니티 아이템 (2, 4, 10, 15, 18, 21)
+    // [UI 개선 #2, #4, #10, #15, #18, #21] 커뮤니티 아이템
     const CommunityPost = ({ category, title, likes }) => (
         <button 
             onClick={() => setPage('community')}
-            // 2. bg-white, 4. shadow-lg, 10. p-4, 15. rounded-xl
+            // #2. bg-white, #4. shadow-lg, #10. p-4, #15. rounded-xl
             className="p-4 bg-white rounded-xl shadow-lg flex justify-between items-center w-full transition-shadow hover:shadow-md"
         >
             <p className="truncate text-[#1E1E1E] text-[16px] flex-1 mr-4">
@@ -343,7 +344,7 @@ function HomePage({ user, setPage }) {
                 </span>
                 {title}
             </p>
-            {/* 18. 아이콘 크기, 21. 하트 아이콘 (fill-none, text-gray-500) */}
+            {/* #18. 아이콘 크기(16), #21. 하트 아이콘 (fill-none, text-gray-500) */}
             <span className="text-[14px] text-gray-500 whitespace-nowrap flex items-center font-medium">
                 <Heart size={16} className="mr-1 text-gray-500" fill="none" /> {likes}
             </span>
@@ -351,10 +352,10 @@ function HomePage({ user, setPage }) {
     );
 
     return (
-        // [UI 개선] 7. 좌우 여백 (p-4)
+        // [UI 개선 #7] 좌우 여백 (p-4), #9. 섹션 간 여백 (space-y-8)
         <main className="flex-1 overflow-y-auto p-4 space-y-8 hide-scrollbar">
             
-            {/* [UI 개선] 5. 메인 배너 (그라데이션), 15. rounded-xl */}
+            {/* [UI 개선 #5] 메인 배너 (그라데이션), #15. rounded-xl */}
             <section className="bg-gradient-to-r from-[#00B16A] to-[#008a50] h-40 rounded-xl flex items-center justify-center text-white p-6 shadow-lg">
                 <h2 className="text-xl font-bold">Dynamic & Reliable Playground</h2>
             </section>
@@ -362,7 +363,7 @@ function HomePage({ user, setPage }) {
             {/* (2) 섹션: 신상 스토어 */}
             <section>
                 <SectionHeader title="신상 스토어" onMoreClick={() => setPage('store')} />
-                {/* [UI 개선] 7, 8. 가로 스크롤 여백 (px-4로 컨테이너에 패딩) */}
+                {/* [UI 개선 #7, #8] 가로 스크롤 여백 (px-4로 컨테이너에 패딩) */}
                 <div className="flex overflow-x-auto space-x-4 pb-2 hide-scrollbar -mx-4 px-4">
                     <StoreCard title="요넥스 신상 의류" brand="YONEX" image="https://placehold.co/160x128/E0F2F1/00695C?text=YONEX" />
                     <StoreCard title="빅터 신상 라켓" brand="VICTOR" image="https://placehold.co/160x128/E3F2FD/01579B?text=VICTOR" />
@@ -374,7 +375,7 @@ function HomePage({ user, setPage }) {
             {/* (3) 섹션: 지금 뜨는 경기 */}
             <section>
                 <SectionHeader title="지금 뜨는 경기" onMoreClick={() => setPage('game')} />
-                {/* [UI 개선] 9. 섹션 구분 (space-y-4) */}
+                {/* [UI 개선 #9] 섹션 구분 (space-y-4) */}
                 <div className="space-y-4">
                     <GameCard 
                         title="오산시 저녁 8시 초심 환영" 
@@ -503,7 +504,7 @@ function MyInfoPage({ user, userData, onLoginClick, onLogout }) {
         <div className="p-5 text-[#1E1E1E]">
             <h1 className="text-[22px] font-bold mb-8">내 정보</h1>
             
-            {/* [UI 개선] 15. rounded-xl 적용 */}
+            {/* [UI 개선 #2, #4, #15] 카드 UI 적용 (bg-white, shadow-lg, rounded-xl) */}
             <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
                 <div className="flex items-center space-x-5">
                     <div className="w-20 h-20 bg-[#00B16A] rounded-full flex items-center justify-center">
@@ -516,7 +517,7 @@ function MyInfoPage({ user, userData, onLoginClick, onLogout }) {
                 </div>
             </div>
 
-            {/* [UI 개선] 15. rounded-xl 적용 */}
+            {/* [UI 개선 #2, #4, #15] 카드 UI 적용 (bg-white, shadow-lg, rounded-xl) */}
             <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
                 <h3 className="text-[18px] font-semibold mb-4 text-[#00B16A]">나의 프로필</h3>
                 <div className="space-y-3 text-[16px]">
@@ -545,11 +546,11 @@ function MyInfoPage({ user, userData, onLoginClick, onLogout }) {
 }
 
 /**
- * [UI 개선] 홈 페이지 헤더 (19. shadow-sm, COCKSTAR 로고)
+ * [UI 개선 #19, 로고] 홈 페이지 헤더
  */
 function HomePageHeader({ onSearchClick, onBellClick }) {
     return (
-        // 19. border-b 제거, shadow-sm 적용. bg-white로 배경색 명시
+        // #19. border-b 제거, shadow-sm 적용. bg-white로 배경색 명시
         <header className="sticky top-0 bg-white z-10 p-4 shadow-sm flex justify-between items-center">
             {/* COCKSTAR 로고 이미지 (public/logo.png) */}
             <img src="/logo.png" alt="COCKSTAR" className="h-6" /> {/* 로고 높이 h-6 (24px) */}
@@ -567,14 +568,14 @@ function HomePageHeader({ onSearchClick, onBellClick }) {
 }
 
 /**
- * 공통 서브페이지 헤더
+ * [UI 개선 #19] 공통 서브페이지 헤더
  */
 function SubPageHeader({ page, onBackClick }) {
     const title = page === 'game' ? '경기' :
                   page === 'store' ? '스토어' :
-                  page === 'community' ? '커뮤니티' : '내 정보';
+                  page === 'community' ? '커뮤니M' : '내 정보';
     return (
-        // [UI 개선] 19. shadow-sm, bg-white로 배경색 명시 (기존 backdrop-blur 유지)
+        // #19. shadow-sm, bg-white로 배경색 명시 (기존 backdrop-blur 유지)
         <header className="sticky top-0 bg-white/80 backdrop-blur-md z-10 p-4 shadow-sm flex items-center">
             <button onClick={onBackClick} className="mr-3 text-gray-500 hover:text-[#1E1E1E]">
                 <ArrowLeft size={24} />
@@ -595,7 +596,6 @@ export default function App() {
     const [user, setUser] = useState(null);
     const [userData, setUserData] = useState(null);
     const [loadingAuth, setLoadingAuth] = useState(true);
-Read more about this in the [documentation](https://google.com).
     const [showLoginModal, setShowLoginModal] = useState(false);
 
     // Firebase Auth 상태 리스너
@@ -678,8 +678,8 @@ Read more about this in the [documentation](https://google.com).
         <>
             {showLoginModal && <AuthModal onClose={handleCloseModal} setPage={setPage} />}
 
-            {/* [UI 개선] 메인 앱 레이아웃
-              1. 전체 배경색 (bg-gray-50) 적용
+            {/* [UI 개선 #1] 메인 앱 레이아웃
+              - 전체 배경색 (bg-gray-50) 적용
               - 스크롤바 숨기기 (hide-scrollbar)
             */}
             <div className="max-w-md mx-auto h-screen bg-gray-50 shadow-lg overflow-hidden flex flex-col font-sans text-[#1E1E1E] hide-scrollbar">
@@ -703,7 +703,7 @@ Read more about this in the [documentation](https://google.com).
                     {renderPage()}
                 </main>
 
-                {/* 하단 네비게이션 탭 */}
+                {/* 하단 네비게이션 탭 (UI 개선 - border-gray-200) */}
                 <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200 shadow-lg z-10">
                     <div className="flex justify-around h-16">
                         <TabButton
@@ -715,7 +715,7 @@ Read more about this in the [documentation](https://google.com).
                         <TabButton
                             icon={Trophy}
                             label="경기"
-                            isActive={page === 'game'}
+                            isActive={page ===D === 'game'}
                             onClick={() => setPage('game')}
                         />
                         <TabButton
