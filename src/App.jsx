@@ -464,7 +464,7 @@ function HomePage({ user, setPage }) {
     // [수정] '신상 스토어' 섹션 로직 추가
     const storeContainerRef = useRef(null);
     const isDraggingRef = useRef(false);
-    const isHoveringRef = useRef(false);
+    // [수정] isHoveringRef 제거
     const dragStartXRef = useRef(0);
     const scrollLeftRef = useRef(0);
     const animationFrameRef = useRef(null);
@@ -481,7 +481,8 @@ function HomePage({ user, setPage }) {
     // [신규] '신상 스토어' 자동 스크롤 로직
     useEffect(() => {
         const animateScroll = () => {
-            if (storeContainerRef.current && !isDraggingRef.current && !isHoveringRef.current) {
+            // [수정] isHoveringRef.current 조건 제거
+            if (storeContainerRef.current && !isDraggingRef.current) {
                 // 스크롤 속도 (0.5px 씩)
                 storeContainerRef.current.scrollLeft += 0.5; 
                 
@@ -520,7 +521,7 @@ function HomePage({ user, setPage }) {
     // [신규] '신상 스토어' 드래그 시작 핸들러
     const handleStoreDragStart = (e) => {
         isDraggingRef.current = true;
-        isHoveringRef.current = true; // 드래그 시 호버 상태로 간주
+        // [수정] isHoveringRef.current = true; 라인 제거
         // e.preventDefault(); // 이미지가 아닌 컨테이너라 필수 아님
         dragStartXRef.current = e.clientX || e.touches[0].clientX;
         scrollLeftRef.current = storeContainerRef.current.scrollLeft;
@@ -538,23 +539,11 @@ function HomePage({ user, setPage }) {
     // [신규] '신상 스토어' 드래그 종료 핸들러
     const handleStoreDragEnd = () => {
         isDraggingRef.current = false;
-        isHoveringRef.current = false; // 드래그 종료 시 호버 해제
+        // [수정] isHoveringRef.current = false; 라인 제거
         storeContainerRef.current.style.cursor = 'grab';
     };
 
-    // [신규] '신상 스토어' 호버 핸들러 (마우스 올렸을 때)
-    const handleStoreHoverStart = () => {
-        if (!isDraggingRef.current) { // 드래그 중이 아닐 때만
-            isHoveringRef.current = true;
-        }
-    };
-
-     // [신규] '신상 스토어' 호버 핸들러 (마우스 떠났을 때)
-    const handleStoreHoverEnd = () => {
-        if (!isDraggingRef.current) { // 드래그 중이 아닐 때만
-            isHoveringRef.current = false;
-        }
-    };
+    // [수정] handleStoreHoverStart, handleStoreHoverEnd 함수 전체 제거
 
 
     const SectionHeader = ({ title, onMoreClick }) => (
@@ -657,16 +646,14 @@ function HomePage({ user, setPage }) {
                     ref={storeContainerRef}
                     // [수정] overflow-x-auto, hide-scrollbar, cursor-grab 추가
                     className="w-full overflow-x-auto hide-scrollbar cursor-grab" // active:cursor-grabbing은 JS로 제어
-                    // [신규] 스와이프 및 호버 이벤트 핸들러 추가
+                    // [수정] onMouseEnter, onMouseOut 핸들러 제거
                     onMouseDown={handleStoreDragStart}
                     onMouseMove={handleStoreDragMove}
                     onMouseUp={handleStoreDragEnd}
-                    onMouseLeave={handleStoreDragEnd} // 마우스가 컨테이너 밖으로 나가면 드래그 종료 및 호버 종료
+                    onMouseLeave={handleStoreDragEnd} // 마우스가 컨테이너 밖으로 나가면 드래그 종료
                     onTouchStart={handleStoreDragStart}
                     onTouchMove={handleStoreDragMove}
                     onTouchEnd={handleStoreDragEnd}
-                    onMouseEnter={handleStoreHoverStart} // 마우스 올리면 멈춤
-                    onMouseOut={handleStoreHoverEnd} // 마우스 떠나면 다시 시작 (onMouseLeave와 중복될 수 있으나, 호버 종료 명시)
                 >
                     {/* [수정] animate-marquee 클래스 제거, flex로 변경 */}
                     <div className="flex"> 
@@ -930,7 +917,7 @@ function HomePageHeader({ onSearchClick, onBellClick }) {
 function SubPageHeader({ page, onBackClick }) {
     const title = page === 'game' ? '경기' :
                   page === 'store' ? '스토어' :
-                  page ===: 'community' ? '커뮤니티' : '내 정보';
+                  page === 'community' ? '커뮤니티' : '내 정보';
     return (
         <header className="sticky top-0 bg-white/80 backdrop-blur-md z-10 p-4 shadow-sm flex items-center">
             <button 
@@ -1024,7 +1011,7 @@ export default function App() {
             case 'game':
                 return <GamePage user={user} onLoginClick={handleLoginClick} />;
             case 'store':
-s:                return <StorePage />;
+                return <StorePage />;
             case 'community':
                 return <CommunityPage />;
             case 'myinfo':
