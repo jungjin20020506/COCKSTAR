@@ -518,30 +518,76 @@ function HomePage({ user, setPage }) {
         };
     }, []); // 빈 배열: 마운트 시 1회 실행
 
-    // [신규] '신상 스토어' 드래그 시작 핸들러
-    // [신규] '신상 스토어' 드래그 시작 핸들러
-    const handleStoreDragStart = (e) => {
-        // [수정] e.preventDefault() 추가 (텍스트 선택 등 기본 동작 방지)
-        e.preventDefault();
+    // [신규] '신상 스토어' 수동 터치 리스너 (Passive Error 해결)
+    useEffect(() => {
+        const container = storeContainerRef.current;
+        if (!container) return;
+
+        // [신규] 'touchstart' 이벤트 (e.preventDefault()를 위해 non-passive로 등록)
+        // handleStoreDragStart를 직접 호출하지 않고 터치 전용 로직을 만듭니다.
+        const onTouchStart = (e) => {
+            e.preventDefault(); // 브라우저 기본 동작(선택 등) 방지
+            
+            isDraggingRef.current = true;
+            dragStartXRef.current = e.touches[0].clientX; // touch 이벤트이므로 e.touches[0] 사용
+            scrollLeftRef.current = container.scrollLeft;
+            container.style.cursor = 'grabbing';
+        };
+
+        // [신규] 'touchmove' 이벤트 (e.preventDefault()를 위해 non-passive로 등록)
+        const onTouchMove = (e) => {
+            if (!isDraggingRef.current) return;
+            e.preventDefault(); // 브라우저 스크롤/새로고침 방지
+
+            const currentX = e.touches[0].clientX; // touch 이벤트이므로 e.touches[0] 사용
+            const dx = currentX - dragStartXRef.current;
+            container.scrollLeft = scrollLeftRef.current - dx;
+        };
+
+        // [신규] 'touchend' 이벤트 (드래그 종료 로직)
+        // handleStoreDragEnd는 e 객체가 필요 없으므로 재사용
+        const onTouchEnd = () => {
+            handleStoreDragEnd();
+        };
+
+        // 리스너 등록 (passive: false가 핵심)
+        container.addEventListener('touchstart', onTouchStart, { passive: false });
+        container.addEventListener('touchmove', onTouchMove, { passive: false });
         
+        // touchmove와 달리, touchend/touchcancel은 passive 여부가 중요하지 않습니다.
+        // React의 onTouchEnd를 그대로 사용해도 되지만, 통일성을 위해 여기서 등록합니다.
+        container.addEventListener('touchend', onTouchEnd);
+        container.addEventListener('touchcancel', onTouchEnd); // 예외 상황 처리
+
+        // 클린업 함수
+        return () => {
+            container.removeEventListener('touchstart', onTouchStart);
+            container.removeEventListener('touchmove', onTouchMove);
+            container.removeEventListener('touchend', onTouchEnd);
+            container.removeEventListener('touchcancel', onTouchEnd);
+        };
+
+    }, []); // 마운트 시 한 번만 실행
+
+    // [신규] '신상 스토어' 드래그 시작 핸들러 (마우스 전용으로 수정)
+    const handleStoreDragStart = (e) => {
+        // e.preventDefault(); // (옵션) 마우스 드래그 시 텍스트 선택 방지
         isDraggingRef.current = true;
-        dragStartXRef.current = e.clientX || e.touches[0].clientX;
+        dragStartXRef.current = e.clientX; // 마우스 전용
         scrollLeftRef.current = storeContainerRef.current.scrollLeft;
         storeContainerRef.current.style.cursor = 'grabbing';
     };
 
-    // [신규] '신상 스토어' 드래그 이동 핸들러
+    // [신규] '신상 스토어' 드래그 이동 핸들러 (마우스 전용으로 수정)
     const handleStoreDragMove = (e) => {
         if (!isDraggingRef.current) return;
-        
-        // [수정] e.preventDefault() 추가 (페이지 스크롤, 새로고침 등 방지)
-        e.preventDefault(); 
-        
-        const currentX = e.clientX || e.touches[0].clientX;
-        const dx = currentX - dragStartXRef.current; // 시작점으로부터의 변화량
-        storeContainerRef.current.scrollLeft = scrollLeftRef.current - dx; // 기존 스크롤 위치에서 변화량 적용
+        // e.preventDefault(); // (옵션)
+        const currentX = e.clientX; // 마우스 전용
+        const dx = currentX - dragStartXRef.current;
+        storeContainerRef.current.scrollLeft = scrollLeftRef.current - dx;
     };
-    // [신규] '신상 스토어' 드래그 종료 핸들러
+
+    // [신규] '신상 스토어' 드래그 종료 핸들러 (마우스 + 터치 공용)
     const handleStoreDragEnd = () => {
         isDraggingRef.current = false;
         // [수정] isHoveringRef.current = false; 라인 제거
@@ -651,14 +697,15 @@ function HomePage({ user, setPage }) {
                     ref={storeContainerRef}
                     // [수정] overflow-x-auto, hide-scrollbar, cursor-grab 추가
                     className="w-full overflow-x-auto hide-scrollbar cursor-grab" // active:cursor-grabbing은 JS로 제어
-                    // [수정] onMouseEnter, onMouseOut 핸들러 제거
+                    
+                    // [수정] 마우스 이벤트만 남김 (터치 이벤트는 useEffect에서 수동 등록)
                     onMouseDown={handleStoreDragStart}
                     onMouseMove={handleStoreDragMove}
                     onMouseUp={handleStoreDragEnd}
                     onMouseLeave={handleStoreDragEnd} // 마우스가 컨테이너 밖으로 나가면 드래그 종료
-                    onTouchStart={handleStoreDragStart}
-                    onTouchMove={handleStoreDragMove}
-                    onTouchEnd={handleStoreDragEnd}
+                    // onTouchStart={handleStoreDragStart}  <- 제거
+                    // onTouchMove={handleStoreDragMove}  <- 제거
+                    // onTouchEnd={handleStoreDragEnd}      <- 제거 (useEffect로 이동)
                 >
                     {/* [수정] animate-marquee 클래스 제거, flex로 변경 */}
                     <div className="flex"> 
