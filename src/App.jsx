@@ -519,10 +519,12 @@ function HomePage({ user, setPage }) {
     }, []); // 빈 배열: 마운트 시 1회 실행
 
     // [신규] '신상 스토어' 드래그 시작 핸들러
+    // [신규] '신상 스토어' 드래그 시작 핸들러
     const handleStoreDragStart = (e) => {
+        // [수정] e.preventDefault() 추가 (텍스트 선택 등 기본 동작 방지)
+        e.preventDefault();
+        
         isDraggingRef.current = true;
-        // [수정] isHoveringRef.current = true; 라인 제거
-        // e.preventDefault(); // 이미지가 아닌 컨테이너라 필수 아님
         dragStartXRef.current = e.clientX || e.touches[0].clientX;
         scrollLeftRef.current = storeContainerRef.current.scrollLeft;
         storeContainerRef.current.style.cursor = 'grabbing';
@@ -531,11 +533,14 @@ function HomePage({ user, setPage }) {
     // [신규] '신상 스토어' 드래그 이동 핸들러
     const handleStoreDragMove = (e) => {
         if (!isDraggingRef.current) return;
+        
+        // [수정] e.preventDefault() 추가 (페이지 스크롤, 새로고침 등 방지)
+        e.preventDefault(); 
+        
         const currentX = e.clientX || e.touches[0].clientX;
         const dx = currentX - dragStartXRef.current; // 시작점으로부터의 변화량
         storeContainerRef.current.scrollLeft = scrollLeftRef.current - dx; // 기존 스크롤 위치에서 변화량 적용
     };
-
     // [신규] '신상 스토어' 드래그 종료 핸들러
     const handleStoreDragEnd = () => {
         isDraggingRef.current = false;
