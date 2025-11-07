@@ -23,26 +23,7 @@
           scrollbar-width: none;  /* Firefox */
       }
 
-      /* [신규] 신상 스토어 '마퀴(Marquee)' 애니메이션 */
-      @keyframes marquee {
-        0% { transform: translateX(0%); }
-        100% { transform: translateX(-50%); }
-      }
-      /* - 2배속을 위해 25s -> 15s로 수정 
-        - 스토어 아이템이 4개이므로 2번 반복하면 총 8개.
-        - 1600px (카드 1개 160px * 10개) 정도 이동하도록 15s 설정
-      */
-      .animate-marquee {
-        display: flex;
-        animation: marquee 15s linear infinite;
-        will-change: transform; /* 애니메이션 성능 향상 */
-      }
-      
-      /* 마우스 올리거나 터치 시(active) 애니메이션 정지 */
-      .marquee-container:hover .animate-marquee,
-      .marquee-container:active .animate-marquee {
-        animation-play-state: paused;
-      }
+      /* [수정] 신상 스토어 '마퀴(Marquee)' 애니메이션 관련 코드 제거 */
     </style>
   </head>
   <body>
