@@ -1,68 +1,52 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>콕스타 (Cockstar)</title>
-
-    <!-- Pretendard 폰트 (디자인 가이드) -->
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"
-    />
-
-    <!-- 
-      [PWA & UI 개선]
-      PWA를 위한 설정 및 모바일 최적화 태그입니다.
-    -->
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="COCKSTAR" />
-    <!-- [PWA] 브라우저 상단바 색상 (메인 그린) -->
-    <meta name="theme-color" content="#00B16A" />
-
-    <!-- [PWA] 홈 화면 아이콘 (public/icon-192.png) -->
-    <link rel="apple-touch-icon" href="/icon-192.png" />
     
-    <!-- [PWA] 매니페스트 파일 연결 (public/manifest.json) -->
-    <link rel="manifest" href="/manifest.json" />
+    <!-- Pretendard 폰트 CDN 링크 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    
+    <title>콕스타 (Cockstar) - 배드민턴 올인원 플랫폼</title>
 
     <style>
-      /* [UI 개선]
-        기본 폰트 설정 및 스크롤바 숨기기.
-        body의 overflow, background-color 등은 App.jsx의 Tailwind가 제어합니다.
-      */
       body {
-        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui,
-          Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo',
-          'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji',
-          'Segoe UI Symbol', sans-serif;
-        margin: 0;
-        padding: 0;
-        /* iOS에서 스크롤 바운스 시 배경색이 흰색으로 보이도록 함 */
-        background-color: #ffffff; 
+        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
       }
-      #root {
-        /* [UI 개선] App.jsx가 전체 높이를 제어하도록 height 제거 */
-        overflow-y: auto; /* 스크롤은 앱 내부에서 처리 */
+      /* 스크롤바 숨기기 */
+      .hide-scrollbar::-webkit-scrollbar {
+          display: none;
+      }
+      .hide-scrollbar {
+          -ms-overflow-style: none;  /* IE and Edge */
+          scrollbar-width: none;  /* Firefox */
       }
 
-      /* Firefox 스크롤바 숨기기 */
-      .hide-scrollbar {
-        scrollbar-width: none; /* Firefox */
+      /* [신규] 신상 스토어 '마퀴(Marquee)' 애니메이션 */
+      @keyframes marquee {
+        0% { transform: translateX(0%); }
+        100% { transform: translateX(-50%); }
       }
-      /* Chrome, Safari, Opera 스크롤바 숨기기 */
-      .hide-scrollbar::-webkit-scrollbar {
-        display: none; /* Chrome, Safari, Opera */
+      /* - 2배속을 위해 25s -> 15s로 수정 
+        - 스토어 아이템이 4개이므로 2번 반복하면 총 8개.
+        - 1600px (카드 1개 160px * 10개) 정도 이동하도록 15s 설정
+      */
+      .animate-marquee {
+        display: flex;
+        animation: marquee 15s linear infinite;
+        will-change: transform; /* 애니메이션 성능 향상 */
+      }
+      
+      /* 마우스 올리거나 터치 시(active) 애니메이션 정지 */
+      .marquee-container:hover .animate-marquee,
+      .marquee-container:active .animate-marquee {
+        animation-play-state: paused;
       }
     </style>
   </head>
   <body>
-    <!-- React 앱이 마운트될 DOM 컨테이너 -->
-    <noscript>이 앱을 실행하려면 JavaScript를 활성화해야 합니다.</noscript>
     <div id="root"></div>
-    
-    <!-- React 앱을 실행하는 스크립트 태그 -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
