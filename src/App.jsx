@@ -9,10 +9,25 @@ import {
     GoogleAuthProvider,
     signOut
 } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
+import { 
+    getFirestore, 
+    doc, 
+    setDoc, 
+    getDoc, 
+    onSnapshot, 
+    // [신규] Firestore 기능 추가
+    collection, 
+    query, 
+    where, 
+    addDoc, 
+    serverTimestamp,
+    orderBy // [신규] 정렬 기능
+} from 'firebase/firestore';
 import {
     Home, Trophy, Store, Users, User, X, Loader2, ArrowLeft, ShieldCheck, ShoppingBag, MessageSquare,
-    Search, Bell, MapPin, Heart, ChevronRight, Plus, Archive // EmptyState 아이콘
+    Search, Bell, MapPin, Heart, ChevronRight, Plus, Archive,
+    // [신규] 아이콘 추가
+    Lock, Edit3, Clock, AlertCircle, Calendar, Users2, BarChart2
 } from 'lucide-react';
 
 // ===================================================================================
@@ -34,6 +49,9 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
+
+// [신규] 앱 ID (Firestore 경로에 사용)
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 // ===================================================================================
 // 로딩 스피너 컴포넌트
@@ -61,6 +79,23 @@ function SkeletonCard() {
             <div className="flex justify-between items-center">
                 <div className="h-4 bg-gray-200 rounded-md w-1/3"></div>
                 <div className="h-6 bg-gray-200 rounded-full w-1/4"></div>
+            </div>
+        </div>
+    );
+}
+
+// [신규] 경기방 목록 스켈레톤
+function SkeletonRoomCard() {
+    return (
+        <div className="w-full p-4 bg-white rounded-xl shadow-lg animate-pulse">
+            <div className="h-5 bg-gray-200 rounded-md w-3/4 mb-3"></div>
+            <div className="flex gap-4 mb-4">
+                <div className="h-4 bg-gray-200 rounded-full w-1/4"></div>
+                <div className="h-4 bg-gray-200 rounded-full w-1/3"></div>
+            </div>
+            <div className="flex justify-between items-center">
+                <div className="h-4 bg-gray-200 rounded-md w-1/3"></div>
+                <div className="h-8 bg-gray-200 rounded-lg w-1/4"></div>
             </div>
         </div>
     );
@@ -309,6 +344,183 @@ function AuthModal({ onClose, setPage }) {
         </div>
     );
 }
+
+// ===================================================================================
+// [신규] 모임 생성 모달 (GamePage용)
+// ===================================================================================
+function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
+    const [roomName, setRoomName] = useState('');
+    const [location, setLocation] = useState('');
+    const [description, setDescription] = useState('');
+    const [levelLimit, setLevelLimit] = useState('N조'); // D조, C조, B조, A조, S조, N조(제한없음)
+    const [memberLimit, setMemberLimit] = useState(20);
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        if (!roomName.trim() || !location.trim()) {
+            setError('방 제목과 장소는 필수입니다.');
+            return;
+        }
+        if (roomName.length > 30) {
+            setError('방 제목은 30자 이내로 입력해주세요.');
+            return;
+        }
+
+        setLoading(true);
+        const newRoomData = {
+            name: roomName,
+            location: location,
+            description: description,
+            levelLimit: levelLimit,
+            memberLimit: Number(memberLimit),
+            password: password,
+            // 방장(admin) 정보
+            adminUid: user.uid,
+            adminName: userData?.name || '방장',
+            // Firestore 서버 시간 기준 생성
+            createdAt: serverTimestamp(),
+            // 초기 플레이어 수
+            playerCount: 0, // (참고: 실제 입장은 별도 로직)
+        };
+
+        try {
+            await onSubmit(newRoomData);
+            // 성공 시 모달 닫기 및 폼 초기화
+            onClose();
+            setRoomName('');
+            setLocation('');
+            setDescription('');
+            setLevelLimit('N조');
+            setMemberLimit(20);
+            setPassword('');
+        } catch (err) {
+            console.error("Error creating room: ", err);
+            setError('모임 생성에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl p-6 w-full max-w-md relative shadow-2xl flex flex-col max-h-[90vh]">
+                <button
+                    onClick={onClose}
+                    className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                    disabled={loading}
+                >
+                    <X size={24} />
+                </button>
+                
+                <h2 className="text-2xl font-bold text-center mb-6 text-[#1E1E1E]">
+                    새 모임 만들기
+                </h2>
+
+                {error && <p className="text-red-500 text-center mb-4 bg-red-100 p-3 rounded-lg text-sm">{error}</p>}
+
+                <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto pr-2">
+                    {/* 방 제목 (필수) */}
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">방 제목 <span className="text-red-500">*</span></label>
+                        <input
+                            type="text"
+                            placeholder="예: 수원시 주말 40대 A조 모임"
+                            value={roomName}
+                            onChange={(e) => setRoomName(e.target.value)}
+                            required
+                            className="w-full p-3 bg-gray-100 rounded-lg text-gray-900 border-2 border-gray-200 focus:border-[#00B16A] focus:outline-none text-base"
+                        />
+                    </div>
+                    
+                    {/* 장소 (필수) */}
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">장소 <span className="text-red-500">*</span></label>
+                        <input
+                            type="text"
+                            placeholder="예: OO 체육관"
+                            value={location}
+                            onChange={(e) => setLocation(e.target.value)}
+                            required
+                            className="w-full p-3 bg-gray-100 rounded-lg text-gray-900 border-2 border-gray-200 focus:border-[#00B16A] focus:outline-none text-base"
+                        />
+                    </div>
+                    
+                    {/* 모임 소개 (선택) */}
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">모임 소개</label>
+                        <textarea
+                            placeholder="모임에 대한 간단한 소개를 적어주세요. (참가비, 준비물 등)"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            rows={3}
+                            className="w-full p-3 bg-gray-100 rounded-lg text-gray-900 border-2 border-gray-200 focus:border-[#00B16A] focus:outline-none text-base"
+                        />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        {/* 급수 제한 (선택) */}
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">입장 급수</label>
+                            <select
+                                value={levelLimit}
+                                onChange={(e) => setLevelLimit(e.target.value)}
+                                className="w-full p-3 bg-gray-100 rounded-lg text-gray-900 border-2 border-gray-200 focus:border-[#00B16A] focus:outline-none text-base"
+                            >
+                                <option value="N조">제한 없음 (N조)</option>
+                                <option value="D조">D조 이상</option>
+                                <option value="C조">C조 이상</option>
+                                <option value="B조">B조 이상</option>
+                                <option value="A조">A조 이상</option>
+                                <option value="S조">S조 이상</option>
+                            </select>
+                        </div>
+                        
+                        {/* 인원 제한 (선택) */}
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">인원 제한</label>
+                            <input
+                                type="number"
+                                min="4"
+                                max="100"
+                                step="2"
+                                value={memberLimit}
+                                onChange={(e) => setMemberLimit(e.target.value)}
+                                className="w-full p-3 bg-gray-100 rounded-lg text-gray-900 border-2 border-gray-200 focus:border-[#00B16A] focus:outline-none text-base"
+                            />
+                        </div>
+                    </div>
+
+                    {/* 비밀번호 (선택) */}
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">비밀번호 (선택)</label>
+                        <input
+                            type="password"
+                            placeholder="비공개 방으로 만들려면 입력"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full p-3 bg-gray-100 rounded-lg text-gray-900 border-2 border-gray-200 focus:border-[#00B16A] focus:outline-none text-base"
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full mt-4 py-3 bg-[#00B16A] text-white font-bold rounded-lg text-base hover:bg-green-600 transition-colors disabled:bg-gray-400 flex items-center justify-center"
+                    >
+                        {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : '모임 만들기'}
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+}
+
 
 // ===================================================================================
 // 페이지 컴포넌트들 (UI 원칙 적용)
@@ -812,10 +1024,97 @@ function HomePage({ user, setPage }) {
 
 
 /**
- * 3. 경기 시스템 페이지
+ * 3. 경기 시스템 페이지 (구현 시작)
  */
-function GamePage({ user, onLoginClick }) {
-    if (!user) {
+function GamePage({ user, userData, onLoginClick }) {
+    // [신규] '로비' / '경기방' 뷰 전환
+    const [currentView, setCurrentView] = useState('lobby'); // 'lobby', 'room'
+    const [selectedRoomId, setSelectedRoomId] = useState(null);
+    
+    // [신규] 모임방 목록(로비) 관련 상태
+    const [rooms, setRooms] = useState([]);
+    const [loadingRooms, setLoadingRooms] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    
+    // [신규] 모임 생성 모달 관련 상태
+    const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
+
+    // [신규] Firestore 'rooms' 컬렉션 경로
+    const roomsCollectionRef = collection(db, "artifacts", appId, "public", "data", "rooms");
+
+    // [신규] 모임방 목록 실시간 구독 (로비 뷰가 활성화될 때)
+    useEffect(() => {
+        // 사용자가 로그인했고, 로비 뷰에 있을 때만 구독
+        if (user && currentView === 'lobby') {
+            setLoadingRooms(true);
+            
+            // 생성된 시간(createdAt)의 내림차순(desc)으로 정렬
+            const q = query(roomsCollectionRef, orderBy("createdAt", "desc"));
+            
+            const unsubscribe = onSnapshot(q, (querySnapshot) => {
+                const roomsData = querySnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                setRooms(roomsData);
+                setLoadingRooms(false);
+            }, (error) => {
+                console.error("Error fetching rooms: ", error);
+                setLoadingRooms(false);
+            });
+
+            // 클린업 함수: 컴포넌트 언마운트 시 또는 뷰가 바뀔 때 구독 해제
+            return () => unsubscribe();
+        }
+    }, [user, currentView]); // user 또는 currentView가 바뀔 때마다 실행
+
+    // [신규] 검색어 필터링
+    const filteredRooms = rooms.filter(room => 
+        room.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        room.location.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    // [신규] 모임 생성 처리
+    const handleCreateRoomSubmit = async (newRoomData) => {
+        if (!user) {
+            alert("로그인이 필요합니다.");
+            return;
+        }
+        
+        // addDoc은 자동으로 Promise를 반환하므로, 모달에서 await 처리
+        const docRef = await addDoc(roomsCollectionRef, newRoomData);
+        
+        // 방 생성 후 바로 입장
+        handleEnterRoom(docRef.id);
+    };
+
+    // [신규] 모임방 입장
+    const handleEnterRoom = (roomId, roomPassword = "") => {
+        const room = rooms.find(r => r.id === roomId);
+        if (!room) return;
+
+        // 비밀번호 확인
+        if (room.password && room.password !== "") {
+            const enteredPassword = prompt("비밀번호를 입력하세요:");
+            if (enteredPassword !== room.password) {
+                alert("비밀번호가 틀렸습니다.");
+                return;
+            }
+        }
+        
+        // (참고: 실제 '입장' 로직(플레이어 추가)은 GameRoomView 내부에서 처리)
+        setSelectedRoomId(roomId);
+        setCurrentView('room');
+    };
+
+    // [신규] 로비로 나가기
+    const handleExitRoom = () => {
+        setSelectedRoomId(null);
+        setCurrentView('lobby');
+    };
+    
+    // --- 1. 로그인 확인 ---
+    if (!user || !userData) {
         return (
             <LoginRequiredPage
                 icon={ShieldCheck}
@@ -826,20 +1125,311 @@ function GamePage({ user, onLoginClick }) {
         );
     }
     
-    return (
-        <div className="relative h-full">
-            <ComingSoonPage
-                icon={Trophy}
-                title="경기 시스템"
-                description="실시간 대진표, 선수 관리, 경기 기록 기능이 이곳에 구현될 예정입니다."
+    // --- 2. 뷰 라우팅 ---
+    
+    // 2-1. 경기방 뷰
+    if (currentView === 'room') {
+        return (
+            <GameRoomView 
+                roomId={selectedRoomId}
+                user={user}
+                userData={userData}
+                onExitRoom={handleExitRoom} 
             />
-            {/* (아이디어 #2) CTA 버튼 그림자 */}
+        );
+    }
+
+    // 2-2. 로비 뷰 (기본)
+    return (
+        <div className="relative h-full flex flex-col">
+            {/* 모임 생성 모달 */}
+            <CreateRoomModal
+                isOpen={showCreateRoomModal}
+                onClose={() => setShowCreateRoomModal(false)}
+                onSubmit={handleCreateRoomSubmit}
+                user={user}
+                userData={userData}
+            />
+            
+            {/* 로비 콘텐츠 */}
+            <div className="p-4 flex-shrink-0">
+                {/* 검색창 */}
+                <div className="relative">
+                    <input 
+                        type="text"
+                        placeholder="모임 이름 또는 장소로 검색"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full p-3 pl-10 bg-white rounded-lg shadow-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#00B16A]"
+                    />
+                    <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                </div>
+            </div>
+
+            {/* 모임 목록 */}
+            <div className="flex-grow overflow-y-auto p-4 pt-0 space-y-4 hide-scrollbar">
+                {loadingRooms ? (
+                    <>
+                        <SkeletonRoomCard />
+                        <SkeletonRoomCard />
+                        <SkeletonRoomCard />
+                    </>
+                ) : filteredRooms.length === 0 ? (
+                    <EmptyState
+                        icon={AlertCircle}
+                        title="열린 모임이 없습니다"
+                        description={searchTerm ? "검색 결과가 없습니다." : "새로운 모임을 만들어보세요!"}
+                        buttonText="모임 만들기"
+                        onButtonClick={() => setShowCreateRoomModal(true)}
+                    />
+                ) : (
+                    filteredRooms.map(room => (
+                        <RoomCard 
+                            key={room.id} 
+                            room={room} 
+                            onEnter={() => handleEnterRoom(room.id, room.password)} 
+                        />
+                    ))
+                )}
+            </div>
+            
+            {/* 모임 만들기 FAB (플로팅 버튼) */}
             <button
-                onClick={() => alert('모임 만들기 기능 준비 중')}
+                onClick={() => setShowCreateRoomModal(true)}
                 className="absolute bottom-6 right-6 bg-[#00B16A] text-white w-14 h-14 rounded-full shadow-lg shadow-green-500/30 flex items-center justify-center transition-transform transform hover:scale-110"
             >
-                <Plus size={28} />
+                <Edit3 size={24} />
             </button>
+        </div>
+    );
+}
+
+// [신규] 로비의 모임방 카드 컴포넌트
+function RoomCard({ room, onEnter }) {
+    const levelColor = room.levelLimit === 'N조' ? 'text-gray-500' : 'text-[#00B16A]';
+    
+    // Firestore Timestamp를 Date 객체로 변환
+    const formatDate = (timestamp) => {
+        if (!timestamp) return '시간 정보 없음';
+        const date = timestamp.toDate();
+        // 예: 11. 07 (금) 13:05
+        return `${date.getMonth() + 1}. ${date.getDate()} (${'일월화수목금토'[date.getDay()]}) ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    };
+
+    return (
+        <div 
+            className="bg-white rounded-xl shadow-lg p-4 w-full text-left transition-shadow hover:shadow-md cursor-pointer"
+            onClick={onEnter}
+        >
+            <div className="flex justify-between items-start mb-2">
+                {/* 방 제목 및 관리자 */}
+                <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-bold text-[#1E1E1E] truncate">{room.name}</h3>
+                    <p className="text-sm text-gray-500 truncate">
+                        방장: {room.adminName || '정보 없음'}
+                    </p>
+                </div>
+                {/* 비밀방 아이콘 */}
+                {room.password && <Lock size={16} className="text-gray-400 ml-2 flex-shrink-0" />}
+            </div>
+            
+            {/* 장소 */}
+            <div className="flex items-center text-sm text-gray-600 mb-3">
+                <MapPin size={16} className="mr-2 flex-shrink-0 text-gray-400" />
+                <span className="truncate">{room.location || '장소 미정'}</span>
+            </div>
+
+            {/* 태그: 인원, 급수, 생성 시간 */}
+            <div className="flex flex-wrap gap-2 items-center text-sm">
+                <span className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-gray-700 font-medium">
+                    <Users2 size={14} /> 
+                    {room.playerCount || 0} / {room.memberLimit || 'N'}명
+                </span>
+                <span className={`flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full font-medium ${levelColor}`}>
+                    <BarChart2 size={14} />
+                    {room.levelLimit || 'N조'}
+                </span>
+                <span className="flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-gray-500 font-medium">
+                    <Clock size={14} />
+                    {formatDate(room.createdAt)}
+                </span>
+            </div>
+        </div>
+    );
+}
+
+// [신규] 경기방 뷰 컴포넌트 (뼈대)
+function GameRoomView({ roomId, user, userData, onExitRoom }) {
+    const [roomData, setRoomData] = useState(null);
+    const [players, setPlayers] = useState({});
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    
+    // [신규] '매칭' / '진행' 탭
+    const [activeTab, setActiveTab] = useState('matching'); // 'matching', 'inProgress'
+
+    // [신규] Firestore 경로
+    const roomDocRef = doc(db, "artifacts", appId, "public", "data", "rooms", roomId);
+    const playersCollectionRef = collection(roomDocRef, "players");
+    
+    // [신규] 방 정보 및 플레이어 목록 실시간 구독
+    useEffect(() => {
+        setLoading(true);
+
+        // 1. 방 정보 구독
+        const unsubRoom = onSnapshot(roomDocRef, (doc) => {
+            if (doc.exists()) {
+                setRoomData({ id: doc.id, ...doc.data() });
+            } else {
+                setError("모임방을 찾을 수 없습니다.");
+                setLoading(false);
+                // (개선) 방이 삭제되면 자동으로 로비로 나가게 할 수 있음
+                // onExitRoom(); 
+            }
+        }, (err) => {
+            console.error("Error fetching room data:", err);
+            setError("모임방 정보를 불러오는 데 실패했습니다.");
+            setLoading(false);
+        });
+
+        // 2. 플레이어 목록 구독
+        const unsubPlayers = onSnapshot(query(playersCollectionRef), (snapshot) => {
+            const playersData = snapshot.docs.reduce((acc, doc) => {
+                acc[doc.id] = { id: doc.id, ...doc.data() };
+                return acc;
+            }, {});
+            setPlayers(playersData);
+            setLoading(false); // 플레이어 목록까지 받아야 로딩 완료
+        }, (err) => {
+            console.error("Error fetching players:", err);
+            setError("플레이어 목록을 불러오는 데 실패했습니다.");
+            setLoading(false);
+        });
+        
+        // 3. (중요) 현재 유저가 'players' 목록에 없으면 추가 (즉, 입장 처리)
+        // (참고: 이 로직은 방장이 아닌 일반 유저가 입장할 때만 실행되도록 하거나, 
+        //  방장이 생성 시점에 자동 추가되도록 할 수 있습니다.)
+        const playerDocRef = doc(playersCollectionRef, user.uid);
+        getDoc(playerDocRef).then(playerDoc => {
+            if (!playerDoc.exists()) {
+                setDoc(playerDocRef, {
+                    ...userData, // '내 정보'의 프로필 사용
+                    todayGames: 0,
+                    isResting: false,
+                    entryTime: serverTimestamp() 
+                }).catch(err => console.error("Failed to add player to room:", err));
+            }
+        });
+
+        // 클린업 함수
+        return () => {
+            unsubRoom();
+            unsubPlayers();
+            
+            // (중요) 방에서 나갈 때 'players' 목록에서 자신을 제거
+            // (참고: 앱을 그냥 닫을 경우를 대비해 'onDisconnect' 핸들러도 추후 필요)
+            deleteDoc(playerDocRef).catch(err => {
+                console.warn("Failed to remove player on exit:", err);
+            });
+        };
+    }, [roomId, user.uid, userData.name]); // 의존성 배열
+
+    // --- 렌더링 ---
+    
+    if (loading) {
+        return <LoadingSpinner text="모임방 입장 중..." />;
+    }
+    
+    if (error) {
+        return (
+            <div className="p-4">
+                <EmptyState icon={AlertCircle} title="오류 발생" description={error} />
+                <button 
+                    onClick={onExitRoom}
+                    className="mt-4 w-full py-2 bg-gray-200 text-gray-700 font-bold rounded-lg"
+                >
+                    로비로 돌아가기
+                </button>
+            </div>
+        );
+    }
+    
+    // (임시) 플레이어 목록 렌더링 (참고용)
+    const waitingPlayers = Object.values(players).filter(p => !p.isResting); // (임시 필터)
+
+    return (
+        <div className="flex flex-col h-full bg-white">
+            {/* 1. 경기방 헤더 */}
+            <header className="flex-shrink-0 p-4 flex items-center justify-between gap-2 bg-white sticky top-16 z-10 border-b border-gray-200">
+                <div className="flex items-center gap-2 min-w-0">
+                    <button 
+                        onClick={onExitRoom} 
+                        className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-[#1E1E1E] transition-colors"
+                    >
+                        <ArrowLeft size={24} />
+                    </button>
+                    <h1 className="text-xl font-bold text-[#1E1E1E] truncate">
+                        {roomData?.name || '로딩 중...'}
+                    </h1>
+                </div>
+                <div className="flex items-center gap-3">
+                    {/* (TODO) 휴식 버튼 등 */}
+                    <span className="text-sm font-semibold text-gray-600 flex items-center gap-1">
+                        <Users size={16} /> {Object.keys(players).length}
+                    </span>
+                </div>
+            </header>
+
+            {/* 2. 탭 네비게이션 (과거 앱 구조 참고) */}
+            <nav className="flex-shrink-0 flex border-b border-gray-200 bg-white sticky top-32 z-10">
+                <button 
+                    onClick={() => setActiveTab('matching')}
+                    className={`flex-1 py-3 text-center font-bold ${activeTab === 'matching' ? 'text-[#00B16A] border-b-2 border-[#00B16A]' : 'text-gray-500'}`}
+                >
+                    매칭
+                </button>
+                <button 
+                    onClick={() => setActiveTab('inProgress')}
+                    className={`flex-1 py-3 text-center font-bold ${activeTab === 'inProgress' ? 'text-[#00B16A] border-b-2 border-[#00B16A]' : 'text-gray-500'}`}
+                >
+                    경기 진행
+                </button>
+            </nav>
+
+            {/* 3. 탭 콘텐츠 (과거 앱 구조 참고) */}
+            <main className="flex-grow overflow-y-auto p-4 bg-gray-50 hide-scrollbar">
+                {activeTab === 'matching' ? (
+                    /* "매칭" 탭 */
+                    <div className="space-y-6">
+                        <section className="bg-white rounded-xl shadow-sm p-4">
+                            <h2 className="text-lg font-bold text-[#1E1E1E] mb-3">대기 명단 ({waitingPlayers.length})</h2>
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                {/* (TODO) PlayerCard 컴포넌트 (구버전 참고) 구현 */}
+                                {waitingPlayers.map(p => (
+                                    <div key={p.id} className="p-3 bg-gray-100 rounded-lg text-center shadow-sm">
+                                        <p className="font-bold text-sm truncate">{p.name}</p>
+                                        <p className="text-xs text-gray-500">{p.level} | {p.todayGames}G</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                        <section className="bg-white rounded-xl shadow-sm p-4">
+                            <h2 className="text-lg font-bold text-[#1E1E1E] mb-3">경기 예정</h2>
+                            {/* (TODO) Scheduled Match List (구버전 참고) 구현 */}
+                            <EmptyState icon={Trophy} title="예정된 경기가 없습니다" description="방장이 경기를 배정할 때까지 기다려주세요." />
+                        </section>
+                    </div>
+                ) : (
+                    /* "경기 진행" 탭 */
+                    <div className="space-y-6">
+                        <section className="bg-white rounded-xl shadow-sm p-4">
+                            <h2 className="text-lg font-bold text-[#1E1E1E] mb-3">경기 진행</h2>
+                            {/* (TODO) In-Progress Court List (구버전 참고) 구현 */}
+                            <EmptyState icon={Trophy} title="진행 중인 경기가 없습니다" description="경기가 시작되면 이곳에 표시됩니다." />
+                        </section>
+                    </div>
+                )}
+            </main>
         </div>
     );
 }
@@ -1085,7 +1675,8 @@ export default function App() {
             case 'home':
                 return <HomePage user={userData} setPage={setPage} />;
             case 'game':
-                return <GamePage user={user} onLoginClick={handleLoginClick} />;
+                // [수정] GamePage에 user와 userData 프롭스 전달
+                return <GamePage user={user} userData={userData} onLoginClick={handleLoginClick} />;
             case 'store':
                 return <StorePage />;
             case 'community':
