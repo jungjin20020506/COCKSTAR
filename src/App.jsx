@@ -1066,20 +1066,38 @@ function GamePage({ user, userData, onLoginClick }) {
     const roomsCollectionRef = collection(db, "rooms");
 
     // [신규] 모임방 목록 실시간 구독 (로비 뷰가 활성화될 때)
-    useEffect(() => {
+  useEffect(() => {
         if (!user || currentView !== 'lobby') {
             setLoadingRooms(false); // 로그아웃 상태거나 로비가 아니면 로딩 중지
             return;
         }
 
         setLoadingRooms(true);
-        const q = query(roomsCollectionRef, orderBy("createdAt", "desc"));
+        // [수정] orderBy("createdAt", "desc") 쿼리 제거.
+        // serverTimestamp()로 생성되는 문서를 쿼리에서 바로 정렬하면 l.toDate 오류가 발생합니다.
+        const q = query(roomsCollectionRef); 
 
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const roomsData = querySnapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             }));
+
+            // [신규] 클라이언트(JS)에서 직접 정렬합니다.
+            roomsData.sort((a, b) => {
+                const timeA = a.createdAt;
+                const timeB = b.createdAt;
+
+                // .toDate 함수가 있는 실제 Timestamp 객체만 비교
+                if (timeA && typeof timeA.toDate === 'function' && timeB && typeof timeB.toDate === 'function') {
+                    return timeB.toDate().getTime() - timeA.toDate().getTime(); // 'desc' (최신순)
+                }
+                // 임시 값(null 등)은 정렬 순서를 유지
+                if (timeA) return -1;
+                if (timeB) return 1;
+                return 0;
+            });
+
             setRooms(roomsData);
             setLoadingRooms(false);
         }, (error) => {
