@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import {
     getAuth,
@@ -21,13 +21,18 @@ import {
     where, 
     addDoc, 
     serverTimestamp,
-    orderBy // [신규] 정렬 기능
+    orderBy, // [신규] 정렬 기능
+    updateDoc, // [신규] 문서 업데이트 기능
+    deleteDoc // [신규] 문서 삭제 기능
 } from 'firebase/firestore';
 import {
     Home, Trophy, Store, Users, User, X, Loader2, ArrowLeft, ShieldCheck, ShoppingBag, MessageSquare,
     Search, Bell, MapPin, Heart, ChevronRight, Plus, Archive,
     // [신규] 아이콘 추가
-    Lock, Edit3, Clock, AlertCircle, Calendar, Users2, BarChart2
+    Lock, Edit3, Clock, AlertCircle, Calendar, Users2, BarChart2,
+    CheckCircle, // [신규]
+    UserCheck, // [신규]
+    GripVertical // [신규] 드래그 핸들
 } from 'lucide-react';
 
 // ===================================================================================
@@ -52,6 +57,27 @@ const googleProvider = new GoogleAuthProvider();
 
 // [신규] 앱 ID (Firestore 경로에 사용)
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+// ===================================================================================
+// [신규] 상수 및 Helper 함수 (구버전 앱 참고)
+// ===================================================================================
+// 급수 정렬 순서
+const LEVEL_ORDER = { 'S조': 1, 'A조': 2, 'B조': 3, 'C조': 4, 'D조': 5, 'E조': 6, 'N조': 7, '미설정': 8 };
+// 급수별 Tailwind CSS 색상
+const getLevelColor = (level) => {
+    switch (level) {
+        case 'S조': return 'border-sky-400 text-sky-500'; // S조 (하늘)
+        case 'A조': return 'border-red-500 text-red-600'; // A조 (빨강)
+        case 'B조': return 'border-orange-500 text-orange-600'; // B조 (주황)
+        case 'C조': return 'border-yellow-500 text-yellow-600'; // C조 (노랑)
+        case 'D조': return 'border-green-500 text-green-600'; // D조 (초록)
+        case 'E조': return 'border-blue-500 text-blue-600'; // E조 (파랑)
+        default: return 'border-gray-400 text-gray-500'; // N조 및 기타
+    }
+};
+// 4인 1조
+const PLAYERS_PER_MATCH = 4;
+
 
 // ===================================================================================
 // 로딩 스피너 컴포넌트
@@ -383,8 +409,12 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
             adminName: userData?.name || '방장',
             // Firestore 서버 시간 기준 생성
             createdAt: serverTimestamp(),
-            // 초기 플레이어 수
-            playerCount: 0, // (참고: 실제 입장은 별도 로직)
+            // [수정] 경기 시스템 초기 데이터 추가
+            playerCount: 0,
+            numScheduledMatches: 4, // 기본 4 경기 예정
+            numInProgressCourts: 2, // 기본 2 코트
+            scheduledMatches: {},   // { 0: [p1, p2, p3, p4], 1: [...] }
+            inProgressCourts: [],   // [ { players: [...], startTime: ... }, null ]
         };
 
         try {
@@ -1066,7 +1096,7 @@ function GamePage({ user, userData, onLoginClick }) {
             // 클린업 함수: 컴포넌트 언마운트 시 또는 뷰가 바뀔 때 구독 해제
             return () => unsubscribe();
         }
-    }, [user, currentView]); // user 또는 currentView가 바뀔 때마다 실행
+    }, [user, currentView, roomsCollectionRef]); // [수정] 의존성 배열에 roomsCollectionRef 추가
 
     // [신규] 검색어 필터링
     const filteredRooms = rooms.filter(room => 
@@ -1135,6 +1165,7 @@ function GamePage({ user, userData, onLoginClick }) {
                 user={user}
                 userData={userData}
                 onExitRoom={handleExitRoom} 
+                roomsCollectionRef={roomsCollectionRef} // [신규] ref 전달
             />
         );
     }
@@ -1258,18 +1289,111 @@ function RoomCard({ room, onEnter }) {
     );
 }
 
-// [신규] 경기방 뷰 컴포넌트 (뼈대)
-function GameRoomView({ roomId, user, userData, onExitRoom }) {
+// ===================================================================================
+// [신규] 경기방 내부 컴포넌트 (PlayerCard, EmptySlot)
+// ===================================================================================
+
+/**
+ * [신규] 플레이어 카드
+ * 구버전 App (1).jsx의 PlayerCard 로직을 콕스타 디자인으로 재구성
+ */
+const PlayerCard = React.memo(({ 
+    player, 
+    isAdmin, 
+    isCurrentUser, 
+    isPlaying,
+    isResting,
+    onDragStart,
+    onDragEnd,
+    onDragOver,
+    onDrop
+}) => {
+    if (!player) {
+        // 플레이어 데이터가 로드되기 전일 수 있음
+        return <div className="h-20 bg-gray-100 rounded-lg animate-pulse"></div>;
+    }
+
+    const levelStyle = getLevelColor(player.level);
+    const genderColor = player.gender === '남' ? 'border-l-blue-500' : 'border-l-pink-500';
+
+    // 카드 스타일
+    let cardClasses = `bg-white rounded-lg shadow-sm p-3 h-20 flex flex-col justify-between relative border-l-4 transition-all ${genderColor}`;
+    
+    if (isPlaying) {
+        cardClasses += " opacity-50 bg-gray-100"; // 경기 중
+    }
+    if (isResting) {
+        cardClasses += " opacity-50 grayscale"; // 휴식 중
+    }
+    if (isCurrentUser) {
+        cardClasses += " ring-2 ring-offset-1 ring-[#FFD700]"; // 현재 유저 (노랑 테두리)
+    }
+
+    // 관리자만 드래그 가능
+    const canDrag = isAdmin;
+
+    return (
+        <div
+            className={cardClasses}
+            draggable={canDrag}
+            onDragStart={canDrag ? (e) => onDragStart(e, player.id) : undefined}
+            onDragEnd={canDrag ? onDragEnd : undefined}
+            onDragOver={canDrag ? onDragOver : undefined}
+            onDrop={canDrag ? (e) => onDrop(e, { type: 'player', player: player }) : undefined}
+        >
+            {/* 상단: 이름, 성별 */}
+            <div className="flex justify-between items-center">
+                <span className="text-sm font-bold text-[#1E1E1E] truncate pr-4">
+                    {player.name}
+                </span>
+                {canDrag && (
+                    <GripVertical size={16} className="text-gray-400 absolute top-2 right-1 cursor-grab" />
+                )}
+            </div>
+            
+            {/* 하단: 급수, 게임 수 */}
+            <div className="flex justify-between items-center text-xs">
+                <span className={`font-bold ${levelStyle}`}>{player.level || 'N조'}</span>
+                <span className="text-gray-500 font-medium">
+                    {player.todayGames || 0}G
+                </span>
+            </div>
+        </div>
+    );
+});
+
+/**
+ * [신규] 빈 슬롯
+ * 구버전 App (1).jsx의 EmptySlot 로직을 콕스타 디자인으로 재구성
+ */
+const EmptySlot = ({ onDragOver, onDrop, isDragOver }) => (
+    <div 
+        onDragOver={onDragOver} 
+        onDrop={onDrop}
+        className={`h-20 bg-gray-100/50 rounded-lg flex items-center justify-center text-gray-400 border-2 border-dashed border-gray-300 transition-all ${
+            isDragOver ? 'bg-green-100 border-green-400' : ''
+        }`}
+    >
+        <Plus size={20} />
+    </div>
+);
+
+
+// [신규] 경기방 뷰 컴포넌트 (로직 구현)
+function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }) {
     const [roomData, setRoomData] = useState(null);
     const [players, setPlayers] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     
-    // [신규] '매칭' / '진행' 탭
     const [activeTab, setActiveTab] = useState('matching'); // 'matching', 'inProgress'
 
+    // [신규] 드래그 앤 드롭 상태
+    const [draggedPlayerId, setDraggedPlayerId] = useState(null);
+    const [dragOverSlot, setDragOverSlot] = useState(null); // { matchIndex, slotIndex }
+
     // [신규] Firestore 경로
-    const roomDocRef = doc(db, "artifacts", appId, "public", "data", "rooms", roomId);
+    const roomDocRef = doc(roomsCollectionRef, roomId);
     const playersCollectionRef = collection(roomDocRef, "players");
     
     // [신규] 방 정보 및 플레이어 목록 실시간 구독
@@ -1283,8 +1407,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom }) {
             } else {
                 setError("모임방을 찾을 수 없습니다.");
                 setLoading(false);
-                // (개선) 방이 삭제되면 자동으로 로비로 나가게 할 수 있음
-                // onExitRoom(); 
+                onExitRoom(); // [수정] 방이 없으면 자동 나가기
             }
         }, (err) => {
             console.error("Error fetching room data:", err);
@@ -1293,7 +1416,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom }) {
         });
 
         // 2. 플레이어 목록 구독
-        const unsubPlayers = onSnapshot(query(playersCollectionRef), (snapshot) => {
+        const unsubPlayers = onSnapshot(query(playersCollectionRef, orderBy("entryTime", "asc")), (snapshot) => {
             const playersData = snapshot.docs.reduce((acc, doc) => {
                 acc[doc.id] = { id: doc.id, ...doc.data() };
                 return acc;
@@ -1307,13 +1430,14 @@ function GameRoomView({ roomId, user, userData, onExitRoom }) {
         });
         
         // 3. (중요) 현재 유저가 'players' 목록에 없으면 추가 (즉, 입장 처리)
-        // (참고: 이 로직은 방장이 아닌 일반 유저가 입장할 때만 실행되도록 하거나, 
-        //  방장이 생성 시점에 자동 추가되도록 할 수 있습니다.)
         const playerDocRef = doc(playersCollectionRef, user.uid);
         getDoc(playerDocRef).then(playerDoc => {
             if (!playerDoc.exists()) {
                 setDoc(playerDocRef, {
-                    ...userData, // '내 정보'의 프로필 사용
+                    name: userData.name, // [수정] user.displayName 대신 userData.name
+                    email: userData.email, // [수정] user.email 대신 userData.email
+                    level: userData.level || 'N조',
+                    gender: userData.gender || '미설정',
                     todayGames: 0,
                     isResting: false,
                     entryTime: serverTimestamp() 
@@ -1327,12 +1451,158 @@ function GameRoomView({ roomId, user, userData, onExitRoom }) {
             unsubPlayers();
             
             // (중요) 방에서 나갈 때 'players' 목록에서 자신을 제거
-            // (참고: 앱을 그냥 닫을 경우를 대비해 'onDisconnect' 핸들러도 추후 필요)
             deleteDoc(playerDocRef).catch(err => {
                 console.warn("Failed to remove player on exit:", err);
             });
         };
-    }, [roomId, user.uid, userData.name]); // 의존성 배열
+    }, [roomId, user.uid, userData, onExitRoom, playersCollectionRef, roomDocRef]); // [수정] 의존성 배열
+
+    
+    // =================================================
+    // [신규] 헬퍼 (Memoized)
+    // =================================================
+
+    // 현재 유저가 방장인지 확인
+    const isAdmin = useMemo(() => user.uid === roomData?.adminUid, [user.uid, roomData?.adminUid]);
+
+    // '경기 진행' 중인 플레이어 ID Set (빠른 조회용)
+    const inProgressPlayerIds = useMemo(() => 
+        new Set((roomData?.inProgressCourts || []).flatMap(c => c?.players || []).filter(Boolean))
+    , [roomData?.inProgressCourts]);
+
+    // '경기 예정' 중인 플레이어 ID Set (빠른 조회용)
+    const scheduledPlayerIds = useMemo(() => 
+        new Set(Object.values(roomData?.scheduledMatches || {}).flatMap(match => match || []).filter(Boolean))
+    , [roomData?.scheduledMatches]);
+
+    // '대기 명단' 플레이어 목록 (정렬 포함)
+    const waitingPlayers = useMemo(() => 
+        Object.values(players)
+            .filter(p => 
+                !p.isResting && 
+                !inProgressPlayerIds.has(p.id) && 
+                !scheduledPlayerIds.has(p.id)
+            )
+            .sort((a, b) => (LEVEL_ORDER[a.level] || 99) - (LEVEL_ORDER[b.level] || 99)) // 급수 정렬
+    , [players, inProgressPlayerIds, scheduledPlayerIds]);
+    
+    // '휴식 중' 플레이어 목록
+    const restingPlayers = useMemo(() =>
+        Object.values(players).filter(p => p.isResting)
+    , [players]);
+
+    // =================================================
+    // [신규] 드래그 앤 드롭 핸들러
+    // =================================================
+
+    const handleDragStart = (e, playerId) => {
+        if (!isAdmin) return;
+        e.dataTransfer.setData("playerId", playerId);
+        setDraggedPlayerId(playerId);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedPlayerId(null);
+        setDragOverSlot(null);
+    };
+
+    const handleDragOver = (e, target) => {
+        e.preventDefault();
+        if (!isAdmin) return;
+        
+        if (target?.type === 'slot') {
+            setDragOverSlot({ matchIndex: target.matchIndex, slotIndex: target.slotIndex });
+        } else {
+            setDragOverSlot(null); // 대기열이나 다른 곳 위
+        }
+    };
+
+    const handleDrop = async (e, target) => {
+        e.preventDefault();
+        if (!isAdmin || !draggedPlayerId) return;
+
+        const sourcePlayerId = draggedPlayerId;
+        const currentScheduledMatches = JSON.parse(JSON.stringify(roomData.scheduledMatches || {}));
+
+        // 1. 드래그 소스(Source) 위치 찾기 및 제거
+        let sourceFound = false;
+        Object.keys(currentScheduledMatches).forEach(mIdx => {
+            const sIdx = currentScheduledMatches[mIdx].indexOf(sourcePlayerId);
+            if (sIdx > -1) {
+                currentScheduledMatches[mIdx][sIdx] = null; // 소스 위치에서 제거
+                sourceFound = true;
+            }
+        });
+
+        // 2. 드롭 타겟(Target)에 플레이어 배치
+        if (target.type === 'slot') {
+            // "경기 예정" 슬롯에 놓은 경우
+            const { matchIndex, slotIndex } = target;
+            if (!currentScheduledMatches[matchIndex]) {
+                currentScheduledMatches[matchIndex] = Array(PLAYERS_PER_MATCH).fill(null);
+            }
+            
+            // 타겟 슬롯에 이미 누가 있는지 확인 (스왑용)
+            const playerInTargetSlot = currentScheduledMatches[matchIndex][slotIndex];
+
+            // 타겟 슬롯에 드래그한 플레이어 배치
+            currentScheduledMatches[matchIndex][slotIndex] = sourcePlayerId;
+
+            // 3. 스왑(Swap) 로직
+            if (playerInTargetSlot && sourceFound) {
+                // 소스 위치를 다시 찾아야 함 (null이 되었으므로)
+                Object.keys(currentScheduledMatches).forEach(mIdx => {
+                    const sIdx = currentScheduledMatches[mIdx].indexOf(null); // 방금 null로 만든 소스 위치
+                    if (sIdx > -1) {
+                         // playerInTargetSlot을 원래 소스 위치로 이동
+                        currentScheduledMatches[mIdx][sIdx] = playerInTargetSlot;
+                        sourceFound = false; // 스왑 완료
+                    }
+                });
+            }
+
+        } else if (target.type === 'player' && sourceFound) {
+            // (스왑 로직) 다른 플레이어 카드 위에 놓은 경우
+            const targetPlayerId = target.player.id;
+
+            // 타겟 플레이어 위치 찾기
+            let targetLoc = null;
+            Object.keys(currentScheduledMatches).forEach(mIdx => {
+                const sIdx = currentScheduledMatches[mIdx].indexOf(targetPlayerId);
+                if (sIdx > -1) {
+                    targetLoc = { matchIndex: mIdx, slotIndex: sIdx };
+                }
+            });
+
+            if (targetLoc) {
+                // 타겟 위치에 소스 플레이어 배치
+                currentScheduledMatches[targetLoc.matchIndex][targetLoc.slotIndex] = sourcePlayerId;
+                // 소스 위치를 다시 찾아 타겟 플레이어 배치
+                Object.keys(currentScheduledMatches).forEach(mIdx => {
+                    const sIdx = currentScheduledMatches[mIdx].indexOf(null); // 방금 null로 만든 소스 위치
+                    if (sIdx > -1) {
+                        currentScheduledMatches[mIdx][sIdx] = targetPlayerId;
+                        sourceFound = false;
+                    }
+                });
+            }
+        }
+        // else if (target.type === 'waiting') {
+        //    // '대기 명단'에 놓은 경우 (1번 로직에서 이미 제거됨)
+        // }
+        
+        // 4. Firestore 업데이트
+        try {
+            await updateDoc(roomDocRef, { scheduledMatches: currentScheduledMatches });
+        } catch (err) {
+            console.error("Failed to update matches:", err);
+            // (에러 처리)
+        }
+
+        setDraggedPlayerId(null);
+        setDragOverSlot(null);
+    };
+
 
     // --- 렌더링 ---
     
@@ -1355,7 +1625,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom }) {
     }
     
     // (임시) 플레이어 목록 렌더링 (참고용)
-    const waitingPlayers = Object.values(players).filter(p => !p.isResting); // (임시 필터)
+    // [수정] waitingPlayers는 useMemo로 이동
 
     return (
         <div className="flex flex-col h-full bg-white">
@@ -1377,6 +1647,12 @@ function GameRoomView({ roomId, user, userData, onExitRoom }) {
                     <span className="text-sm font-semibold text-gray-600 flex items-center gap-1">
                         <Users size={16} /> {Object.keys(players).length}
                     </span>
+                    {/* [신규] 관리자 배지 */}
+                    {isAdmin && (
+                        <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#FFD700] text-black">
+                            방장
+                        </span>
+                    )}
                 </div>
             </header>
 
@@ -1401,22 +1677,120 @@ function GameRoomView({ roomId, user, userData, onExitRoom }) {
                 {activeTab === 'matching' ? (
                     /* "매칭" 탭 */
                     <div className="space-y-6">
-                        <section className="bg-white rounded-xl shadow-sm p-4">
+                        {/* [수정] 대기 명단 섹션 */}
+                        <section 
+                            className="bg-white rounded-xl shadow-sm p-4"
+                            onDragOver={(e) => handleDragOver(e, { type: 'waiting' })}
+                            onDrop={(e) => handleDrop(e, { type: 'waiting' })}
+                        >
                             <h2 className="text-lg font-bold text-[#1E1E1E] mb-3">대기 명단 ({waitingPlayers.length})</h2>
-                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                                {/* (TODO) PlayerCard 컴포넌트 (구버전 참고) 구현 */}
-                                {waitingPlayers.map(p => (
-                                    <div key={p.id} className="p-3 bg-gray-100 rounded-lg text-center shadow-sm">
-                                        <p className="font-bold text-sm truncate">{p.name}</p>
-                                        <p className="text-xs text-gray-500">{p.level} | {p.todayGames}G</p>
-                                    </div>
-                                ))}
-                            </div>
+                            {waitingPlayers.length > 0 ? (
+                                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                    {waitingPlayers.map(p => (
+                                        <PlayerCard 
+                                            key={p.id} 
+                                            player={p} 
+                                            isAdmin={isAdmin}
+                                            isCurrentUser={user.uid === p.id}
+                                            isPlaying={false}
+                                            isResting={p.isResting}
+                                            onDragStart={handleDragStart}
+                                            onDragEnd={handleDragEnd}
+                                            onDragOver={(e) => handleDragOver(e, { type: 'player', player: p })}
+                                            onDrop={handleDrop}
+                                        />
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-500 text-center py-4">대기 중인 선수가 없습니다.</p>
+                            )}
                         </section>
+
+                        {/* [수정] 경기 예정 섹션 */}
                         <section className="bg-white rounded-xl shadow-sm p-4">
                             <h2 className="text-lg font-bold text-[#1E1E1E] mb-3">경기 예정</h2>
-                            {/* (TODO) Scheduled Match List (구버전 참고) 구현 */}
-                            <EmptyState icon={Trophy} title="예정된 경기가 없습니다" description="방장이 경기를 배정할 때까지 기다려주세요." />
+                            {roomData?.numScheduledMatches > 0 ? (
+                                <div className="space-y-3">
+                                    {Array.from({ length: roomData.numScheduledMatches }).map((_, matchIndex) => {
+                                        const match = roomData.scheduledMatches?.[matchIndex] || Array(PLAYERS_PER_MATCH).fill(null);
+                                        const playerCount = match.filter(Boolean).length;
+
+                                        return (
+                                            <div key={matchIndex} className="bg-gray-50 rounded-lg p-2 border border-gray-200">
+                                                <div className="flex justify-between items-center mb-2 px-1">
+                                                    <span className="font-bold text-gray-700">매치 {matchIndex + 1}</span>
+                                                    {/* (TODO) '경기 시작' 버튼 */}
+                                                    <button 
+                                                        className={`px-3 py-1 text-sm font-bold rounded-md ${
+                                                            playerCount === PLAYERS_PER_MATCH 
+                                                            ? 'bg-[#00B16A] text-white' 
+                                                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                        }`}
+                                                        disabled={playerCount !== PLAYERS_PER_MATCH}
+                                                    >
+                                                        경기 시작
+                                                    </button>
+                                                </div>
+                                                <div className="grid grid-cols-4 gap-2">
+                                                    {match.map((playerId, slotIndex) => {
+                                                        const player = playerId ? players[playerId] : null;
+                                                        const isDragOver = dragOverSlot?.matchIndex === matchIndex && dragOverSlot?.slotIndex === slotIndex;
+                                                        
+                                                        return player ? (
+                                                            <PlayerCard
+                                                                key={player.id}
+                                                                player={player}
+                                                                isAdmin={isAdmin}
+                                                                isCurrentUser={user.uid === player.id}
+                                                                isPlaying={inProgressPlayerIds.has(player.id)}
+                                                                isResting={player.isResting}
+                                                                onDragStart={handleDragStart}
+                                                                onDragEnd={handleDragEnd}
+                                                                onDragOver={(e) => handleDragOver(e, { type: 'slot', matchIndex, slotIndex })}
+                                                                onDrop={(e) => handleDrop(e, { type: 'slot', matchIndex, slotIndex })}
+                                                            />
+                                                        ) : (
+                                                            <EmptySlot
+                                                                key={slotIndex}
+                                                                isDragOver={isDragOver}
+                                                                onDragOver={(e) => handleDragOver(e, { type: 'slot', matchIndex, slotIndex })}
+                                                                onDrop={(e) => handleDrop(e, { type: 'slot', matchIndex, slotIndex })}
+                                                            />
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <EmptyState icon={Trophy} title="예정된 경기가 없습니다" description="방장이 경기를 배정할 때까지 기다려주세요." />
+                            )}
+                        </section>
+
+                         {/* [신규] 휴식 중인 선수 섹션 */}
+                         <section className="bg-white rounded-xl shadow-sm p-4">
+                            <h2 className="text-lg font-bold text-[#1E1E1E] mb-3">휴식 중 ({restingPlayers.length})</h2>
+                            {restingPlayers.length > 0 ? (
+                                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                    {restingPlayers.map(p => (
+                                        <PlayerCard 
+                                            key={p.id} 
+                                            player={p} 
+                                            isAdmin={isAdmin}
+                                            isCurrentUser={user.uid === p.id}
+                                            isPlaying={false}
+                                            isResting={p.isResting}
+                                            onDragStart={() => {}} // 드래그 방지
+                                            onDragEnd={() => {}}
+                                            onDragOver={(e) => e.preventDefault()}
+                                            onDrop={() => {}}
+                                        />
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-500 text-center py-4">휴식 중인 선수가 없습니다.</p>
+                            )}
                         </section>
                     </div>
                 ) : (
@@ -1520,6 +1894,11 @@ function MyInfoPage({ user, userData, onLoginClick, onLogout, setPage }) { // se
                     <div className="flex justify-between">
                         <span className="text-gray-500">성별</span>
                         <span className="font-semibold">{userData?.gender || '미설정'}</span>
+                    </div>
+                    {/* [신규] 이메일 정보 추가 (userData에서 가져오기) */}
+                    <div className="flex justify-between">
+                        <span className="text-gray-500">이메일</span>
+                        <span className="font-semibold truncate max-w-[200px]">{userData?.email || '미설정'}</span>
                     </div>
                 </div>
                  <button className="mt-6 w-full py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-base font-bold">
@@ -1632,6 +2011,7 @@ export default function App() {
                 if (doc.exists()) {
                     setUserData(doc.data());
                 } else {
+                    // [수정] userData에 email도 포함
                     const newUserData = {
                         name: user.displayName || '새 사용자',
                         email: user.email,
