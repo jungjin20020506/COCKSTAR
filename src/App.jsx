@@ -68,7 +68,7 @@ function SkeletonCard() {
 
 function SkeletonStoreCard() {
      return (
-        <div className="w-40 flex-shrink-0 animate-pulse">
+        <div className="w-40 flex-shrink-0 animate-pulse mr-4"> {/* [수정] 마진 추가 */}
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
                 <div className="w-full h-32 object-cover bg-gray-200"></div>
                 <div className="p-3">
@@ -461,6 +461,15 @@ function HomePage({ user, setPage }) {
     // [아이디어 #1] 스켈레톤 로딩을 위한 상태
     const [loading, setLoading] = useState(true);
 
+    // [수정] '신상 스토어' 섹션 로직 추가
+    const storeContainerRef = useRef(null);
+    const isDraggingRef = useRef(false);
+    const isHoveringRef = useRef(false);
+    const dragStartXRef = useRef(0);
+    const scrollLeftRef = useRef(0);
+    const animationFrameRef = useRef(null);
+    const storeContentWidthRef = useRef(0);
+
     // 1.5초 후 로딩 상태 해제 (데이터 로딩 시뮬레이션)
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -468,6 +477,85 @@ function HomePage({ user, setPage }) {
         }, 1500);
         return () => clearTimeout(timer); // 컴포넌트 언마운트 시 타이머 제거
     }, []);
+
+    // [신규] '신상 스토어' 자동 스크롤 로직
+    useEffect(() => {
+        const animateScroll = () => {
+            if (storeContainerRef.current && !isDraggingRef.current && !isHoveringRef.current) {
+                // 스크롤 속도 (0.5px 씩)
+                storeContainerRef.current.scrollLeft += 0.5; 
+                
+                if (storeContentWidthRef.current === 0) {
+                    // (최초 1회) 컨텐츠 절반 너비 계산 (무한 루프 기준점)
+                    storeContentWidthRef.current = storeContainerRef.current.scrollWidth / 2;
+                }
+
+                // 스크롤이 절반을 넘어가면 (두 번째 세트 시작점)
+                if (storeContainerRef.current.scrollLeft >= storeContentWidthRef.current) {
+                    // 스크롤 위치를 0으로 리셋 (첫 번째 세트 시작점)
+                    storeContainerRef.current.scrollLeft = 0; 
+                }
+            }
+            animationFrameRef.current = requestAnimationFrame(animateScroll);
+        };
+
+        // 1.5초(로딩 시뮬레이션) 후에 스크롤 시작
+        const startTimer = setTimeout(() => {
+             // 컴포넌트 마운트 시 최초 너비 계산
+            if(storeContainerRef.current) {
+                storeContentWidthRef.current = storeContainerRef.current.scrollWidth / 2;
+            }
+            animationFrameRef.current = requestAnimationFrame(animateScroll);
+        }, 1500);
+
+        return () => {
+            // 컴포넌트 언마운트 시 애니메이션 프레임 정리
+            if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
+            clearTimeout(startTimer);
+        };
+    }, []); // 빈 배열: 마운트 시 1회 실행
+
+    // [신규] '신상 스토어' 드래그 시작 핸들러
+    const handleStoreDragStart = (e) => {
+        isDraggingRef.current = true;
+        isHoveringRef.current = true; // 드래그 시 호버 상태로 간주
+        // e.preventDefault(); // 이미지가 아닌 컨테이너라 필수 아님
+        dragStartXRef.current = e.clientX || e.touches[0].clientX;
+        scrollLeftRef.current = storeContainerRef.current.scrollLeft;
+        storeContainerRef.current.style.cursor = 'grabbing';
+    };
+
+    // [신규] '신상 스토어' 드래그 이동 핸들러
+    const handleStoreDragMove = (e) => {
+        if (!isDraggingRef.current) return;
+        const currentX = e.clientX || e.touches[0].clientX;
+        const dx = currentX - dragStartXRef.current; // 시작점으로부터의 변화량
+        storeContainerRef.current.scrollLeft = scrollLeftRef.current - dx; // 기존 스크롤 위치에서 변화량 적용
+    };
+
+    // [신규] '신상 스토어' 드래그 종료 핸들러
+    const handleStoreDragEnd = () => {
+        isDraggingRef.current = false;
+        isHoveringRef.current = false; // 드래그 종료 시 호버 해제
+        storeContainerRef.current.style.cursor = 'grab';
+    };
+
+    // [신규] '신상 스토어' 호버 핸들러 (마우스 올렸을 때)
+    const handleStoreHoverStart = () => {
+        if (!isDraggingRef.current) { // 드래그 중이 아닐 때만
+            isHoveringRef.current = true;
+        }
+    };
+
+     // [신규] '신상 스토어' 호버 핸들러 (마우스 떠났을 때)
+    const handleStoreHoverEnd = () => {
+        if (!isDraggingRef.current) { // 드래그 중이 아닐 때만
+            isHoveringRef.current = false;
+        }
+    };
+
 
     const SectionHeader = ({ title, onMoreClick }) => (
         <div className="flex justify-between items-center mb-4">
@@ -481,6 +569,17 @@ function HomePage({ user, setPage }) {
         </div>
     );
 
+    const storeItems = [
+        { title: "요넥스 신상 의류", brand: "Yonex", image: "https://placehold.co/160x128/00B16A/FFFFFF?text=Yonex" },
+        { title: "빅터 신상 라켓", brand: "Victor", image: "https://placehold.co/160x128/FFD700/000000?text=Victor" },
+        { title: "리닝 백", brand: "Li-Ning", image: "https://placehold.co/160x128/1E1E1E/FFFFFF?text=Li-Ning" },
+        { title: "아디다스 슈즈", brand: "Adidas", image: "https://placehold.co/160x128/F5F5F5/1E1E1E?text=Adidas" },
+        { title: "테크니스트 셔틀콕", brand: "Technist", image: "https://placehold.co/160x128/008a50/FFFFFF?text=Technist" },
+    ];
+
+    // [신규] 무한 스크롤을 위해 아이템 목록 2배로
+    const duplicatedStoreItems = [...storeItems, ...storeItems];
+
     const StoreCard = ({ image, title, brand }) => (
         <div className="w-40 flex-shrink-0 mr-4"> {/* 마퀴용 간격(mr-4) 추가 */}
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -489,6 +588,7 @@ function HomePage({ user, setPage }) {
                     alt={title} 
                     className="w-full h-32 object-cover bg-gray-200"
                     loading="lazy" // (아이디어 #4)
+                    draggable="false" // [신규] 드래그 시 이미지 고스트 방지
                 />
                 <div className="p-3">
                     <p className="font-bold text-base text-[#1E1E1E] mt-1 truncate">{title}</p>
@@ -542,6 +642,13 @@ function HomePage({ user, setPage }) {
             </div>
         </button>
     );
+
+    return (
+        <main className="p-4 space-y-8 bg-gray-50"> {/* 넉넉한 여백 */}
+            
+            {/* (1) 섹션: 메인 배너 */}
+            <MainBanner />
+
             {/* (2) 섹션: 신상 스토어 (요청 #4 - 마퀴 -> 스와이프로 수정) */}
             <section>
                 <SectionHeader title="신상 스토어" onMoreClick={() => setPage('store')} />
@@ -549,15 +656,17 @@ function HomePage({ user, setPage }) {
                 <div 
                     ref={storeContainerRef}
                     // [수정] overflow-x-auto, hide-scrollbar, cursor-grab 추가
-                    className="w-full overflow-x-auto hide-scrollbar cursor-grab active:cursor-grabbing"
-                    // [신규] 스와이프 이벤트 핸들러 추가
+                    className="w-full overflow-x-auto hide-scrollbar cursor-grab" // active:cursor-grabbing은 JS로 제어
+                    // [신규] 스와이프 및 호버 이벤트 핸들러 추가
                     onMouseDown={handleStoreDragStart}
                     onMouseMove={handleStoreDragMove}
                     onMouseUp={handleStoreDragEnd}
-                    onMouseLeave={handleStoreDragEnd}
+                    onMouseLeave={handleStoreDragEnd} // 마우스가 컨테이너 밖으로 나가면 드래그 종료 및 호버 종료
                     onTouchStart={handleStoreDragStart}
                     onTouchMove={handleStoreDragMove}
                     onTouchEnd={handleStoreDragEnd}
+                    onMouseEnter={handleStoreHoverStart} // 마우스 올리면 멈춤
+                    onMouseOut={handleStoreHoverEnd} // 마우스 떠나면 다시 시작 (onMouseLeave와 중복될 수 있으나, 호버 종료 명시)
                 >
                     {/* [수정] animate-marquee 클래스 제거, flex로 변경 */}
                     <div className="flex"> 
@@ -566,18 +675,18 @@ function HomePage({ user, setPage }) {
                             // [수정] 스켈레톤 카드 4개만 표시
                             [...Array(4)].map((_, i) => <SkeletonStoreCard key={i} />)
                         ) : (
-                            /* [수정] 마퀴용 2번 반복 제거 */
-                            storeItems.map((item, index) => (
+                            /* [수정] 무한 루프를 위해 2배로 늘린 아이템 사용 */
+                            duplicatedStoreItems.map((item, index) => (
                                 <StoreCard 
-                                    key={index}
+                                    key={index} // key는 index로 설정 (목록이 정적이므로)
                                     title={item.title} 
                                     brand={item.brand} 
                                     image={item.image} 
                                 />
                             ))
                         )}
-                        {/* [신규] 마지막 아이템 뒤에 여백을 주기 위한 요소 */}
-                        <div className="flex-shrink-0 w-1 h-1"></div>
+                        {/* [신규] 마지막 아이템 뒤에 여백을 주기 위한 요소 (필요 시) */}
+                        {/* <div className="flex-shrink-0 w-1 h-1"></div> */}
                     </div>
                 </div>
             </section>
@@ -821,7 +930,7 @@ function HomePageHeader({ onSearchClick, onBellClick }) {
 function SubPageHeader({ page, onBackClick }) {
     const title = page === 'game' ? '경기' :
                   page === 'store' ? '스토어' :
-                  page === 'community' ? '커뮤니티' : '내 정보';
+                  page ===: 'community' ? '커뮤니티' : '내 정보';
     return (
         <header className="sticky top-0 bg-white/80 backdrop-blur-md z-10 p-4 shadow-sm flex items-center">
             <button 
@@ -915,7 +1024,7 @@ export default function App() {
             case 'game':
                 return <GamePage user={user} onLoginClick={handleLoginClick} />;
             case 'store':
-                return <StorePage />;
+s:                return <StorePage />;
             case 'community':
                 return <CommunityPage />;
             case 'myinfo':
