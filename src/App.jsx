@@ -1027,9 +1027,10 @@ function HomePage({ user, setPage }) {
     }, [storeContainerRef.current]); // [수정] ref.current를 의존성으로
 
 
-    return (
-        return (
-        <div className="flex-grow p-6 space-y-10">
+   // ... HomePage 함수 내부 ...
+
+return (
+    <div className="flex-grow p-6 space-y-10">
 
             {/* (1) 섹션: 메인 배너 */}
             <MainBanner />
@@ -2095,6 +2096,28 @@ function SubPageHeader({ page, onBackClick }) {
 // ===================================================================================
 // 메인 App 컴포넌트 (라우팅)
 // ===================================================================================
+// ===================================================================================
+// 메인 App 컴포넌트 (라우팅)
+// ===================================================================================
+
+// [수정] 하단 탭 버튼 컴포넌트 (App 함수 *밖으로* 이동)
+const TabButton = ({ icon: Icon, label, isActive, onClick }) => {
+    return (
+        <button
+            onClick={onClick}
+            // [아이디어 #5] 마이크로 인터랙션: 탭 버튼
+            className={`flex flex-col items-center justify-center w-full pt-3 pb-2 transition-all duration-200 transform ${
+                isActive ? 'text-[#00B16A]' : 'text-gray-500 hover:text-gray-700'
+            } hover:scale-110 active:scale-95`}
+        >
+            <Icon size={26} className="mb-1" />
+            <span className={`text-sm ${isActive ? 'font-bold' : 'font-medium'}`}>
+                {label}
+            </span>
+        </button>
+    );
+};
+
 export default function App() {
     const [page, setPage] = useState('home'); // home, game, store, community, myinfo
     const [user, setUser] = useState(null);
@@ -2141,7 +2164,7 @@ export default function App() {
                 setLoadingAuth(false);
             });
         }
-        
+
         return () => unsubscribeUser();
     }, [user]);
 
@@ -2180,7 +2203,7 @@ export default function App() {
                             onLoginClick={handleLoginClick} 
                             onLogout={handleLogout}
                             setPage={setPage} // EmptyState 버튼용
-                       />;
+                    />;
             default:
                 return <HomePage user={userData} setPage={setPage} />;
         }
@@ -2194,9 +2217,7 @@ export default function App() {
         );
     }
 
-export default function App() {
-    // ... (App() 함수 내부 로직은 동일) ...
-
+    // [수정] 여기가 올바른 App 함수의 return 문입니다.
     return (
         <>
             {showLoginModal && <AuthModal onClose={handleCloseModal} setPage={setPage} />}
@@ -2222,6 +2243,8 @@ export default function App() {
                 </main>
 
                 <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200 shadow-lg z-10">
+                    {/* [수정] 탭 버튼을 감싸는 div 추가 */}
+                    <div className="flex justify-around">
                         <TabButton
                             icon={Home}
                             label="홈"
@@ -2258,21 +2281,3 @@ export default function App() {
         </>
     );
 }
-
-// 하단 탭 버튼 컴포넌트
-const TabButton = ({ icon: Icon, label, isActive, onClick }) => {
-    return (
-        <button
-            onClick={onClick}
-            // [아이디어 #5] 마이크로 인터랙션: 탭 버튼
-            className={`flex flex-col items-center justify-center w-full pt-3 pb-2 transition-all duration-200 transform ${
-                isActive ? 'text-[#00B16A]' : 'text-gray-500 hover:text-gray-700'
-            } hover:scale-110 active:scale-95`}
-        >
-            <Icon size={26} className="mb-1" />
-            <span className={`text-sm ${isActive ? 'font-bold' : 'font-medium'}`}>
-                {label}
-            </span>
-        </button>
-    );
-};
