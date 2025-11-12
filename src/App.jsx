@@ -26,9 +26,7 @@ import {
     deleteDoc // [신규] 문서 삭제 기능
 } from 'firebase/firestore';
 import {
-    // [수정] 아이콘 굵기(strokeWidth)를 1.5로 일괄 변경하기 위해 
-    // createReactComponent 헬퍼와 원본 아이콘(Icon)을 가져옵니다.
-    createReactComponent,
+    // [수정] createReactComponent를 제거하고, 원본 아이콘만 'as'로 가져옵니다.
     Home as HomeIcon, 
     Trophy as TrophyIcon, 
     Store as StoreIcon, 
@@ -59,43 +57,42 @@ import {
     GripVertical as GripVerticalIcon
 } from 'lucide-react';
 
-// [신규] 얇은 아이콘을 생성하는 헬퍼 함수
-// 기본 strokeWidth: 1.5, 기본 size: 24
-const createIcon = (name, iconNode) => createReactComponent(name, iconNode, {
-    strokeWidth: 1.5,
-    size: 24,
-});
+// [수정] 얇은 아이콘을 생성하는 '새로운' 헬퍼 함수
+// (createReactComponent가 비공개 함수라, 이 방식으로 우회합니다)
+const createThinIcon = (IconComponent) => {
+    // props를 받아서 strokeWidth=1.5를 기본값으로 추가한 새 컴포넌트를 반환
+    return (props) => <IconComponent {...props} strokeWidth={1.5} />;
+};
 
-// [신규] 앱에서 사용할 얇은 아이콘을 재정의합니다.
-// 이제 앱 전역에서 <Home />을 호출하면 굵기 1.5가 적용된 아이콘이 나옵니다.
-const Home = createIcon('Home', HomeIcon.iconNode);
-const Trophy = createIcon('Trophy', TrophyIcon.iconNode);
-const Store = createIcon('Store', StoreIcon.iconNode);
-const Users = createIcon('Users', UsersIcon.iconNode);
-const User = createIcon('User', UserIcon.iconNode);
-const X = createIcon('X', XIcon.iconNode);
-const Loader2 = createIcon('Loader2', Loader2Icon.iconNode);
-const ArrowLeft = createIcon('ArrowLeft', ArrowLeftIcon.iconNode);
-const ShieldCheck = createIcon('ShieldCheck', ShieldCheckIcon.iconNode);
-const ShoppingBag = createIcon('ShoppingBag', ShoppingBagIcon.iconNode);
-const MessageSquare = createIcon('MessageSquare', MessageSquareIcon.iconNode);
-const Search = createIcon('Search', SearchIcon.iconNode);
-const Bell = createIcon('Bell', BellIcon.iconNode);
-const MapPin = createIcon('MapPin', MapPinIcon.iconNode);
-const Heart = createIcon('Heart', HeartIcon.iconNode);
-const ChevronRight = createIcon('ChevronRight', ChevronRightIcon.iconNode);
-const Plus = createIcon('Plus', PlusIcon.iconNode);
-const Archive = createIcon('Archive', ArchiveIcon.iconNode);
-const Lock = createIcon('Lock', LockIcon.node);
-const Edit3 = createIcon('Edit3', Edit3Icon.iconNode);
-const Clock = createIcon('Clock', ClockIcon.iconNode);
-const AlertCircle = createIcon('AlertCircle', AlertCircleIcon.iconNode);
-const Calendar = createIcon('Calendar', CalendarIcon.iconNode);
-const Users2 = createIcon('Users2', Users2Icon.iconNode);
-const BarChart2 = createIcon('BarChart2', BarChart2Icon.iconNode);
-const CheckCircle = createIcon('CheckCircle', CheckCircleIcon.iconNode);
-const UserCheck = createIcon('UserCheck', UserCheckIcon.iconNode);
-const GripVertical = createIcon('GripVertical', GripVerticalIcon.iconNode);
+// [수정] 앱에서 사용할 얇은 아이콘을 새 헬퍼로 재정의합니다.
+const Home = createThinIcon(HomeIcon);
+const Trophy = createThinIcon(TrophyIcon);
+const Store = createThinIcon(StoreIcon);
+const Users = createThinIcon(UsersIcon);
+const User = createThinIcon(UserIcon);
+const X = createThinIcon(XIcon);
+const Loader2 = createThinIcon(Loader2Icon);
+const ArrowLeft = createThinIcon(ArrowLeftIcon);
+const ShieldCheck = createThinIcon(ShieldCheckIcon);
+const ShoppingBag = createThinIcon(ShoppingBagIcon);
+const MessageSquare = createThinIcon(MessageSquareIcon);
+const Search = createThinIcon(SearchIcon);
+const Bell = createThinIcon(BellIcon);
+const MapPin = createThinIcon(MapPinIcon);
+const Heart = createThinIcon(HeartIcon);
+const ChevronRight = createThinIcon(ChevronRightIcon);
+const Plus = createThinIcon(PlusIcon);
+const Archive = createThinIcon(ArchiveIcon);
+const Lock = createThinIcon(LockIcon);
+const Edit3 = createThinIcon(Edit3Icon);
+const Clock = createThinIcon(ClockIcon);
+const AlertCircle = createThinIcon(AlertCircleIcon);
+const Calendar = createThinIcon(CalendarIcon);
+const Users2 = createThinIcon(Users2Icon);
+const BarChart2 = createThinIcon(BarChart2Icon);
+const CheckCircle = createThinIcon(CheckCircleIcon);
+const UserCheck = createThinIcon(UserCheckIcon);
+const GripVertical = createThinIcon(GripVerticalIcon);
 // ===================================================================================
 // Firebase 설정 (Vercel 환경 변수 사용)
 // ===================================================================================
