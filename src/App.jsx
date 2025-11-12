@@ -2068,7 +2068,6 @@ function HomePageHeader({ onSearchClick, onBellClick }) {
         </header>
     );
 }
-}
 
 /**
  * 공통 서브페이지 헤더
