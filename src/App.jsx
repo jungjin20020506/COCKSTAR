@@ -26,15 +26,76 @@ import {
     deleteDoc // [신규] 문서 삭제 기능
 } from 'firebase/firestore';
 import {
-    Home, Trophy, Store, Users, User, X, Loader2, ArrowLeft, ShieldCheck, ShoppingBag, MessageSquare,
-    Search, Bell, MapPin, Heart, ChevronRight, Plus, Archive, // EmptyState 아이콘
-    // [신규] 아이콘 추가
-    Lock, Edit3, Clock, AlertCircle, Calendar, Users2, BarChart2,
-    CheckCircle, // [신규]
-    UserCheck, // [신규]
-    GripVertical // [신규] 드래그 핸들
+    // [수정] 아이콘 굵기(strokeWidth)를 1.5로 일괄 변경하기 위해 
+    // createReactComponent 헬퍼와 원본 아이콘(Icon)을 가져옵니다.
+    createReactComponent,
+    Home as HomeIcon, 
+    Trophy as TrophyIcon, 
+    Store as StoreIcon, 
+    Users as UsersIcon, 
+    User as UserIcon, 
+    X as XIcon, 
+    Loader2 as Loader2Icon, 
+    ArrowLeft as ArrowLeftIcon, 
+    ShieldCheck as ShieldCheckIcon, 
+    ShoppingBag as ShoppingBagIcon, 
+    MessageSquare as MessageSquareIcon,
+    Search as SearchIcon, 
+    Bell as BellIcon, 
+    MapPin as MapPinIcon, 
+    Heart as HeartIcon, 
+    ChevronRight as ChevronRightIcon, 
+    Plus as PlusIcon, 
+    Archive as ArchiveIcon,
+    Lock as LockIcon, 
+    Edit3 as Edit3Icon, 
+    Clock as ClockIcon, 
+    AlertCircle as AlertCircleIcon, 
+    Calendar as CalendarIcon, 
+    Users2 as Users2Icon, 
+    BarChart2 as BarChart2Icon,
+    CheckCircle as CheckCircleIcon,
+    UserCheck as UserCheckIcon,
+    GripVertical as GripVerticalIcon
 } from 'lucide-react';
 
+// [신규] 얇은 아이콘을 생성하는 헬퍼 함수
+// 기본 strokeWidth: 1.5, 기본 size: 24
+const createIcon = (name, iconNode) => createReactComponent(name, iconNode, {
+    strokeWidth: 1.5,
+    size: 24,
+});
+
+// [신규] 앱에서 사용할 얇은 아이콘을 재정의합니다.
+// 이제 앱 전역에서 <Home />을 호출하면 굵기 1.5가 적용된 아이콘이 나옵니다.
+const Home = createIcon('Home', HomeIcon.iconNode);
+const Trophy = createIcon('Trophy', TrophyIcon.iconNode);
+const Store = createIcon('Store', StoreIcon.iconNode);
+const Users = createIcon('Users', UsersIcon.iconNode);
+const User = createIcon('User', UserIcon.iconNode);
+const X = createIcon('X', XIcon.iconNode);
+const Loader2 = createIcon('Loader2', Loader2Icon.iconNode);
+const ArrowLeft = createIcon('ArrowLeft', ArrowLeftIcon.iconNode);
+const ShieldCheck = createIcon('ShieldCheck', ShieldCheckIcon.iconNode);
+const ShoppingBag = createIcon('ShoppingBag', ShoppingBagIcon.iconNode);
+const MessageSquare = createIcon('MessageSquare', MessageSquareIcon.iconNode);
+const Search = createIcon('Search', SearchIcon.iconNode);
+const Bell = createIcon('Bell', BellIcon.iconNode);
+const MapPin = createIcon('MapPin', MapPinIcon.iconNode);
+const Heart = createIcon('Heart', HeartIcon.iconNode);
+const ChevronRight = createIcon('ChevronRight', ChevronRightIcon.iconNode);
+const Plus = createIcon('Plus', PlusIcon.iconNode);
+const Archive = createIcon('Archive', ArchiveIcon.iconNode);
+const Lock = createIcon('Lock', LockIcon.node);
+const Edit3 = createIcon('Edit3', Edit3Icon.iconNode);
+const Clock = createIcon('Clock', ClockIcon.iconNode);
+const AlertCircle = createIcon('AlertCircle', AlertCircleIcon.iconNode);
+const Calendar = createIcon('Calendar', CalendarIcon.iconNode);
+const Users2 = createIcon('Users2', Users2Icon.iconNode);
+const BarChart2 = createIcon('BarChart2', BarChart2Icon.iconNode);
+const CheckCircle = createIcon('CheckCircle', CheckCircleIcon.iconNode);
+const UserCheck = createIcon('UserCheck', UserCheckIcon.iconNode);
+const GripVertical = createIcon('GripVertical', GripVerticalIcon.iconNode);
 // ===================================================================================
 // Firebase 설정 (Vercel 환경 변수 사용)
 // ===================================================================================
@@ -727,7 +788,7 @@ function MainBanner() {
  * 2. 홈 페이지
  */
 function HomePage({ user, setPage }) {
-    
+
     // [아이디어 #1] 스켈레톤 로딩을 위한 상태
     const [loading, setLoading] = useState(true);
 
@@ -739,26 +800,33 @@ function HomePage({ user, setPage }) {
         return () => clearTimeout(timer); // 컴포넌트 언마운트 시 타이머 제거
     }, []);
 
+    // [수정] SectionHeader 컴포넌트 디자인 변경
     const SectionHeader = ({ title, onMoreClick }) => (
-        <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-[#1E1E1E] tracking-tight">{title}</h2>
+        // [수정] mb-4 -> mb-6 (제목-내용간 여백 증가)
+        <div className="flex justify-between items-center mb-6">
+            {/* [수정] text-xl font-bold -> text-3xl font-extrabold tracking-tighter (H2 강조) */}
+            <h2 className="text-3xl font-extrabold text-[#1E1E1E] tracking-tighter">{title}</h2>
             <button 
                 onClick={onMoreClick} 
-                className="text-sm font-semibold text-gray-700 hover:text-[#00B16A] flex items-center"
+                // [수정] font-semibold text-gray-700 -> font-medium text-gray-500 (더보기 버튼 약화)
+                // [수정] transition-colors 추가
+                className="text-sm font-medium text-gray-500 hover:text-[#00B16A] flex items-center transition-colors"
             >
                 더보기 <ChevronRight size={18} />
             </button>
         </div>
     );
 
+    // [수정] StoreCard 컴포넌트 디자인 변경
     const StoreCard = ({ image, title, brand }) => (
-        <div className="w-40 flex-shrink-0 mr-4"> {/* 마퀴용 간격(mr-4) 추가 */}
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div className="w-40 flex-shrink-0 mr-4">
+            {/* [수정] shadow-lg -> shadow-md (그림자 약화) */}
+            <div className="bg-white rounded-xl shadow-md overflow-hidden">
                 <img 
                     src={image || "https://placehold.co/160x128/F5F5F5/BDBDBD?text=Store"} 
                     alt={title} 
                     className="w-full h-32 object-cover bg-gray-200"
-                    loading="lazy" // (아이디어 #4)
+                    loading="lazy"
                 />
                 <div className="p-3">
                     <p className="font-bold text-base text-[#1E1E1E] mt-1 truncate">{title}</p>
@@ -768,12 +836,17 @@ function HomePage({ user, setPage }) {
         </div>
     );
 
+    // [수정] GameCard 컴포넌트 디자인 변경
     const GameCard = ({ title, tags, location, current, total }) => (
         <button 
             onClick={() => setPage('game')}
-            className="w-full p-4 bg-white rounded-xl shadow-lg text-left transition-transform transform hover:scale-[1.02]"
+            // [수정] p-4 -> p-5 (내부 여백 증가)
+            // [수정] shadow-lg -> shadow-md (그림자 약화)
+            // [수정] transition-transform -> transition-all duration-200 (부드러운 전환)
+            className="w-full p-5 bg-white rounded-xl shadow-md text-left transition-all duration-200 transform hover:scale-[1.02]"
         >
-            <p className="font-bold text-lg text-[#1E1E1E] mb-2">{title}</p>
+            {/* [수정] text-lg font-bold -> text-base font-semibold (H3 약화) */}
+            <p className="font-semibold text-base text-[#1E1E1E] mb-2">{title}</p>
             <div className="flex flex-wrap gap-2 mb-3">
                 {tags.map((tag, index) => (
                     <span 
@@ -786,29 +859,38 @@ function HomePage({ user, setPage }) {
             </div>
             <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600 flex items-center">
-                    <MapPin size={16} className="mr-1" /> {location}
+                    {/* [수정] 아이콘 크기/여백 조절 (16/mr-1 -> 14/mr-1.5) */}
+                    <MapPin size={14} className="mr-1.5" /> {location}
                 </span>
-                <span className="text-sm font-medium text-[#00B16A] bg-green-50 px-2 py-1 rounded-full">
+                {/* [수정] bg-green-50 -> bg-green-100/80 (색상 일관성 및 투명도) */}
+                <span className="text-sm font-medium text-[#00B16A] bg-green-100/80 px-2.5 py-1 rounded-full">
                     {current} / {total}명
                 </span>
             </div>
         </button>
     );
 
+    // [수정] CommunityPost 컴포넌트 디자인 변경
     const CommunityPost = ({ category, title, likes }) => (
         <button 
             onClick={() => setPage('community')}
-            className="p-4 bg-white rounded-xl shadow-lg flex justify-between items-center w-full transition-shadow hover:shadow-md"
+            // [수정] p-4 -> p-5 (내부 여백 증가)
+            // [수정] shadow-lg -> shadow-md (그림자 약화)
+            // [수정] transition-shadow -> transition-all duration-200 (부드러운 전환)
+            // [수정] hover:shadow-md -> hover:shadow-lg (호버 시 그림자 살짝 강조)
+            className="p-5 bg-white rounded-xl shadow-md flex justify-between items-center w-full transition-all duration-200 hover:shadow-lg"
         >
-            <p className="truncate text-base text-[#1E1E1E] flex-1 mr-4">
+            {/* [수정] text-base -> text-base font-medium (본문 제목 두께 살짝) */}
+            <p className="truncate text-base font-medium text-[#1E1E1E] flex-1 mr-4">
                 <span className={`font-semibold ${category === 'Q&A' ? 'text-[#00B16A]' : 'text-gray-700'} mr-2`}>
                     [{category}]
                 </span>
                 {title}
             </p>
-            {/* [아이디어 #5] 마이크로 인터랙션: 하트 버튼 */}
-            <div className="text-sm text-gray-500 whitespace-nowrap flex items-center font-medium transition-colors hover:text-red-500">
-                <Heart size={16} className="mr-1" /> {likes}
+            {/* [수정] 부가정보(좋아요) 약화: text-sm font-medium -> text-xs font-normal text-gray-400 */}
+            <div className="text-xs text-gray-400 whitespace-nowrap flex items-center font-normal transition-colors hover:text-red-500">
+                {/* [수정] 아이콘 크기 조절 (16 -> 14) */}
+                <Heart size={14} className="mr-1" /> {likes}
             </div>
         </button>
     );
@@ -946,37 +1028,31 @@ function HomePage({ user, setPage }) {
 
 
     return (
-        <main className="flex-grow p-4 space-y-6">
-            
+        return (
+        <div className="flex-grow p-6 space-y-10">
+
             {/* (1) 섹션: 메인 배너 */}
             <MainBanner />
-            
-            {/* (2) 섹션: 신상 스토어 (요청 #4 - 마퀴 -> 스와이프로 수정) */}
+
+            {/* (2) 섹션: 신상 스토어 */}
             <section>
                 <SectionHeader title="신상 스토어" onMoreClick={() => setPage('store')} />
-                {/* [수정] 마퀴 -> 스와이프 컨테이너로 변경 */}
-                {/* [신규] CSS 제어용 주석 (위치 수정) */}
+                {/* ... (마퀴 스크롤 로직) ...
+                    [수정] 스켈레톤 카드 내부 디자인도 shadow-lg -> shadow-md로 변경됩니다. (SkeletonStoreCard 확인)
+                */}
                 <div 
                     ref={storeContainerRef}
-                    // [수정] overflow-x-auto, hide-scrollbar, cursor-grab 추가
-                    className="w-full overflow-x-auto hide-scrollbar cursor-grab" // active:cursor-grabbing은 JS로 제어
-                    
+                    className="w-full overflow-x-auto hide-scrollbar cursor-grab"
                     style={{ overscrollBehaviorX: 'contain', touchAction: 'pan-x' }}
-
-                    // [수정] 마우스 이벤트만 남김 (터치 이벤트는 useEffect에서 수동 등록)
                     onMouseDown={handleStoreDragStart}
                     onMouseMove={handleStoreDragMove}
                     onMouseUp={handleStoreDragEnd}
-                    onMouseLeave={handleStoreDragEnd} // 마우스가 컨테이너 밖으로 나가면 드래그 종료
+                    onMouseLeave={handleStoreDragEnd}
                 >
-                    {/* [수정] animate-marquee 클래스 제거, flex로 변경 */}
                     <div ref={scrollContentRef} className="flex"> 
-                        {/* [아이디어 #1] 스켈레톤 로딩 */}
                         {loading ? (
-                            // [수정] 스켈레톤 카드 4개만 표시
                             [...Array(4)].map((_, i) => <SkeletonStoreCard key={i} />)
                         ) : (
-                            /* [수정] 마퀴용 2번 반복 */
                             doubledStoreItems.map((item, index) => (
                                 <StoreCard 
                                     key={index}
@@ -986,7 +1062,6 @@ function HomePage({ user, setPage }) {
                                 />
                             ))
                         )}
-                        {/* [신규] 마지막 아이템 뒤에 여백을 주기 위한 요소 */}
                         <div className="flex-shrink-0 w-1 h-1"></div>
                     </div>
                 </div>
@@ -996,7 +1071,6 @@ function HomePage({ user, setPage }) {
             <section>
                 <SectionHeader title="지금 뜨는 경기" onMoreClick={() => setPage('game')} />
                 <div className="space-y-4">
-                    {/* [아이디어 #1] 스켈레톤 로딩 */}
                     {loading ? (
                         <>
                             <SkeletonCard />
@@ -1027,7 +1101,6 @@ function HomePage({ user, setPage }) {
             <section>
                 <SectionHeader title="커뮤니티 인기글" onMoreClick={() => setPage('community')} />
                 <div className="space-y-3">
-                    {/* [아이디어 #1] 스켈레톤 로딩 */}
                     {loading ? (
                          <>
                             <SkeletonCard />
@@ -1044,7 +1117,7 @@ function HomePage({ user, setPage }) {
                 </div>
             </section>
 
-        </main>
+        </div>
     );
 }
 
@@ -1969,27 +2042,31 @@ function MyInfoPage({ user, userData, onLoginClick, onLogout, setPage }) { // se
  */
 function HomePageHeader({ onSearchClick, onBellClick }) {
     return (
-        <header className="sticky top-0 bg-white z-10 p-4 shadow-sm flex justify-between items-center">
+        // [수정] bg-white -> bg-white/80 backdrop-blur-md (유리 효과 적용)
+        <header className="sticky top-0 bg-white/80 backdrop-blur-md z-10 p-4 shadow-sm flex justify-between items-center">
             <h1 className="text-3xl font-extrabold text-[#00B16A] tracking-tighter">
                 COCKSTAR
             </h1>
-            
+
             <div className="flex space-x-3 text-xl text-gray-700">
                 <button 
                     onClick={onSearchClick} 
                     className="p-2 rounded-full hover:bg-gray-100 hover:text-[#1E1E1E] transition-colors"
                 >
-                    <Search size={24} />
+                    {/* 아이콘 굵기 1.5로 자동 변경됨 */}
+                    <Search size={24} /> 
                 </button>
                 <button 
                     onClick={onBellClick} 
                     className="p-2 rounded-full hover:bg-gray-100 hover:text-[#1E1E1E] transition-colors"
                 >
+                    {/* 아이콘 굵기 1.5로 자동 변경됨 */}
                     <Bell size={24} />
                 </button>
             </div>
         </header>
     );
+}
 }
 
 /**
@@ -2117,12 +2194,16 @@ export default function App() {
         );
     }
 
+export default function App() {
+    // ... (App() 함수 내부 로직은 동일) ...
+
     return (
         <>
             {showLoginModal && <AuthModal onClose={handleCloseModal} setPage={setPage} />}
 
-            <div className="max-w-md mx-auto h-screen bg-gray-50 shadow-lg overflow-hidden flex flex-col font-sans text-[#1E1E1E] hide-scrollbar">
-                
+            {/* [수정] 배경색 bg-gray-50 -> bg-slate-100 */}
+            <div className="max-w-md mx-auto h-screen bg-slate-100 shadow-lg overflow-hidden flex flex-col font-sans text-[#1E1E1E] hide-scrollbar">
+
                 {page === 'home' ? (
                     <HomePageHeader 
                         onSearchClick={() => alert('검색 기능 준비 중')}
@@ -2132,12 +2213,15 @@ export default function App() {
                     <SubPageHeader page={page} onBackClick={() => setPage('home')} />
                 )}
 
-                <main className={`flex-grow overflow-y-auto pb-20 hide-scrollbar ${page !== 'home' ? 'bg-white' : ''}`}>
+                {/* [수정] 하단 여백 pb-20 -> pb-24
+                    [수정] 홈(home)페이지만 앱 배경색(slate-100)을 따르고, 
+                            나머지 페이지(경기, 스토어 등)는 흰색 배경(bg-white)을 갖도록 논리 수정
+                */}
+                <main className={`flex-grow overflow-y-auto pb-24 hide-scrollbar ${page === 'home' ? 'bg-slate-100' : 'bg-white'}`}>
                     {renderPage()}
                 </main>
 
                 <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200 shadow-lg z-10">
-                    <div className="flex justify-around h-16">
                         <TabButton
                             icon={Home}
                             label="홈"
