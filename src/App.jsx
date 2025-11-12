@@ -797,22 +797,21 @@ function HomePage({ user, setPage }) {
         return () => clearTimeout(timer); // 컴포넌트 언마운트 시 타이머 제거
     }, []);
 
-    // [수정] SectionHeader 컴포넌트 디자인 변경
-    const SectionHeader = ({ title, onMoreClick }) => (
-        // [수정] mb-4 -> mb-6 (제목-내용간 여백 증가)
-        <div className="flex justify-between items-center mb-6">
-            {/* [수정] text-xl font-bold -> text-3xl font-extrabold tracking-tighter (H2 강조) */}
-            <h2 className="text-3xl font-extrabold text-[#1E1E1E] tracking-tighter">{title}</h2>
-            <button 
-                onClick={onMoreClick} 
-                // [수정] font-semibold text-gray-700 -> font-medium text-gray-500 (더보기 버튼 약화)
-                // [수정] transition-colors 추가
-                className="text-sm font-medium text-gray-500 hover:text-[#00B16A] flex items-center transition-colors"
-            >
-                더보기 <ChevronRight size={18} />
-            </button>
-        </div>
-    );
+  // [재수정] SectionHeader 컴포넌트 디자인 변경 (모바일 최적화)
+const SectionHeader = ({ title, onMoreClick }) => (
+    // [재수정] mb-6 -> mb-4 (제목 크기가 줄었으므로 하단 여백도 살짝 줄여 균형 맞춤)
+    <div className="flex justify-between items-center mb-4">
+        {/* [재수정] text-3xl font-extrabold -> text-2xl font-bold (더 세련된 크기로) */}
+        <h2 className="text-2xl font-bold text-[#1E1E1E] tracking-tight">{title}</h2>
+        <button 
+            onClick={onMoreClick} 
+            // (더보기 버튼은 디자인이 좋으므로 유지)
+            className="text-sm font-medium text-gray-500 hover:text-[#00B16A] flex items-center transition-colors"
+        >
+            더보기 <ChevronRight size={18} />
+        </button>
+    </div>
+);
 
     // [수정] StoreCard 컴포넌트 디자인 변경
     const StoreCard = ({ image, title, brand }) => (
@@ -1027,7 +1026,7 @@ function HomePage({ user, setPage }) {
    // ... HomePage 함수 내부 ...
 
 return (
-    <div className="flex-grow p-6 space-y-10">
+    <div className="flex-grow p-6 space-y-12">
 
             {/* (1) 섹션: 메인 배너 */}
             <MainBanner />
