@@ -68,19 +68,6 @@ import {
     Mail as MailIcon
 } from 'lucide-react';
 
-// [추가] 카카오/전화번호 로그인을 위한 모듈 추가
-import { 
-    RecaptchaVerifier, 
-    signInWithPhoneNumber, 
-    OAuthProvider 
-} from 'firebase/auth';
-
-// [추가] 관리자 설정 아이콘
-import { Settings as SettingsIcon } from 'lucide-react';
-const Settings = createThinIcon(SettingsIcon);
-
-// [추가] 최고 관리자 목록 (이전 앱과 동일하게 설정)
-const SUPER_ADMIN_USERNAMES = ["jung22459369", "domain"];
 
 // [수정] 얇은 아이콘 헬퍼
 const createThinIcon = (IconComponent) => {
