@@ -23,7 +23,9 @@ import {
     serverTimestamp,
     orderBy, // [신규] 정렬 기능
     updateDoc, // [신규] 문서 업데이트 기능
-    deleteDoc // [신규] 문서 삭제 기능
+    deleteDoc, // [신규] 문서 삭제 기능
+    runTransaction, // [추가] 데이터 안전 이동
+    writeBatch      // [추가] 여러 문서 한번에 수정
 } from 'firebase/firestore';
 import {
     // [수정] createReactComponent를 제거하고, 원본 아이콘만 'as'로 가져옵니다.
@@ -1459,6 +1461,130 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     const [draggedPlayerId, setDraggedPlayerId] = useState(null);
     const [dragOverSlot, setDragOverSlot] = useState(null); // { matchIndex, slotIndex }
 
+    // =================================================
+    // [신규] 경기 진행 로직 (Start / Finish)
+    // =================================================
+    const [courtModalOpen, setCourtModalOpen] = useState(false);
+    const [pendingMatchIndex, setPendingMatchIndex] = useState(null); // 경기 시작 대기 중인 매치 번호
+    const [availableCourts, setAvailableCourts] = useState([]); // 현재 빈 코트 목록
+
+    // 1. 경기 시작 버튼 클릭 시
+    const handleStartClick = (matchIndex) => {
+        if (!isAdmin) {
+            alert("경기 시작은 방장만 가능합니다.");
+            return;
+        }
+
+        // 현재 빈 코트 찾기
+        const emptyCourts = [];
+        const currentCourts = roomData.inProgressCourts || [];
+        for (let i = 0; i < roomData.numInProgressCourts; i++) {
+            if (!currentCourts[i]) {
+                emptyCourts.push(i);
+            }
+        }
+
+        if (emptyCourts.length === 0) {
+            alert("사용 가능한 빈 코트가 없습니다.");
+            return;
+        }
+
+        if (emptyCourts.length === 1) {
+            // 빈 코트가 1개면 바로 시작
+            processStartMatch(matchIndex, emptyCourts[0]);
+        } else {
+            // 빈 코트가 여러 개면 모달 띄우기
+            setPendingMatchIndex(matchIndex);
+            setAvailableCourts(emptyCourts);
+            setCourtModalOpen(true);
+        }
+    };
+
+    // 2. 실제 경기 시작 처리 (트랜잭션 사용)
+    const processStartMatch = async (matchIndex, courtIndex) => {
+        try {
+            await runTransaction(db, async (transaction) => {
+                const roomDoc = await transaction.get(roomDocRef);
+                if (!roomDoc.exists()) throw "Room does not exist!";
+                
+                const data = roomDoc.data();
+                const players = data.scheduledMatches[matchIndex];
+
+                // 데이터 정합성 체크
+                if (!players || players.includes(null)) throw "플레이어가 모두 차지 않았습니다.";
+                if (data.inProgressCourts && data.inProgressCourts[courtIndex]) throw "이미 사용 중인 코트입니다.";
+
+                // 1) 예정 목록에서 제거 (당기기 로직은 복잡하므로 일단 null처리하거나 유지)
+                // 여기서는 새로운 스케줄 객체를 만듭니다.
+                const newScheduled = { ...data.scheduledMatches };
+                delete newScheduled[matchIndex]; // 해당 키 삭제
+
+                // 키 재정렬 (1번이 빠지면 2번->1번으로) - 선택 사항이지만 깔끔하게
+                const reorderedScheduled = {};
+                let idx = 0;
+                Object.keys(newScheduled).sort((a,b)=>a-b).forEach(key => {
+                    reorderedScheduled[idx] = newScheduled[key];
+                    idx++;
+                });
+
+                // 2) 진행 중 코트에 추가
+                const newCourts = [...(data.inProgressCourts || [])];
+                // 배열 길이가 부족하면 채움
+                while(newCourts.length <= courtIndex) newCourts.push(null);
+                
+                newCourts[courtIndex] = {
+                    players: players,
+                    startTime: new Date().toISOString() // 현재 시간 기록
+                };
+
+                transaction.update(roomDocRef, {
+                    scheduledMatches: reorderedScheduled,
+                    inProgressCourts: newCourts
+                });
+            });
+            
+            // 모달 닫기
+            setCourtModalOpen(false);
+            setPendingMatchIndex(null);
+
+        } catch (e) {
+            console.error("경기 시작 실패:", e);
+            alert("경기를 시작할 수 없습니다: " + e);
+        }
+    };
+
+    // 3. 경기 종료 버튼 클릭 시
+    const handleEndMatch = async (courtIndex) => {
+        if (!isAdmin) return;
+        if (!window.confirm(`${courtIndex + 1}번 코트의 경기를 종료하시겠습니까?`)) return;
+
+        try {
+            const courtData = roomData.inProgressCourts[courtIndex];
+            const playersInMatch = courtData.players;
+
+            // 1) 코트 비우기 (Firestore 업데이트)
+            const newCourts = [...roomData.inProgressCourts];
+            newCourts[courtIndex] = null;
+            await updateDoc(roomDocRef, { inProgressCourts: newCourts });
+
+            // 2) 선수들 게임 수 +1 (Batch 사용)
+            const batch = writeBatch(db);
+            playersInMatch.forEach(playerId => {
+                if (players[playerId]) { // 선수가 방에 여전히 존재한다면
+                    const pRef = doc(roomsCollectionRef, roomId, "players", playerId);
+                    // 현재 게임 수 + 1 (기존 값이 없으면 0 처리)
+                    const currentGames = players[playerId].todayGames || 0;
+                    batch.update(pRef, { todayGames: currentGames + 1 });
+                }
+            });
+            await batch.commit();
+
+        } catch (e) {
+            console.error("경기 종료 실패:", e);
+            alert("경기 종료 처리 중 오류가 발생했습니다.");
+        }
+    };
+
     // [신규] Firestore 경로
     const roomDocRef = doc(roomsCollectionRef, roomId);
     const playersCollectionRef = collection(roomDocRef, "players");
@@ -1823,16 +1949,17 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                                                 <div className="flex justify-between items-center mb-2 px-1">
                                                     <span className="font-bold text-gray-700">매치 {matchIndex + 1}</span>
                                                     {/* (TODO) '경기 시작' 버튼 */}
-                                                    <button 
-                                                        className={`px-3 py-1 text-sm font-bold rounded-md ${
-                                                            playerCount === PLAYERS_PER_MATCH 
-                                                            ? 'bg-[#00B16A] text-white' 
-                                                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                                        }`}
-                                                        disabled={playerCount !== PLAYERS_PER_MATCH}
-                                                    >
-                                                        경기 시작
-                                                    </button>
+                                                   <button 
+    onClick={() => handleStartClick(matchIndex)} // [수정] 함수 연결!
+    className={`px-3 py-1 text-sm font-bold rounded-md transition-transform active:scale-95 ${
+        playerCount === PLAYERS_PER_MATCH 
+        ? 'bg-[#00B16A] text-white shadow-md hover:bg-green-600' 
+        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+    }`}
+    disabled={playerCount !== PLAYERS_PER_MATCH}
+>
+    경기 시작
+</button>
                                                 </div>
                                                 <div className="grid grid-cols-4 gap-2">
                                                     {match.map((playerId, slotIndex) => {
@@ -1898,16 +2025,78 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                     </div>
                 ) : (
                     /* "경기 진행" 탭 */
-                    <div className="space-y-6">
-                        <section className="bg-white rounded-xl shadow-sm p-4">
-                            <h2 className="text-lg font-bold text-[#1E1E1E] mb-3">경기 진행 중 (TODO)</h2>
-                            <EmptyState
-                                icon={Trophy}
-                                title="진행 중인 경기가 없습니다"
-                                description="'매칭' 탭에서 경기를 배정한 후 '경기 시작'을 눌러주세요."
-                            />
-                        </section>
-                    </div>
+                <div className="space-y-6 pb-20">
+                     {/* 코트 모달 연결 */}
+                     <CourtSelectionModal 
+                        isOpen={courtModalOpen}
+                        onClose={() => setCourtModalOpen(false)}
+                        courts={availableCourts}
+                        onSelect={(courtIdx) => processStartMatch(pendingMatchIndex, courtIdx)}
+                     />
+
+                    <section className="bg-white rounded-xl shadow-sm p-4">
+                        <h2 className="text-lg font-bold text-[#1E1E1E] mb-4 flex items-center gap-2">
+                            <div className="w-2 h-6 bg-red-500 rounded-sm"></div>
+                            경기 진행 현황
+                        </h2>
+                        
+                        <div className="space-y-4">
+                            {Array.from({ length: roomData.numInProgressCourts }).map((_, courtIndex) => {
+                                const court = (roomData.inProgressCourts || [])[courtIndex];
+                                const isOccupied = court && court.players;
+
+                                return (
+                                    <div key={courtIndex} className={`rounded-xl border-2 transition-all overflow-hidden ${isOccupied ? 'border-red-100 bg-red-50/30' : 'border-gray-100 bg-gray-50'}`}>
+                                        {/* 코트 헤더 */}
+                                        <div className="flex justify-between items-center p-3 border-b border-gray-100 bg-white">
+                                            <div className="flex items-center gap-2">
+                                                <span className="bg-[#1E1E1E] text-white text-xs font-bold px-2 py-1 rounded">
+                                                    COURT {courtIndex + 1}
+                                                </span>
+                                                {isOccupied && <CourtTimer startTime={court.startTime} />}
+                                            </div>
+                                            
+                                            {isOccupied && isAdmin && (
+                                                <button 
+                                                    onClick={() => handleEndMatch(courtIndex)}
+                                                    className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition-colors flex items-center gap-1"
+                                                >
+                                                    <CheckCircleIcon size={14} /> 경기 종료
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* 플레이어 목록 */}
+                                        <div className="p-3">
+                                            {isOccupied ? (
+                                                <div className="grid grid-cols-4 gap-2">
+                                                    {court.players.map((playerId) => {
+                                                        const player = players[playerId];
+                                                        if (!player) return <div key={playerId} className="h-16 bg-gray-200 rounded animate-pulse"></div>;
+                                                        
+                                                        return (
+                                                            <div key={playerId} className="bg-white p-2 rounded-lg shadow-sm border border-gray-100 flex flex-col justify-center items-center text-center h-20">
+                                                                <span className="text-xs font-bold text-gray-800 truncate w-full mb-1">{player.name}</span>
+                                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 ${getLevelColor(player.level).replace('border-', 'text-')}`}>
+                                                                    {player.level}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-center justify-center py-6 text-gray-400">
+                                                    <TrophyIcon className="w-8 h-8 mb-2 opacity-20" />
+                                                    <span className="text-sm font-medium">빈 코트</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </section>
+                </div>
                 )}
             </main>
         </div>
@@ -2275,4 +2464,72 @@ export default function App() {
             </div>
         </>
     );
+
+// ===================================================================================
+// [신규] 경기 타이머 & 코트 선택 모달
+// ===================================================================================
+function CourtTimer({ startTime }) {
+    const [time, setTime] = useState('00:00');
+
+    useEffect(() => {
+        if (!startTime) return;
+        
+        const timerId = setInterval(() => {
+            const now = new Date();
+            const start = new Date(startTime);
+            const diff = Math.floor((now - start) / 1000); // 초 단위 차이
+            
+            if (diff < 0) {
+                 setTime('00:00');
+                 return;
+            }
+
+            const minutes = String(Math.floor(diff / 60)).padStart(2, '0');
+            const seconds = String(diff % 60).padStart(2, '0');
+            setTime(`${minutes}:${seconds}`);
+        }, 1000);
+
+        return () => clearInterval(timerId);
+    }, [startTime]);
+
+    return (
+        <div className="mt-2 flex items-center justify-center gap-1 text-[#00B16A] font-mono font-bold text-lg bg-green-50 px-3 py-1 rounded-full border border-green-100">
+            <ClockIcon size={16} />
+            <span>{time}</span>
+        </div>
+    );
+}
+
+function CourtSelectionModal({ isOpen, onClose, courts, onSelect }) {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-2xl animate-fade-in-up">
+                <h3 className="text-xl font-bold text-[#1E1E1E] mb-2 text-center">코트 선택</h3>
+                <p className="text-gray-500 text-sm text-center mb-6">경기를 시작할 코트를 선택해주세요.</p>
+                
+                <div className="space-y-3">
+                    {courts.map((courtIdx) => (
+                        <button
+                            key={courtIdx}
+                            onClick={() => onSelect(courtIdx)}
+                            className="w-full py-4 bg-gray-50 hover:bg-[#00B16A] hover:text-white border-2 border-gray-100 hover:border-[#00B16A] rounded-xl text-lg font-bold transition-all duration-200 flex justify-between items-center px-6 group"
+                        >
+                            <span>🏸 {courtIdx + 1}번 코트</span>
+                            <ChevronRightIcon className="text-gray-300 group-hover:text-white" />
+                        </button>
+                    ))}
+                </div>
+
+                <button
+                    onClick={onClose}
+                    className="mt-6 w-full py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                    취소
+                </button>
+            </div>
+        </div>
+    );
+}
 }
