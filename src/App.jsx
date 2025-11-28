@@ -1891,74 +1891,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     );
 }
 
-                    <section className="bg-white rounded-xl shadow-sm p-4">
-                        <h2 className="text-lg font-bold text-[#1E1E1E] mb-4 flex items-center gap-2">
-                            <div className="w-2 h-6 bg-red-500 rounded-sm"></div>
-                            경기 진행 현황
-                        </h2>
-                        
-                        <div className="space-y-4">
-                            {Array.from({ length: roomData.numInProgressCourts }).map((_, courtIndex) => {
-                                const court = (roomData.inProgressCourts || [])[courtIndex];
-                                const isOccupied = court && court.players;
-
-                                return (
-                                    <div key={courtIndex} className={`rounded-xl border-2 transition-all overflow-hidden ${isOccupied ? 'border-red-100 bg-red-50/30' : 'border-gray-100 bg-gray-50'}`}>
-                                        {/* 코트 헤더 */}
-                                        <div className="flex justify-between items-center p-3 border-b border-gray-100 bg-white">
-                                            <div className="flex items-center gap-2">
-                                                <span className="bg-[#1E1E1E] text-white text-xs font-bold px-2 py-1 rounded">
-                                                    COURT {courtIndex + 1}
-                                                </span>
-                                                {isOccupied && <CourtTimer startTime={court.startTime} />}
-                                            </div>
-                                            
-                                            {isOccupied && isAdmin && (
-                                                <button 
-                                                    onClick={() => handleEndMatch(courtIndex)}
-                                                    className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition-colors flex items-center gap-1"
-                                                >
-                                                    <CheckCircleIcon size={14} /> 경기 종료
-                                                </button>
-                                            )}
-                                        </div>
-
-                                        {/* 플레이어 목록 */}
-                                        <div className="p-3">
-                                            {isOccupied ? (
-                                                <div className="grid grid-cols-4 gap-2">
-                                                    {court.players.map((playerId) => {
-                                                        const player = players[playerId];
-                                                        if (!player) return <div key={playerId} className="h-16 bg-gray-200 rounded animate-pulse"></div>;
-                                                        
-                                                        return (
-                                                            <div key={playerId} className="bg-white p-2 rounded-lg shadow-sm border border-gray-100 flex flex-col justify-center items-center text-center h-20">
-                                                                <span className="text-xs font-bold text-gray-800 truncate w-full mb-1">{player.name}</span>
-                                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 ${getLevelColor(player.level).replace('border-', 'text-')}`}>
-                                                                    {player.level}
-                                                                </span>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            ) : (
-                                                <div className="flex flex-col items-center justify-center py-6 text-gray-400">
-                                                    <TrophyIcon className="w-8 h-8 mb-2 opacity-20" />
-                                                    <span className="text-sm font-medium">빈 코트</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </section>
-                </div>
-                )}
-            </main>
-        </div>
-    );
-}
+                    
 
 /**
  * 4. 스토어 페이지
@@ -2620,5 +2553,4 @@ function CourtSelectionModal({ isOpen, onClose, courts, onSelect }) {
             </div>
         </div>
     );
-}
 }
