@@ -1350,7 +1350,102 @@ function RoomCard({ room, onEnter }) {
  * [신규] 플레이어 카드
  * 구버전 App (1).jsx의 PlayerCard 로직을 콕스타 디자인으로 재구성
  */
-const PlayerCard = React.memo(({
+/**
+ * [신규] 플레이어 카드
+ * 구버전 App (1).jsx의 PlayerCard 로직을 콕스타 디자인으로 재구성
+ */
+const PlayerCard = React.memo(({ 
+    player, 
+    isAdmin, 
+    isCurrentUser, 
+    isPlaying,
+    isResting,
+    isSelected, // [신규] 선택된 상태
+    onCardClick, // [신규] 클릭 핸들러
+    onDeleteClick, // [신규] 삭제(X) 핸들러
+    onDragStart,
+    onDragEnd,
+    onDragOver,
+    onDrop
+}) => {
+    if (!player) return <div className="h-14 bg-gray-100 rounded-lg animate-pulse"></div>;
+
+    const levelColorClass = getLevelColor(player.level);
+    const genderBorder = player.gender === '남' ? 'border-l-blue-500' : 'border-l-pink-500';
+
+    // 스타일 클래스 조합
+    let containerClass = `relative bg-white rounded-lg shadow-sm p-2 h-16 flex flex-col justify-between border-l-[3px] transition-all duration-200 cursor-pointer hover:shadow-md ${genderBorder} `;
+    
+    // [신규] 상태별 스타일
+    if (isPlaying) containerClass += " opacity-50 bg-gray-50 grayscale ";
+    if (isResting) containerClass += " opacity-40 bg-gray-100 grayscale ";
+    
+    // [신규] 선택 효과 (크기 확대 + 노란색 링)
+    if (isSelected) {
+        containerClass += " ring-2 ring-[#FFD700] ring-offset-1 transform scale-105 z-10 ";
+    } else if (isCurrentUser) {
+        containerClass += " ring-1 ring-[#00B16A] ring-offset-1 "; // 본인은 초록색 얇은 링
+    }
+
+    const canDrag = isAdmin;
+
+    return (
+        <div
+            className={containerClass}
+            onClick={() => onCardClick && onCardClick(player)} // 클릭 이벤트 연결
+            draggable={canDrag}
+            onDragStart={canDrag ? (e) => onDragStart(e, player.id) : undefined}
+            onDragEnd={canDrag ? onDragEnd : undefined}
+            onDragOver={canDrag ? onDragOver : undefined}
+            onDrop={canDrag ? (e) => onDrop(e, { type: 'player', player: player }) : undefined}
+        >
+            {/* 상단: 이름 */}
+            <div className="flex justify-between items-start">
+                <span className="text-xs font-bold text-[#1E1E1E] truncate w-full pr-1 leading-tight">
+                    {player.name}
+                </span>
+                {/* [신규] 관리자용 내보내기(X) 버튼 */}
+                {isAdmin && (
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation(); // 카드 클릭 방지
+                            onDeleteClick && onDeleteClick(player);
+                        }}
+                        className="absolute -top-1.5 -right-1.5 bg-white text-gray-400 hover:text-red-500 rounded-full shadow-sm border border-gray-100 p-0.5 transition-colors z-20"
+                    >
+                        <XIcon size={12} strokeWidth={3} />
+                    </button>
+                )}
+            </div>
+            
+            {/* 하단: 급수, 게임 수 */}
+            <div className="flex justify-between items-end mt-1">
+                <span className={`text-[10px] font-extrabold ${levelColorClass.replace('border-', 'text-')}`}>
+                    {player.level || 'N'}
+                </span>
+                <span className="text-[10px] text-gray-400 font-medium">
+                    {player.todayGames || 0}G
+                </span>
+            </div>
+        </div>
+    );
+});
+
+/**
+ * [수정] 빈 슬롯 (크기 축소)
+ */
+const EmptySlot = ({ onSlotClick, onDragOver, onDrop, isDragOver }) => (
+    <div 
+        onClick={onSlotClick}
+        onDragOver={onDragOver} 
+        onDrop={onDrop}
+        className={`h-16 bg-gray-50/80 rounded-lg flex items-center justify-center text-gray-300 border border-dashed border-gray-300 transition-all cursor-pointer hover:bg-white hover:border-[#00B16A] hover:text-[#00B16A] ${
+            isDragOver ? 'bg-green-50 border-[#00B16A] text-[#00B16A]' : ''
+        }`}
+    >
+        <Plus size={16} />
+    </div>
+);
 
 
 // [신규] 경기방 뷰 컴포넌트 (모든 요청사항 반영)
