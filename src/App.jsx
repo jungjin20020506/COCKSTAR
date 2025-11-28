@@ -1350,10 +1350,7 @@ function RoomCard({ room, onEnter }) {
  * [신규] 플레이어 카드
  * 구버전 App (1).jsx의 PlayerCard 로직을 콕스타 디자인으로 재구성
  */
-/**
- * [신규] 플레이어 카드
- * 구버전 App (1).jsx의 PlayerCard 로직을 콕스타 디자인으로 재구성
- */
+
 const PlayerCard = React.memo(({ 
     player, 
     isAdmin, 
@@ -1447,6 +1444,139 @@ const EmptySlot = ({ onSlotClick, onDragOver, onDrop, isDragOver }) => (
     </div>
 );
 
+/**
+ * [신규] 환경 설정 모달 (관리자용)
+ */
+function SettingsModal({ isOpen, onClose, roomData, onSave, onReset, onKickAll }) {
+    const [settings, setSettings] = useState({
+        mode: 'admin',
+        numScheduledMatches: 4,
+        numInProgressCourts: 2
+    });
+
+    useEffect(() => {
+        if (roomData) {
+            setSettings({
+                mode: roomData.mode || 'admin',
+                numScheduledMatches: roomData.numScheduledMatches || 4,
+                numInProgressCourts: roomData.numInProgressCourts || 2
+            });
+        }
+    }, [roomData]);
+
+    if (!isOpen) return null;
+
+    const handleSave = () => {
+        onSave(settings);
+        onClose();
+    };
+
+    const adjustCount = (field, delta) => {
+        setSettings(prev => ({
+            ...prev,
+            [field]: Math.max(1, prev[field] + delta)
+        }));
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-fade-in-up">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-[#1E1E1E]">환경 설정</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XIcon size={24}/></button>
+                </div>
+
+                <div className="space-y-6">
+                    {/* 1. 운영 모드 */}
+                    <div>
+                        <label className="text-sm font-bold text-gray-500 mb-2 block">운영 모드</label>
+                        <div className="flex bg-gray-100 rounded-lg p-1">
+                            {['admin', 'personal'].map(mode => (
+                                <button
+                                    key={mode}
+                                    onClick={() => setSettings(s => ({ ...s, mode }))}
+                                    className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${
+                                        settings.mode === mode 
+                                        ? 'bg-white text-[#00B16A] shadow-sm' 
+                                        : 'text-gray-400'
+                                    }`}
+                                >
+                                    {mode === 'admin' ? '👑 관리자' : '🏃 개인'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* 2. 코트/매치 수 조절 */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-sm font-bold text-gray-500 mb-2 block text-center">경기 예정 수</label>
+                            <div className="flex items-center justify-center gap-3">
+                                <button onClick={() => adjustCount('numScheduledMatches', -1)} className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 font-bold hover:bg-gray-200">-</button>
+                                <span className="text-lg font-bold w-4 text-center">{settings.numScheduledMatches}</span>
+                                <button onClick={() => adjustCount('numScheduledMatches', 1)} className="w-8 h-8 rounded-full bg-gray-100 text-[#00B16A] font-bold hover:bg-green-100">+</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-sm font-bold text-gray-500 mb-2 block text-center">코트 수</label>
+                            <div className="flex items-center justify-center gap-3">
+                                <button onClick={() => adjustCount('numInProgressCourts', -1)} className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 font-bold hover:bg-gray-200">-</button>
+                                <span className="text-lg font-bold w-4 text-center">{settings.numInProgressCourts}</span>
+                                <button onClick={() => adjustCount('numInProgressCourts', 1)} className="w-8 h-8 rounded-full bg-gray-100 text-[#00B16A] font-bold hover:bg-green-100">+</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 3. 고급 기능 */}
+                    <div>
+                        <label className="text-sm font-bold text-gray-500 mb-2 block">고급 기능</label>
+                        <div className="space-y-2">
+                            <button onClick={onReset} className="w-full py-3 bg-red-50 text-red-500 font-bold rounded-xl text-sm hover:bg-red-100 transition-colors flex justify-center items-center gap-2">
+                                <ArchiveIcon size={16}/> 시스템 초기화 (경기 삭제)
+                            </button>
+                            <button onClick={onKickAll} className="w-full py-3 bg-gray-100 text-gray-600 font-bold rounded-xl text-sm hover:bg-gray-200 transition-colors flex justify-center items-center gap-2">
+                                <UsersIcon size={16}/> 모든 선수 내보내기
+                            </button>
+                        </div>
+                    </div>
+
+                    <button onClick={handleSave} className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl text-lg shadow-lg hover:bg-green-600 transition-colors">
+                        설정 저장
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/**
+ * [신규] 오류 해결을 위한 코트 선택 모달 정의
+ */
+function CourtSelectionModal({ isOpen, onClose, courts, onSelect }) {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-fade-in-up">
+                <h3 className="text-xl font-bold text-[#1E1E1E] mb-2 text-center">코트 선택</h3>
+                <p className="text-gray-500 text-sm text-center mb-6">경기를 시작할 코트를 선택해주세요.</p>
+                <div className="space-y-3">
+                    {courts.map((courtIdx) => (
+                        <button
+                            key={courtIdx}
+                            onClick={() => onSelect(courtIdx)}
+                            className="w-full py-4 bg-gray-50 hover:bg-[#00B16A] hover:text-white border border-gray-100 hover:border-[#00B16A] rounded-xl text-lg font-bold transition-all duration-200 flex justify-between items-center px-6 group"
+                        >
+                            <span>🏸 {courtIdx + 1}번 코트</span>
+                            <ChevronRightIcon className="text-gray-300 group-hover:text-white" />
+                        </button>
+                    ))}
+                </div>
+                <button onClick={onClose} className="mt-6 w-full py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-lg transition-colors">취소</button>
+            </div>
+        </div>
+    );
+}
 
 // [신규] 경기방 뷰 컴포넌트 (모든 요청사항 반영)
 function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }) {
