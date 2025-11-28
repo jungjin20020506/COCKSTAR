@@ -1449,25 +1449,25 @@ const EmptySlot = ({ onDragOver, onDrop, isDragOver }) => (
 
 
 // [신규] 경기방 뷰 컴포넌트 (로직 구현)
+
 function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }) {
     const [roomData, setRoomData] = useState(null);
     const [players, setPlayers] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     
-    const [activeTab, setActiveTab] = useState('matching'); // 'matching', 'inProgress'
+    const [activeTab, setActiveTab] = useState('matching'); 
 
     // [신규] 드래그 앤 드롭 상태
     const [draggedPlayerId, setDraggedPlayerId] = useState(null);
-    const [dragOverSlot, setDragOverSlot] = useState(null); // { matchIndex, slotIndex }
+    const [dragOverSlot, setDragOverSlot] = useState(null); 
 
     // =================================================
     // [신규] 경기 진행 로직 (Start / Finish)
     // =================================================
     const [courtModalOpen, setCourtModalOpen] = useState(false);
-    const [pendingMatchIndex, setPendingMatchIndex] = useState(null); // 경기 시작 대기 중인 매치 번호
-    const [availableCourts, setAvailableCourts] = useState([]); // 현재 빈 코트 목록
-
+    const [pendingMatchIndex, setPendingMatchIndex] = useState(null); 
+    const [availableCourts, setAvailableCourts] = useState([]);
     // 1. 경기 시작 버튼 클릭 시
     const handleStartClick = (matchIndex) => {
         if (!isAdmin) {
@@ -1586,8 +1586,8 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     };
 
     // [신규] Firestore 경로
-    const roomDocRef = doc(roomsCollectionRef, roomId);
-    const playersCollectionRef = collection(roomDocRef, "players");
+   const roomDocRef = useMemo(() => doc(db, "rooms", roomId), [roomId]);
+    const playersCollectionRef = useMemo(() => collection(db, "rooms", roomId, "players"), [roomId]);
     
     // [신규] 방 정보 및 플레이어 목록 실시간 구독
     useEffect(() => {
