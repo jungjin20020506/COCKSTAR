@@ -1846,16 +1846,188 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 
     // --- Actions ---
 
-    // [신규] 카드 클릭 (다중 선택)
-    const handleCardClick = (player) => {
-        if (!isAdmin) return; // 관리자만 선택 가능 (또는 개인 모드 로직 추가 가능)
+// =================================================================
+    // [수정 완료] 클릭 투 무브 & 충돌 방지 & 스왑 기능 통합
+    // =================================================================
 
-        setSelectedPlayerIds(prev => {
-            if (prev.includes(player.id)) return prev.filter(id => id !== player.id);
-            return [...prev, player.id];
-        });
+    // 1. 선수 교체/이동 로직 (충돌 방지 로직 강화)
+    const handleSwapPlayers = async (sourcePlayerIds, targetPlayerId, targetMatchIndex, targetSlotIndex) => {
+        try {
+            await runTransaction(db, async (t) => {
+                // 1. 가장 최신 데이터 가져오기 (이 시점부터 DB 잠금 효과)
+                const rd = await t.get(roomDocRef);
+                if (!rd.exists()) throw "방이 존재하지 않습니다.";
+                
+                const data = rd.data();
+                const schedule = { ...data.scheduledMatches };
+
+                // [충돌 방지 체크 1] 타겟 대상 검증
+                if (targetPlayerId) {
+                    const currentTarget = schedule[targetMatchIndex]?.[targetSlotIndex];
+                    if (currentTarget !== targetPlayerId) {
+                        throw "대상이 이미 다른 곳으로 이동했거나 자리가 변경되었습니다. 다시 시도해주세요.";
+                    }
+                }
+
+                // 2. 소스(선택된) 선수들의 기존 위치 찾아서 지우기
+                sourcePlayerIds.forEach(srcId => {
+                    Object.keys(schedule).forEach(mKey => {
+                        const match = schedule[mKey] || [];
+                        const idx = match.indexOf(srcId);
+                        if (idx > -1) {
+                            const newMatch = [...match];
+                            newMatch[idx] = null;
+                            schedule[mKey] = newMatch;
+                        }
+                    });
+                });
+
+                // 3. 타겟 위치 파악
+                let finalMatchIdx = targetMatchIndex;
+                let finalSlotIdx = targetSlotIndex;
+
+                if (targetPlayerId) {
+                    // 타겟 ID가 넘어왔다면 위치를 다시 한 번 확실하게 찾음
+                    Object.keys(schedule).forEach(mKey => {
+                        const match = schedule[mKey] || [];
+                        const idx = match.indexOf(targetPlayerId);
+                        if (idx > -1) {
+                            finalMatchIdx = parseInt(mKey);
+                            finalSlotIdx = idx;
+                        }
+                    });
+                }
+
+                // 4. 이동 실행
+                if (finalMatchIdx !== undefined && finalSlotIdx !== undefined) {
+                    const playerToMove = sourcePlayerIds[0]; 
+                    
+                    if (!schedule[finalMatchIdx]) schedule[finalMatchIdx] = Array(PLAYERS_PER_MATCH).fill(null);
+                    
+                    // [충돌 방지 체크 2] 빈 자리로 이동하려는데, 그 사이 누가 채웠다면?
+                    if (!targetPlayerId && schedule[finalMatchIdx][finalSlotIdx] !== null) {
+                        throw "이미 다른 관리자가 해당 자리에 선수를 배치했습니다.";
+                    }
+
+                    schedule[finalMatchIdx][finalSlotIdx] = playerToMove;
+                }
+
+                // 변경사항 저장
+                t.update(roomDocRef, { scheduledMatches: schedule });
+            });
+            
+            // 성공 시 선택 해제
+            setSelectedPlayerIds([]); 
+
+        } catch (e) {
+            console.error("Transaction failed: ", e);
+            const msg = typeof e === 'string' ? e : "작업 중 오류가 발생했습니다. (데이터 충돌)";
+            alert(`🚫 작업 실패: ${msg}`);
+        }
     };
 
+    // 2. 카드 클릭 (선택 또는 스왑 트리거)
+    const handleCardClick = (player) => {
+        if (!isAdmin) return;
+
+        // A. 이미 선택된 선수를 다시 누르면 선택 해제
+        if (selectedPlayerIds.includes(player.id)) {
+            setSelectedPlayerIds(prev => prev.filter(id => id !== player.id));
+            return;
+        }
+
+        // B. 경기장에 있는 선수인지 확인
+        const isInGame = Object.values(roomData.scheduledMatches || {}).some(match => match && match.includes(player.id));
+
+        // C. [이동/교체 로직] 이미 선택된 선수가 있는데, '경기장에 있는 다른 선수'를 눌렀다면? -> 교체(스왑) 시도
+        if (selectedPlayerIds.length > 0 && isInGame) {
+            if (selectedPlayerIds.length === 1) {
+                // 위치 정보를 찾아서 넘겨줌 (검증을 위해)
+                let tMatchIdx = null;
+                let tSlotIdx = null;
+                Object.keys(roomData.scheduledMatches || {}).forEach(mKey => {
+                    const idx = (roomData.scheduledMatches[mKey] || []).indexOf(player.id);
+                    if (idx > -1) {
+                        tMatchIdx = parseInt(mKey);
+                        tSlotIdx = idx;
+                    }
+                });
+                
+                handleSwapPlayers(selectedPlayerIds, player.id, tMatchIdx, tSlotIdx);
+                return;
+            } else {
+                alert("선수 교체(스왑)는 1명만 선택된 상태에서 가능합니다.");
+                return;
+            }
+        }
+
+        // D. [선택 로직] 대기 중인 선수거나, 아무도 선택 안 된 상태에서 경기장 선수 클릭 -> 선택 목록에 추가 (다중 선택)
+        setSelectedPlayerIds(prev => [...prev, player.id]);
+    };
+
+    // 3. 빈 슬롯 클릭 (이동 트리거 & 충돌 방지)
+    const handleSlotClick = async (matchIndex, slotIndex) => {
+        if (!isAdmin) return;
+        if (selectedPlayerIds.length === 0) return;
+
+        try {
+            await runTransaction(db, async (t) => {
+                // 1. 최신 데이터 읽기
+                const rd = await t.get(roomDocRef);
+                if (!rd.exists()) throw "방 정보가 없습니다.";
+                
+                const data = rd.data();
+                const schedule = { ...data.scheduledMatches };
+
+                // [충돌 방지 체크] 내가 클릭한 '그 자리(slotIndex)'가 여전히 비어있는가?
+                if (!schedule[matchIndex]) schedule[matchIndex] = Array(PLAYERS_PER_MATCH).fill(null);
+                
+                // (다중 선택 이동 시, 첫 번째 자리는 무조건 비어있어야 시작함)
+                if (schedule[matchIndex][slotIndex] !== null) {
+                     throw "방금 다른 관리자가 이 자리에 선수를 배치했습니다.";
+                }
+
+                // 2. 선택된 선수들 기존 자리에서 제거
+                selectedPlayerIds.forEach(srcId => {
+                    Object.keys(schedule).forEach(mKey => {
+                        const match = schedule[mKey] || [];
+                        const idx = match.indexOf(srcId);
+                        if (idx > -1) {
+                            const newMatch = [...match];
+                            newMatch[idx] = null;
+                            schedule[mKey] = newMatch;
+                        }
+                    });
+                });
+
+                // 3. 새로운 자리에 채워넣기
+                let currentSlot = slotIndex;
+                let placedCount = 0;
+
+                selectedPlayerIds.forEach(srcId => {
+                    // 빈 자리를 찾아서 넣음
+                    while (currentSlot < PLAYERS_PER_MATCH && schedule[matchIndex][currentSlot] !== null) {
+                        currentSlot++;
+                    }
+
+                    if (currentSlot < PLAYERS_PER_MATCH) {
+                        schedule[matchIndex][currentSlot] = srcId;
+                        currentSlot++;
+                        placedCount++;
+                    }
+                });
+
+                t.update(roomDocRef, { scheduledMatches: schedule });
+            });
+            
+            setSelectedPlayerIds([]); // 성공 시만 선택 해제
+
+        } catch (e) {
+            console.error("Transaction failed: ", e);
+            const msg = typeof e === 'string' ? e : "동시 작업 충돌이 발생했습니다. 다시 시도해주세요.";
+            alert(`🚫 배치 실패: ${msg}`);
+        }
+    };
     // [신규] 선수 강퇴
     const handleKickPlayer = async (player) => {
         if (!window.confirm(`'${player.name}'님을 내보내시겠습니까?`)) return;
@@ -1940,13 +2112,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         onExitRoom(); // 나도 나감
     };
 
-    // 슬롯 클릭 (선수 배치)
-    const handleSlotClick = async (matchIndex, slotIndex) => {
-        if (!isAdmin || selectedPlayerIds.length === 0) return;
-
-        // 선택된 선수들 배치 (순서대로)
-        const currentSchedule = { ...(roomData.scheduledMatches || {}) };
-        if (!currentSchedule[matchIndex]) currentSchedule[matchIndex] = Array(PLAYERS_PER_MATCH).fill(null);
+   
         
         const targetMatch = [...currentSchedule[matchIndex]];
         let insertIdx = slotIndex;
@@ -1978,10 +2144,6 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         });
 
         newScheduleCleaned[matchIndex] = targetMatch;
-
-        await updateDoc(roomDocRef, { scheduledMatches: newScheduleCleaned });
-        setSelectedPlayerIds([]); // 선택 해제
-    };
 
     // 경기 시작 로직
     const handleStartClick = (matchIndex) => {
