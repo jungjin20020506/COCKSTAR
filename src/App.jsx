@@ -1139,7 +1139,7 @@ return (
 
 
 /**
- * 3. 경기 시스템 페이지 (구현 시작)
+ * 3. 경기 시스템 페이지 (수정됨: 무한 로딩 해결 + 로비 설정 기능)
  */
 function GamePage({ user, userData, onLoginClick }) {
     // [신규] '로비' / '경기방' 뷰 전환
@@ -1151,22 +1151,24 @@ function GamePage({ user, userData, onLoginClick }) {
     const [loadingRooms, setLoadingRooms] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     
-    // [신규] 모임 생성 모달 관련 상태
+    // [신규] 모임 생성 모달 상태
     const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
 
-    // [신규] Firestore 'rooms' 컬렉션 경로
-    const roomsCollectionRef = collection(db, "rooms");
+    // [신규] 방 정보 수정 모달 상태 (로비용)
+    const [editRoomData, setEditRoomData] = useState(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-    // [신규] 모임방 목록 실시간 구독 (로비 뷰가 활성화될 때)
+    // [중요] Firestore 참조를 useMemo로 감싸서 재생성 방지 (무한 로딩 해결의 핵심!)
+    const roomsCollectionRef = useMemo(() => collection(db, "rooms"), []);
+
+    // [신규] 모임방 목록 실시간 구독
     useEffect(() => {
         if (!user || currentView !== 'lobby') {
-            setLoadingRooms(false); // 로그아웃 상태거나 로비가 아니면 로딩 중지
+            // 로비가 아닐 땐 로딩 상태를 false로 두거나 유지
             return;
         }
 
         setLoadingRooms(true);
-        // [수정] orderBy("createdAt", "desc") 쿼리 제거.
-        // serverTimestamp()로 생성되는 문서를 쿼리에서 바로 정렬하면 l.toDate 오류가 발생합니다.
         const q = query(roomsCollectionRef); 
 
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -1175,19 +1177,11 @@ function GamePage({ user, userData, onLoginClick }) {
                 ...doc.data()
             }));
 
-            // [신규] 클라이언트(JS)에서 직접 정렬합니다.
+            // 클라이언트 정렬 (최신순)
             roomsData.sort((a, b) => {
-                const timeA = a.createdAt;
-                const timeB = b.createdAt;
-
-                // .toDate 함수가 있는 실제 Timestamp 객체만 비교
-                if (timeA && typeof timeA.toDate === 'function' && timeB && typeof timeB.toDate === 'function') {
-                    return timeB.toDate().getTime() - timeA.toDate().getTime(); // 'desc' (최신순)
-                }
-                // 임시 값(null 등)은 정렬 순서를 유지
-                if (timeA) return -1; // timeA가 임시값이면 (최신) 맨 위로
-                if (timeB) return 1;
-                return 0;
+                const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+                const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+                return timeB - timeA; 
             });
 
             setRooms(roomsData);
@@ -1197,144 +1191,168 @@ function GamePage({ user, userData, onLoginClick }) {
             setLoadingRooms(false);
         });
 
-        // 클린업 함수
         return () => unsubscribe();
-    }, [user, currentView, roomsCollectionRef]); // [수정] 의존성 배열에 roomsCollectionRef 추가
+    }, [user, currentView, roomsCollectionRef]);
 
     // [신규] 검색어 필터링
     const filteredRooms = useMemo(() => {
         return rooms.filter(room => 
-            room.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            room.location.toLowerCase().includes(searchTerm.toLowerCase())
+            (room.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (room.location || '').toLowerCase().includes(searchTerm.toLowerCase())
         );
     }, [rooms, searchTerm]);
 
-    // [신규] 모임 생성 (Modal에서 호출)
+    // [신규] 모임 생성
     const handleCreateRoom = async (newRoomData) => {
-        if (!user) {
-            onLoginClick(); // 혹시 모를 비로그인 상태 방지
-            return;
-        }
-        
-        // addDoc은 자동으로 Promise를 반환하므로, 모달에서 await 처리
+        if (!user) { onLoginClick(); return; }
         const docRef = await addDoc(roomsCollectionRef, newRoomData);
-        
-        // 방 생성 후 바로 입장
         handleEnterRoom(docRef.id);
     };
 
-    // [신규] 모임방 입장
+    // [신규] 방 수정 저장 (로비에서)
+    const handleUpdateRoom = async (updatedData) => {
+        if (!editRoomData) return;
+        try {
+            const roomRef = doc(db, "rooms", editRoomData.id);
+            await updateDoc(roomRef, {
+                name: updatedData.name,
+                location: updatedData.location,
+                description: updatedData.description,
+                password: updatedData.password,
+                admins: updatedData.admins
+            });
+            alert("방 정보가 수정되었습니다.");
+            setIsEditModalOpen(false);
+            setEditRoomData(null);
+        } catch (e) {
+            alert("수정 실패: " + e.message);
+        }
+    };
+
+    // [신규] 방 삭제 (로비에서)
+    const handleDeleteRoom = async () => {
+        if (!editRoomData) return;
+        if (!confirm("정말로 이 방을 삭제하시겠습니까?")) return;
+        try {
+            await deleteDoc(doc(db, "rooms", editRoomData.id));
+            alert("방이 삭제되었습니다.");
+            setIsEditModalOpen(false);
+            setEditRoomData(null);
+        } catch (e) {
+            alert("삭제 실패: " + e.message);
+        }
+    };
+
+    // [신규] 수정 버튼 클릭 시
+    const onEditClick = (room) => {
+        setEditRoomData(room);
+        setIsEditModalOpen(true);
+    };
+
     const handleEnterRoom = (roomId) => {
         setSelectedRoomId(roomId);
         setCurrentView('room');
     };
 
-    // [신규] 모임방 나가기 (GameRoomView에서 호출)
     const handleExitRoom = () => {
         setSelectedRoomId(null);
         setCurrentView('lobby');
     };
 
-
     // 1. 로그인 필요 뷰
     if (!user || !userData) {
-        return (
-            <LoginRequiredPage
-                icon={ShieldCheck}
-                title="로그인 필요"
-                description="경기/모임 시스템은 로그인 후 이용 가능합니다."
-                onLoginClick={onLoginClick}
-            />
-        );
+        return <LoginRequiredPage icon={ShieldCheck} title="로그인 필요" description="경기/모임 시스템은 로그인 후 이용 가능합니다." onLoginClick={onLoginClick} />;
     }
     
     // 2-1. 경기방 뷰
     if (currentView === 'room') {
-        return (
-            <GameRoomView 
-                roomId={selectedRoomId}
-                user={user}
-                userData={userData}
-                onExitRoom={handleExitRoom} 
-                roomsCollectionRef={roomsCollectionRef} // [신규] ref 전달
-            />
-        );
+        return <GameRoomView roomId={selectedRoomId} user={user} userData={userData} onExitRoom={handleExitRoom} roomsCollectionRef={roomsCollectionRef} />;
     }
 
-    // 2-2. 로비 뷰 (기본)
+    // 2-2. 로비 뷰
     return (
         <div className="relative h-full flex flex-col">
-            {/* 로비 헤더 (검색창) */}
+            {/* 로비 헤더 */}
             <div className="p-4 bg-white border-b border-gray-200">
                 <div className="relative">
-                    <input
-                        type="text"
-                        placeholder="모임방 이름 또는 장소 검색"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full p-3 pl-10 bg-gray-100 rounded-lg text-base border border-gray-200 focus:border-[#00B16A] focus:ring-1 focus:ring-[#00B16A] focus:outline-none"
-                    />
+                    <input type="text" placeholder="모임방 이름 또는 장소 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full p-3 pl-10 bg-gray-100 rounded-lg text-base border border-gray-200 focus:border-[#00B16A] focus:ring-1 focus:ring-[#00B16A] focus:outline-none" />
                     <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 </div>
             </div>
 
-            {/* 로비 본문 (방 목록) */}
+            {/* 로비 본문 */}
             <main className="flex-grow overflow-y-auto bg-gray-50 p-4 space-y-4 hide-scrollbar">
                 {loadingRooms ? (
-                    <>
-                        <SkeletonRoomCard />
-                        <SkeletonRoomCard />
-                        <SkeletonRoomCard />
-                    </>
+                    <><SkeletonRoomCard /><SkeletonRoomCard /><SkeletonRoomCard /></>
                 ) : filteredRooms.length > 0 ? (
                     filteredRooms.map(room => (
                         <RoomCard 
                             key={room.id} 
                             room={room} 
+                            user={user} // [중요] user 정보 전달
                             onEnter={() => handleEnterRoom(room.id)}
+                            onEdit={onEditClick} // [중요] 수정 핸들러 전달
                         />
                     ))
                 ) : (
-                    <EmptyState
-                        icon={Archive}
-                        title="개설된 모임방이 없습니다"
-                        description={searchTerm ? "검색 결과가 없습니다." : "새로운 모임방을 만들어보세요!"}
-                    />
+                    <EmptyState icon={Archive} title="개설된 모임방이 없습니다" description={searchTerm ? "검색 결과가 없습니다." : "새로운 모임방을 만들어보세요!"} />
                 )}
             </main>
 
-            {/* 모임 생성 (CTA) 버튼 */}
-            <button
-                onClick={() => setShowCreateRoomModal(true)}
-                className="absolute bottom-6 right-6 bg-[#00B16A] text-white w-14 h-14 rounded-full shadow-lg shadow-green-500/30 flex items-center justify-center transition-transform transform hover:scale-110"
-            >
+            {/* 모임 생성 버튼 */}
+            <button onClick={() => setShowCreateRoomModal(true)} className="absolute bottom-6 right-6 bg-[#00B16A] text-white w-14 h-14 rounded-full shadow-lg shadow-green-500/30 flex items-center justify-center transition-transform transform hover:scale-110">
                 <Plus size={28} />
             </button>
 
-            {/* 모임 생성 모달 */}
-            <CreateRoomModal
-                isOpen={showCreateRoomModal}
-                onClose={() => setShowCreateRoomModal(false)}
-                onSubmit={handleCreateRoom}
-                user={user}
-                userData={userData}
-                />
+            {/* 모달들 */}
+            <CreateRoomModal isOpen={showCreateRoomModal} onClose={() => setShowCreateRoomModal(false)} onSubmit={handleCreateRoom} user={user} userData={userData} />
+            
+            {/* [신규] 로비에서 띄우는 수정 모달 */}
+            <EditRoomInfoModal 
+                isOpen={isEditModalOpen}
+                onClose={() => { setIsEditModalOpen(false); setEditRoomData(null); }}
+                roomData={editRoomData}
+                onSave={handleUpdateRoom}
+                onDelete={handleDeleteRoom}
+            />
         </div>
     );
 }
-// [수정] 로비의 모임방 카드 컴포넌트 (시간 정보 제거)
-function RoomCard({ room, onEnter }) {
+// [수정] 로비의 모임방 카드 컴포넌트 (관리자 설정 아이콘 추가)
+function RoomCard({ room, onEnter, onEdit, user }) {
     const levelColor = room.levelLimit === 'N조' ? 'text-gray-500' : 'text-[#00B16A]';
     
+    // [신규] 관리자 권한 체크 (슈퍼 관리자, 방장, 공동 관리자)
+    const isAdmin = user && (
+        isSuperAdmin(user) || 
+        user.uid === room.adminUid || 
+        (room.admins && room.admins.includes(user.email))
+    );
+
     return (
         <div 
-            className="bg-white rounded-xl shadow-lg p-5 cursor-pointer transition-all hover:shadow-xl hover:scale-[1.01] active:scale-95 border border-gray-50"
+            className="bg-white rounded-xl shadow-lg p-5 cursor-pointer transition-all hover:shadow-xl hover:scale-[1.01] active:scale-95 border border-gray-50 relative group"
             onClick={onEnter}
         >
             <div className="flex justify-between items-start mb-2">
-                <h3 className="text-lg font-bold text-[#1E1E1E] mr-2 tracking-tight">{room.name}</h3>
-                {room.password && (
-                    <Lock size={16} className="text-gray-400 flex-shrink-0" />
+                <div className="flex items-center gap-2 overflow-hidden">
+                    <h3 className="text-lg font-bold text-[#1E1E1E] tracking-tight truncate">{room.name}</h3>
+                    {room.password && (
+                        <Lock size={16} className="text-gray-400 flex-shrink-0" />
+                    )}
+                </div>
+                
+                {/* [신규] 관리자용 수정 버튼 (카드 우측 상단) */}
+                {isAdmin && (
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation(); // 카드 클릭(입장) 방지
+                            onEdit(room);
+                        }}
+                        className="p-2 -mr-2 -mt-2 text-gray-300 hover:text-[#00B16A] hover:bg-green-50 rounded-full transition-colors z-10"
+                    >
+                        <Edit3Icon size={18} />
+                    </button>
                 )}
             </div>
             
@@ -1356,7 +1374,6 @@ function RoomCard({ room, onEnter }) {
         </div>
     );
 }
-
 
 // ===================================================================================
 // [신규] 경기방 내부 컴포넌트 (PlayerCard, EmptySlot)
