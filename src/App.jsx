@@ -2435,3 +2435,140 @@ const TabButton = ({ icon: Icon, label, isActive, onClick }) => {
     );
 };
 
+// ===================================================================================
+// [필수] 메인 App 컴포넌트
+// 이 부분이 없으면 "default is not exported" 오류가 발생합니다.
+// ===================================================================================
+export default function App() {
+    // 1. 상태 관리
+    const [page, setPage] = useState('home'); // 현재 페이지 (home, game, store, community, myInfo)
+    const [user, setUser] = useState(null); // 로그인한 유저 객체
+    const [userData, setUserData] = useState(null); // Firestore 유저 추가 정보
+    const [isAuthModalOpen, setIsAuthModalOpen] = useState(false); // 로그인 모달 상태
+    const [loading, setLoading] = useState(true); // 초기 로딩 상태
+
+    // 2. 인증 상태 감지 (로그인 여부 확인)
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            if (currentUser) {
+                // 로그인 된 경우: Firestore에서 유저 정보 가져오기
+                const userDocRef = doc(db, "users", currentUser.uid);
+                const userDoc = await getDoc(userDocRef);
+                
+                if (userDoc.exists()) {
+                    setUserData(userDoc.data());
+                }
+                setUser(currentUser);
+            } else {
+                // 로그아웃 된 경우
+                setUser(null);
+                setUserData(null);
+            }
+            setLoading(false); // 로딩 완료
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // 3. 로그아웃 핸들러
+    const handleLogout = async () => {
+        try {
+            await signOut(auth);
+            setPage('home'); // 홈으로 이동
+            alert("로그아웃되었습니다.");
+        } catch (error) {
+            console.error("Logout Error:", error);
+        }
+    };
+
+    // 4. 로딩 중일 때 표시
+    if (loading) return <LoadingSpinner />;
+
+    // 5. 화면 렌더링
+    return (
+        <div className="flex flex-col h-screen bg-white max-w-md mx-auto shadow-2xl overflow-hidden relative font-sans text-[#1E1E1E]">
+            {/* 상단 헤더 (페이지별로 다르게 표시) */}
+            {page === 'home' && (
+                <HomePageHeader 
+                    onSearchClick={() => setPage('game')} 
+                    onBellClick={() => alert('알림 기능 준비 중입니다.')} 
+                />
+            )}
+            {/* GamePage는 내부에서 자체 헤더를 사용하므로 제외 */}
+            {page !== 'home' && page !== 'game' && (
+                <SubPageHeader 
+                    page={page} 
+                    onBackClick={() => setPage('home')} 
+                />
+            )}
+
+            {/* 메인 콘텐츠 영역 (스크롤 가능) */}
+            <main className="flex-grow overflow-y-auto hide-scrollbar bg-white">
+                {page === 'home' && <HomePage user={user} setPage={setPage} />}
+                
+                {page === 'game' && (
+                    <GamePage 
+                        user={user} 
+                        userData={userData} 
+                        onLoginClick={() => setIsAuthModalOpen(true)} 
+                    />
+                )}
+                
+                {page === 'store' && <StorePage />}
+                
+                {page === 'community' && <CommunityPage />}
+                
+                {page === 'myInfo' && (
+                    <MyInfoPage 
+                        user={user} 
+                        userData={userData} 
+                        onLoginClick={() => setIsAuthModalOpen(true)} 
+                        onLogout={handleLogout}
+                        setPage={setPage}
+                    />
+                )}
+            </main>
+
+            {/* 하단 탭 네비게이션 (GNB) */}
+            <nav className="flex justify-around items-center bg-white border-t border-gray-100 pb-safe pt-1 px-2 z-20">
+                <TabButton 
+                    icon={Home} 
+                    label="홈" 
+                    isActive={page === 'home'} 
+                    onClick={() => setPage('home')} 
+                />
+                <TabButton 
+                    icon={Trophy} 
+                    label="경기" 
+                    isActive={page === 'game'} 
+                    onClick={() => setPage('game')} 
+                />
+                <TabButton 
+                    icon={Store} 
+                    label="스토어" 
+                    isActive={page === 'store'} 
+                    onClick={() => setPage('store')} 
+                />
+                <TabButton 
+                    icon={MessageSquare} 
+                    label="커뮤니티" 
+                    isActive={page === 'community'} 
+                    onClick={() => setPage('community')} 
+                />
+                <TabButton 
+                    icon={User} 
+                    label="내 정보" 
+                    isActive={page === 'myInfo'} 
+                    onClick={() => setPage('myInfo')} 
+                />
+            </nav>
+
+            {/* 로그인/회원가입 모달 */}
+            {isAuthModalOpen && (
+                <AuthModal 
+                    onClose={() => setIsAuthModalOpen(false)} 
+                    setPage={setPage} 
+                />
+            )}
+        </div>
+    );
+}
