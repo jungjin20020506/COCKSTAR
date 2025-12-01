@@ -1771,13 +1771,6 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     const roomDocRef = useMemo(() => doc(db, "rooms", roomId), [roomId]);
     const playersCollectionRef = useMemo(() => collection(db, "rooms", roomId, "players"), [roomId]);
 
-    // [신규] 현재 방장인지 & 관리자 모드인지 확인
-    const isAdmin = useMemo(() => {
-        if (!roomData) return false;
-        // 방장이거나 admins 목록에 있거나
-        return user.uid === roomData.adminUid || (roomData.admins || []).includes(userData.email);
-    }, [user.uid, roomData, userData]);
-
     // 1. 방 정보 구독
     useEffect(() => {
         setLoading(true);
