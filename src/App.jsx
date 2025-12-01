@@ -1319,24 +1319,6 @@ function GamePage({ user, userData, onLoginClick }) {
                 user={user}
                 userData={userData}
                 />
-            
-            <SettingsModal 
-                isOpen={isSettingsOpen}
-                onClose={() => setIsSettingsOpen(false)}
-                roomData={roomData}
-                onSave={handleSettingsSave}
-                onReset={handleSystemReset}
-                onKickAll={handleKickAll}
-            />
-            
-            {/* [신규] 방 정보 수정 모달 연결 */}
-            <EditRoomInfoModal 
-                isOpen={isEditInfoOpen}
-                onClose={() => setIsEditInfoOpen(false)}
-                roomData={roomData}
-                onSave={handleRoomInfoSave}
-                onDelete={handleRoomDelete}
-            />
         </div>
     );
 }
