@@ -118,6 +118,27 @@ const googleProvider = new GoogleAuthProvider();
 // [신규] 앱 ID (Firestore 경로에 사용)
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
+// [신규] 슈퍼 관리자 식별자 (이메일이 'domain'으로 시작하면 관리자)
+const isSuperAdmin = (user) => {
+    return user && (user.email?.startsWith('domain') || user.email === 'domain@special.user');
+};
+const convertToEmail = (input) => {
+    // 1. 공백 제거
+    const cleanInput = input.trim();
+    
+    // 2. 슈퍼 관리자 (domain) 처리
+    if (cleanInput === 'domain') {
+        return 'domain@special.user';
+    }
+    
+    // 3. 이미 이메일 형식(@가 있음)이라면 그대로 반환
+    if (cleanInput.includes('@')) {
+        return cleanInput;
+    }
+    
+    // 4. 일반 아이디라면 뒷부분에 가짜 도메인 붙이기 (이전 앱 호환)
+    return `${cleanInput}@cockstar.app`;
+};
 // ===================================================================================
 // [신규] 상수 및 Helper 함수 (구버전 앱 참고)
 // ===================================================================================
@@ -256,13 +277,13 @@ function LoginRequiredPage({ icon: Icon, title, description, onLoginClick }) {
 
 
 // ===================================================================================
-// 로그인/회원가입 모달
+// 로그인/회원가입 모달 (수정됨: 아이디 로그인 지원)
 // ===================================================================================
 function AuthModal({ onClose, setPage }) {
     const [isLoginMode, setIsLoginMode] = useState(true);
-    const [email, setEmail] = useState('');
+    const [username, setUsername] = useState(''); // [수정] email -> username
     const [password, setPassword] = useState('');
-    const [name, setName] = useState(''); // 회원가입용
+    const [name, setName] = useState(''); 
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -285,12 +306,7 @@ function AuthModal({ onClose, setPage }) {
             onClose();
         } catch (err) {
             console.error("Google 로그인 오류:", err);
-            // OAuth 오류는 콘솔에만 표시하고, 사용자에게는 간단히 안내
-            if (err.code === 'auth/operation-not-allowed' || err.code === 'auth/unauthorized-domain') {
-                 setError('현재 Google 로그인을 사용할 수 없습니다. 관리자에게 문의하세요.');
-            } else {
-                 setError(getFirebaseErrorMessage(err));
-            }
+            setError("Google 로그인 중 오류가 발생했습니다.");
         } finally {
             setLoading(false);
         }
@@ -301,48 +317,48 @@ function AuthModal({ onClose, setPage }) {
         setLoading(true);
         setError('');
 
+        // [수정] 입력된 아이디를 이메일 형식으로 변환
+        const finalEmail = convertToEmail(username);
+
         try {
             if (isLoginMode) {
-                await signInWithEmailAndPassword(auth, email, password);
+                // 로그인 시도
+                await signInWithEmailAndPassword(auth, finalEmail, password);
             } else {
+                // 회원가입 시도
                 if (name.length < 2) {
                     setError("이름을 2자 이상 입력해주세요.");
                     setLoading(false);
                     return;
                 }
-                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                const userCredential = await createUserWithEmailAndPassword(auth, finalEmail, password);
                 const user = userCredential.user;
                 
                 await setDoc(doc(db, "users", user.uid), {
                     name: name,
-                    email: user.email,
+                    email: user.email, // Firebase에는 변환된 이메일(@cockstar.app)이 저장됨
+                    username: username, // [선택] 입력한 원본 아이디도 저장해두면 좋음
                     level: 'N조',
                     gender: '미설정',
                 });
             }
             onClose();
         } catch (err) {
-            console.error("이메일 인증 오류:", err);
-            setError(getFirebaseErrorMessage(err));
+            console.error("인증 오류:", err);
+            // 에러 메시지 한글화
+            if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-email' || err.code === 'auth/invalid-credential') {
+                setError('아이디 또는 비밀번호가 잘못되었습니다.');
+            } else if (err.code === 'auth/wrong-password') {
+                setError('비밀번호가 틀렸습니다.');
+            } else if (err.code === 'auth/email-already-in-use') {
+                setError('이미 사용 중인 아이디입니다.');
+            } else if (err.code === 'auth/weak-password') {
+                setError('비밀번호는 6자리 이상이어야 합니다.');
+            } else {
+                setError('오류가 발생했습니다: ' + err.message);
+            }
         } finally {
             setLoading(false);
-        }
-    };
-
-    const getFirebaseErrorMessage = (error) => {
-        switch (error.code) {
-            case 'auth/user-not-found':
-                return '가입되지 않은 이메일입니다.';
-            case 'auth/wrong-password':
-                return '비밀번호가 일치하지 않습니다.';
-            case 'auth/email-already-in-use':
-                return '이미 사용 중인 이메일입니다.';
-            case 'auth/weak-password':
-                return '비밀번호는 6자리 이상이어야 합니다.';
-            case 'auth/invalid-email':
-                return '유효하지 않은 이메일 형식입니다.';
-            default:
-                return '로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
         }
     };
 
@@ -374,11 +390,12 @@ function AuthModal({ onClose, setPage }) {
                             className="w-full p-4 bg-gray-700 rounded-lg text-white placeholder-gray-400 border-2 border-gray-600 focus:border-[#00B16A] focus:outline-none text-base"
                         />
                     )}
+                    {/* [수정] type="text"로 변경, placeholder 변경, value는 username 사용 */}
                     <input
-                        type="email"
-                        placeholder="이메일 주소"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        type="text"
+                        placeholder="아이디"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
                         required
                         className="w-full p-4 bg-gray-700 rounded-lg text-white placeholder-gray-400 border-2 border-gray-600 focus:border-[#00B16A] focus:outline-none text-base"
                     />
@@ -1301,11 +1318,28 @@ function GamePage({ user, userData, onLoginClick }) {
                 onSubmit={handleCreateRoom}
                 user={user}
                 userData={userData}
+                />
+            
+            <SettingsModal 
+                isOpen={isSettingsOpen}
+                onClose={() => setIsSettingsOpen(false)}
+                roomData={roomData}
+                onSave={handleSettingsSave}
+                onReset={handleSystemReset}
+                onKickAll={handleKickAll}
+            />
+            
+            {/* [신규] 방 정보 수정 모달 연결 */}
+            <EditRoomInfoModal 
+                isOpen={isEditInfoOpen}
+                onClose={() => setIsEditInfoOpen(false)}
+                roomData={roomData}
+                onSave={handleRoomInfoSave}
+                onDelete={handleRoomDelete}
             />
         </div>
     );
 }
-
 // [수정] 로비의 모임방 카드 컴포넌트 (시간 정보 제거)
 function RoomCard({ room, onEnter }) {
     const levelColor = room.levelLimit === 'N조' ? 'text-gray-500' : 'text-[#00B16A]';
@@ -1443,7 +1477,127 @@ const EmptySlot = ({ onSlotClick, onDragOver, onDrop, isDragOver }) => (
         <Plus size={16} />
     </div>
 );
+/**
+ * [신규] 방 정보 수정 모달 (관리자용)
+ * 이전 앱의 RoomModal 기능을 현재 디자인에 맞춰 이식
+ */
+function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete }) {
+    const [formData, setFormData] = useState({
+        name: '', location: '', description: '', password: '', admins: []
+    });
+    const [usePassword, setUsePassword] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
+    // 모달이 열릴 때 기존 데이터 불러오기
+    useEffect(() => {
+        if (isOpen && roomData) {
+            setFormData({
+                name: roomData.name || '',
+                location: roomData.location || '',
+                description: roomData.description || '',
+                password: roomData.password || '',
+                admins: roomData.admins || []
+            });
+            setUsePassword(!!roomData.password);
+        }
+    }, [isOpen, roomData]);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    // 관리자 배열 관리
+    const handleAdminChange = (index, value) => {
+        const newAdmins = [...formData.admins];
+        newAdmins[index] = value;
+        setFormData(prev => ({ ...prev, admins: newAdmins }));
+    };
+    const addAdminSlot = () => setFormData(prev => ({ ...prev, admins: [...prev.admins, ''] }));
+    const removeAdminSlot = (index) => setFormData(prev => ({ ...prev, admins: prev.admins.filter((_, i) => i !== index) }));
+
+    const handleSubmit = () => {
+        // 빈 관리자 슬롯 제거 및 저장 데이터 정리
+        const cleanAdmins = formData.admins.map(a => a.trim()).filter(Boolean);
+        onSave({
+            ...formData,
+            admins: cleanAdmins,
+            password: usePassword ? formData.password : ''
+        });
+        onClose();
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-[#1E1E1E]">방 정보 수정</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={24}/></button>
+                </div>
+
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">방 제목</label>
+                        <input type="text" name="name" value={formData.name} onChange={handleChange} className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 focus:border-[#00B16A] focus:outline-none"/>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">장소</label>
+                        <input type="text" name="location" value={formData.location} onChange={handleChange} className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 focus:border-[#00B16A] focus:outline-none"/>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">모임 소개</label>
+                        <textarea name="description" value={formData.description} onChange={handleChange} rows={3} className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 focus:border-[#00B16A] focus:outline-none"/>
+                    </div>
+
+                    {/* 관리자 관리 */}
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                        <label className="block text-sm font-bold text-gray-700 mb-2">공동 관리자 (이메일 입력)</label>
+                        {formData.admins.map((adminEmail, idx) => (
+                            <div key={idx} className="flex gap-2 mb-2">
+                                <input 
+                                    type="text" 
+                                    value={adminEmail} 
+                                    onChange={(e) => handleAdminChange(idx, e.target.value)} 
+                                    placeholder="user@example.com"
+                                    className="flex-1 p-2 bg-white rounded border border-gray-200 text-sm focus:border-[#00B16A] focus:outline-none"
+                                />
+                                <button onClick={() => removeAdminSlot(idx)} className="text-red-400 hover:text-red-600"><X size={18}/></button>
+                            </div>
+                        ))}
+                        <button onClick={addAdminSlot} className="text-sm text-[#00B16A] font-bold hover:underline">+ 관리자 추가</button>
+                    </div>
+
+                    {/* 비밀번호 설정 */}
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                        <label className="flex items-center gap-2 mb-2">
+                            <input type="checkbox" checked={usePassword} onChange={(e) => setUsePassword(e.target.checked)} className="rounded text-[#00B16A] focus:ring-[#00B16A]"/>
+                            <span className="text-sm font-bold text-gray-700">비밀번호 사용</span>
+                        </label>
+                        {usePassword && (
+                            <div className="relative">
+                                <input type={showPassword ? "text" : "password"} name="password" value={formData.password} onChange={handleChange} className="w-full p-2 bg-white rounded border border-gray-200 text-sm focus:border-[#00B16A] focus:outline-none"/>
+                                <button onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">{showPassword ? '숨기기' : '보기'}</button>
+                            </div>
+                        )}
+                    </div>
+
+                    <button onClick={handleSubmit} className="w-full py-3 bg-[#00B16A] text-white font-bold rounded-xl shadow-lg hover:bg-green-600 transition-colors">
+                        저장하기
+                    </button>
+                    
+                    {/* 슈퍼 관리자 전용 삭제 버튼 */}
+                    {isSuperAdmin({ email: 'domain' }) && ( 
+                         <button onClick={onDelete} className="w-full py-3 mt-2 bg-red-100 text-red-500 font-bold rounded-xl hover:bg-red-200 transition-colors">
+                            방 삭제 (관리자 전용)
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
 /**
  * [신규] 환경 설정 모달 (관리자용)
  */
@@ -1592,7 +1746,21 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 
     // [신규] 다중 선택 상태 & 환경설정 모달 상태
     const [selectedPlayerIds, setSelectedPlayerIds] = useState([]); 
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false); // 게임 설정 (코트 수 등)
+    const [isEditInfoOpen, setIsEditInfoOpen] = useState(false); // [신규] 방 정보 수정
+
+    // [수정] 관리자 권한 체크 (슈퍼 관리자 포함)
+    const isAdmin = useMemo(() => {
+        if (!roomData || !user) return false;
+        // 1. 슈퍼 관리자 체크
+        if (isSuperAdmin(user)) return true;
+        // 2. 방장 체크
+        if (user.uid === roomData.adminUid) return true;
+        // 3. 공동 관리자(admins 배열) 체크
+        if (roomData.admins && roomData.admins.includes(user.email)) return true;
+        
+        return false;
+    }, [user, roomData]);
     
     // 경기 시작 관련 상태
     const [courtModalOpen, setCourtModalOpen] = useState(false);
@@ -1730,7 +1898,35 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
             alert("설정 저장 실패: " + e.message);
         }
     };
+// [신규] 방 정보 수정 저장 핸들러
+    const handleRoomInfoSave = async (updatedData) => {
+        try {
+            await updateDoc(roomDocRef, {
+                name: updatedData.name,
+                location: updatedData.location,
+                description: updatedData.description,
+                password: updatedData.password,
+                admins: updatedData.admins
+            });
+            alert("방 정보가 수정되었습니다.");
+        } catch (e) {
+            console.error(e);
+            alert("수정 실패: " + e.message);
+        }
+    };
 
+    // [신규] 방 삭제 핸들러
+    const handleRoomDelete = async () => {
+        if (!confirm("정말로 이 방을 삭제하시겠습니까? 되돌릴 수 없습니다.")) return;
+        try {
+            await deleteDoc(roomDocRef);
+            alert("방이 삭제되었습니다.");
+            onExitRoom();
+        } catch (e) {
+            alert("삭제 실패: " + e.message);
+        }
+    };
+    
     // [신규] 시스템 초기화
     const handleSystemReset = async () => {
         if(!window.confirm("모든 경기 기록을 초기화하시겠습니까? (선수 목록은 유지)")) return;
@@ -1870,26 +2066,34 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
             {/* 헤더 */}
             <header className="flex-shrink-0 px-4 py-3 flex items-center justify-between bg-white border-b border-gray-100 sticky top-0 z-30">
                 <div className="flex items-center gap-3">
-                    <button onClick={onExitRoom} className="p-1 text-gray-400 hover:text-black"><ArrowLeftIcon size={24}/></button>
+                    <button onClick={onExitRoom} className="p-1 text-gray-400 hover:text-black"><ArrowLeft size={24}/></button>
                     <div>
-                        <h1 className="text-lg font-bold text-[#1E1E1E] leading-none">{roomData?.name}</h1>
+                        <h1 className="text-lg font-bold text-[#1E1E1E] leading-none flex items-center gap-2">
+                            {roomData?.name}
+                            {/* [신규] 관리자일 때만 정보 수정(연필) 버튼 노출 */}
+                            {isAdmin && (
+                                <button onClick={() => setIsEditInfoOpen(true)} className="text-gray-400 hover:text-[#00B16A]">
+                                    <Edit3 size={16} />
+                                </button>
+                            )}
+                        </h1>
                         <span className="text-xs text-gray-500 font-medium">{roomData?.location}</span>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    {/* [신규] 관리자용 설정 버튼 */}
+                    {/* [수정] 관리자용 게임 설정(톱니바퀴) 버튼 */}
                     {isAdmin && (
                         <button 
                             onClick={() => setIsSettingsOpen(true)}
                             className="p-2 text-gray-400 hover:text-[#00B16A] transition-colors"
                         >
-                            <Edit3Icon size={20} />
+                            <GripVertical size={20} /> {/* 아이콘 변경: 설정 느낌 */}
                         </button>
                     )}
                     <div className="flex flex-col items-end">
                         <span className="text-xs font-bold text-[#00B16A]">{isAdmin ? '관리자 모드' : '개인 모드'}</span>
                         <span className="text-[10px] text-gray-400">
-                            <UsersIcon size={10} className="inline mr-1"/>
+                            <Users size={10} className="inline mr-1"/>
                             {Object.keys(players).length}명
                         </span>
                     </div>
