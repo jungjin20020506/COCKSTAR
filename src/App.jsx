@@ -1383,17 +1383,52 @@ function RoomCard({ room, onEnter, onEdit, user }) {
  * [신규] 플레이어 카드
  * 구버전 App (1).jsx의 PlayerCard 로직을 콕스타 디자인으로 재구성
  */
+// [신규] 경기 시간 타이머 컴포넌트 (디자인 수정됨)
+const CourtTimer = ({ startTime }) => {
+    const [time, setTime] = useState('00:00');
+    
+    useEffect(() => {
+        if (startTime) {
+            const updateTimer = () => {
+                const now = new Date();
+                // Firestore Timestamp 또는 ISO String 처리
+                const start = startTime.toDate ? startTime.toDate() : new Date(startTime);
+                const diff = Math.floor((now - start) / 1000);
+                
+                if (diff >= 0) {
+                    const minutes = String(Math.floor(diff / 60)).padStart(2, '0');
+                    const seconds = String(diff % 60).padStart(2, '0');
+                    setTime(`${minutes}:${seconds}`);
+                }
+            };
+            
+            updateTimer(); // 즉시 실행
+            const timerId = setInterval(updateTimer, 1000);
+            return () => clearInterval(timerId);
+        } else { 
+            setTime('00:00'); 
+        }
+    }, [startTime]);
 
+    return (
+        <div className="text-xs font-mono font-bold text-[#00B16A] bg-green-50 px-2 py-0.5 rounded-md">
+            {time}
+        </div>
+    );
+};
+/**
+ * [수정] 플레이어 카드 (드래그 오류 해결 버전)
+ */
 const PlayerCard = React.memo(({ 
     player, 
     isAdmin, 
     isCurrentUser, 
     isPlaying,
     isResting,
-    isSelected, // [신규] 선택된 상태
-    onCardClick, // [신규] 클릭 핸들러
-    onDeleteClick, // [신규] 삭제(X) 핸들러
-    onDragStart,
+    isSelected,
+    onCardClick,
+    onDeleteClick,
+    onDragStart, // 드래그 핸들러 (없을 수도 있음)
     onDragEnd,
     onDragOver,
     onDrop
@@ -1403,42 +1438,39 @@ const PlayerCard = React.memo(({
     const levelColorClass = getLevelColor(player.level);
     const genderBorder = player.gender === '남' ? 'border-l-blue-500' : 'border-l-pink-500';
 
-    // 스타일 클래스 조합
+    // 스타일 클래스
     let containerClass = `relative bg-white rounded-lg shadow-sm p-2 h-16 flex flex-col justify-between border-l-[3px] transition-all duration-200 cursor-pointer hover:shadow-md ${genderBorder} `;
     
-    // [신규] 상태별 스타일
     if (isPlaying) containerClass += " opacity-50 bg-gray-50 grayscale ";
     if (isResting) containerClass += " opacity-40 bg-gray-100 grayscale ";
     
-    // [신규] 선택 효과 (크기 확대 + 노란색 링)
     if (isSelected) {
         containerClass += " ring-2 ring-[#FFD700] ring-offset-1 transform scale-105 z-10 ";
     } else if (isCurrentUser) {
-        containerClass += " ring-1 ring-[#00B16A] ring-offset-1 "; // 본인은 초록색 얇은 링
+        containerClass += " ring-1 ring-[#00B16A] ring-offset-1 ";
     }
 
-    const canDrag = isAdmin;
+    // [수정] 드래그 가능 여부 체크 (isAdmin이고, onDragStart 함수가 존재할 때만)
+    const canDrag = isAdmin && typeof onDragStart === 'function';
 
     return (
         <div
             className={containerClass}
-            onClick={() => onCardClick && onCardClick(player)} // 클릭 이벤트 연결
+            onClick={() => onCardClick && onCardClick(player)}
             draggable={canDrag}
             onDragStart={canDrag ? (e) => onDragStart(e, player.id) : undefined}
             onDragEnd={canDrag ? onDragEnd : undefined}
             onDragOver={canDrag ? onDragOver : undefined}
             onDrop={canDrag ? (e) => onDrop(e, { type: 'player', player: player }) : undefined}
         >
-            {/* 상단: 이름 */}
             <div className="flex justify-between items-start">
                 <span className="text-xs font-bold text-[#1E1E1E] truncate w-full pr-1 leading-tight">
                     {player.name}
                 </span>
-                {/* [신규] 관리자용 내보내기(X) 버튼 */}
                 {isAdmin && (
                     <button 
                         onClick={(e) => {
-                            e.stopPropagation(); // 카드 클릭 방지
+                            e.stopPropagation();
                             onDeleteClick && onDeleteClick(player);
                         }}
                         className="absolute -top-1.5 -right-1.5 bg-white text-gray-400 hover:text-red-500 rounded-full shadow-sm border border-gray-100 p-0.5 transition-colors z-20"
@@ -1448,7 +1480,6 @@ const PlayerCard = React.memo(({
                 )}
             </div>
             
-            {/* 하단: 급수, 게임 수 */}
             <div className="flex justify-between items-end mt-1">
                 <span className={`text-[10px] font-extrabold ${levelColorClass.replace('border-', 'text-')}`}>
                     {player.level || 'N'}
