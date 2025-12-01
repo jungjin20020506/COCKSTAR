@@ -2143,39 +2143,6 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         onExitRoom(); // 나도 나감
     };
 
-   
-        
-        const targetMatch = [...currentSchedule[matchIndex]];
-        let insertIdx = slotIndex;
-        
-        // 선택된 선수들을 빈 자리에 채워넣음
-        selectedPlayerIds.forEach(pid => {
-            // 이미 다른 곳에 있는지 체크 로직은 생략(단순화)하거나 필요시 추가
-            // 현재 매치의 빈 곳 찾기
-            while(insertIdx < PLAYERS_PER_MATCH && targetMatch[insertIdx] !== null) {
-                insertIdx++;
-            }
-            if (insertIdx < PLAYERS_PER_MATCH) {
-                targetMatch[insertIdx] = pid;
-                insertIdx++;
-            }
-        });
-
-        // 다른 매치에서 해당 선수들 제거 (이동 로직)
-        const newScheduleCleaned = {};
-        Object.keys(currentSchedule).forEach(k => {
-            const m = [...(currentSchedule[k] || [])];
-            // 이번에 배치할 매치가 아니면, 선택된 선수들 제거
-            if (parseInt(k) !== matchIndex) {
-                for(let i=0; i<m.length; i++) {
-                    if (selectedPlayerIds.includes(m[i])) m[i] = null;
-                }
-            }
-            newScheduleCleaned[k] = m;
-        });
-
-        newScheduleCleaned[matchIndex] = targetMatch;
-
     // 경기 시작 로직
     const handleStartClick = (matchIndex) => {
         if (!isAdmin) return alert("관리자만 가능합니다.");
