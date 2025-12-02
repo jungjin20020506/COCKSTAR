@@ -1428,18 +1428,38 @@ const PlayerCard = React.memo(({
     isSelected,
     onCardClick,
     onDeleteClick,
-    onDragStart, // 드래그 핸들러 (없을 수도 있음)
+    onLongPress, // [신규] 꾹 누르기 핸들러
+    onDragStart, 
     onDragEnd,
     onDragOver,
     onDrop
 }) => {
+    // [신규] 롱 프레스 감지 로직
+    const longPressTimer = useRef(null);
+    const isLongPress = useRef(false);
+
+    const startPress = (e) => {
+        if (!isAdmin || !onLongPress) return;
+        isLongPress.current = false;
+        longPressTimer.current = setTimeout(() => {
+            isLongPress.current = true;
+            onLongPress(player); // 1초 뒤 실행
+        }, 800); // 0.8초 꾹 누르면 실행
+    };
+
+    const endPress = (e) => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+        }
+    };
+
     if (!player) return <div className="h-14 bg-gray-100 rounded-lg animate-pulse"></div>;
 
     const levelColorClass = getLevelColor(player.level);
     const genderBorder = player.gender === '남' ? 'border-l-blue-500' : 'border-l-pink-500';
 
-    // 스타일 클래스
-    let containerClass = `relative bg-white rounded-lg shadow-sm p-2 h-16 flex flex-col justify-between border-l-[3px] transition-all duration-200 cursor-pointer hover:shadow-md ${genderBorder} `;
+    let containerClass = `relative bg-white rounded-lg shadow-sm p-2 h-16 flex flex-col justify-between border-l-[3px] transition-all duration-200 cursor-pointer hover:shadow-md ${genderBorder} select-none `;
     
     if (isPlaying) containerClass += " opacity-50 bg-gray-50 grayscale ";
     if (isResting) containerClass += " opacity-40 bg-gray-100 grayscale ";
@@ -1450,37 +1470,55 @@ const PlayerCard = React.memo(({
         containerClass += " ring-1 ring-[#00B16A] ring-offset-1 ";
     }
 
-    // [수정] 드래그 가능 여부 체크 (isAdmin이고, onDragStart 함수가 존재할 때만)
     const canDrag = isAdmin && typeof onDragStart === 'function';
 
     return (
         <div
             className={containerClass}
-            onClick={() => onCardClick && onCardClick(player)}
+            // [수정] 클릭과 롱프레스 분기 처리
+            onMouseDown={startPress}
+            onMouseUp={(e) => {
+                endPress();
+                if (!isLongPress.current) onCardClick && onCardClick(player);
+            }}
+            onMouseLeave={endPress}
+            onTouchStart={startPress}
+            onTouchEnd={(e) => {
+                endPress();
+                // 터치 환경에서는 롱프레스가 아니면 클릭으로 처리 (e.preventDefault 방지)
+                if (!isLongPress.current && e.cancelable) {
+                     // 모바일 클릭 처리는 onClick에 맡김
+                }
+            }}
+            onClick={(e) => {
+                if(!isLongPress.current) onCardClick && onCardClick(player);
+            }}
+            
             draggable={canDrag}
             onDragStart={canDrag ? (e) => onDragStart(e, player.id) : undefined}
             onDragEnd={canDrag ? onDragEnd : undefined}
             onDragOver={canDrag ? onDragOver : undefined}
             onDrop={canDrag ? (e) => onDrop(e, { type: 'player', player: player }) : undefined}
         >
-            <div className="flex justify-between items-start">
+            <div className="flex justify-between items-start pointer-events-none">
                 <span className="text-xs font-bold text-[#1E1E1E] truncate w-full pr-1 leading-tight">
                     {player.name}
                 </span>
                 {isAdmin && (
                     <button 
+                        // pointer-events-auto를 줘서 부모의 클릭 이벤트를 막고 독립적으로 실행
+                        className="pointer-events-auto absolute -top-1.5 -right-1.5 bg-white text-gray-400 hover:text-red-500 rounded-full shadow-sm border border-gray-100 p-0.5 transition-colors z-20"
                         onClick={(e) => {
                             e.stopPropagation();
                             onDeleteClick && onDeleteClick(player);
                         }}
-                        className="absolute -top-1.5 -right-1.5 bg-white text-gray-400 hover:text-red-500 rounded-full shadow-sm border border-gray-100 p-0.5 transition-colors z-20"
                     >
                         <XIcon size={12} strokeWidth={3} />
                     </button>
                 )}
             </div>
             
-            <div className="flex justify-between items-end mt-1">
+            <div className="flex justify-between items-end mt-1 pointer-events-none">
                 <span className={`text-[10px] font-extrabold ${levelColorClass.replace('border-', 'text-')}`}>
                     {player.level || 'N'}
                 </span>
@@ -1623,6 +1661,50 @@ function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete }) {
                             방 삭제 (관리자 전용)
                         </button>
                     )}
+                </div>
+            </div>
+        </div>
+    );
+}
+/**
+ * [신규] 게임 수 수정 모달 (Long Press 시 호출)
+ */
+function EditGamesModal({ isOpen, onClose, player, onSave }) {
+    const [games, setGames] = useState(0);
+
+    useEffect(() => {
+        if (isOpen && player) {
+            setGames(player.todayGames || 0);
+        }
+    }, [isOpen, player]);
+
+    if (!isOpen || !player) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-xs shadow-2xl text-center animate-fade-in-up">
+                <h3 className="text-lg font-bold text-[#1E1E1E] mb-2">{player.name}</h3>
+                <p className="text-xs text-gray-400 mb-6">경기 수를 수동으로 변경합니다.</p>
+                
+                <div className="flex items-center justify-center gap-6 mb-8">
+                    <button 
+                        onClick={() => setGames(g => Math.max(0, g - 1))} 
+                        className="w-12 h-12 rounded-full bg-gray-100 text-gray-600 font-bold text-2xl hover:bg-gray-200 transition-colors"
+                    >
+                        -
+                    </button>
+                    <span className="text-4xl font-black text-[#00B16A] w-16 tabular-nums">{games}</span>
+                    <button 
+                        onClick={() => setGames(g => g + 1)} 
+                        className="w-12 h-12 rounded-full bg-green-50 text-[#00B16A] font-bold text-2xl hover:bg-green-100 transition-colors"
+                    >
+                        +
+                    </button>
+                </div>
+                
+                <div className="flex gap-3">
+                    <button onClick={onClose} className="flex-1 py-3 bg-gray-100 text-gray-500 font-bold rounded-xl hover:bg-gray-200 transition-colors">취소</button>
+                    <button onClick={() => onSave(player.id, games)} className="flex-1 py-3 bg-[#00B16A] text-white font-bold rounded-xl hover:bg-green-600 transition-colors shadow-lg">저장</button>
                 </div>
             </div>
         </div>
@@ -1778,7 +1860,17 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     const [selectedPlayerIds, setSelectedPlayerIds] = useState([]); 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false); // 게임 설정 (코트 수 등)
     const [isEditInfoOpen, setIsEditInfoOpen] = useState(false); // [신규] 방 정보 수정
+    const [editGamePlayer, setEditGamePlayer] = useState(null);
 
+    const handleSaveGames = async (playerId, newGames) => {
+        try {
+            await updateDoc(doc(playersCollectionRef, playerId), { todayGames: newGames });
+            setEditGamePlayer(null); // 모달 닫기
+        } catch (e) {
+            alert("수정 실패: " + e.message);
+        }
+    };
+    
     // [수정] 관리자 권한 체크 (슈퍼 관리자 포함)
     const isAdmin = useMemo(() => {
         if (!roomData || !user) return false;
