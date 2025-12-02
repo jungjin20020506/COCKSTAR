@@ -1870,6 +1870,20 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
             alert("수정 실패: " + e.message);
         }
     };
+    const handleToggleRest = async () => {
+        const myPlayer = players[user.uid];
+        if (!myPlayer) return;
+
+        try {
+            // 내 상태 반전 (휴식 <-> 대기)
+            await updateDoc(doc(playersCollectionRef, user.uid), {
+                isResting: !myPlayer.isResting
+            });
+        } catch (e) {
+            console.error(e);
+            alert("상태 변경 실패: " + e.message);
+        }
+    };
     
     // [수정] 관리자 권한 체크 (슈퍼 관리자 포함)
     const isAdmin = useMemo(() => {
@@ -2307,14 +2321,13 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 
     return (
         <div className="flex flex-col h-full bg-white">
-            {/* 헤더 */}
+          {/* 헤더 */}
             <header className="flex-shrink-0 px-4 py-3 flex items-center justify-between bg-white border-b border-gray-100 sticky top-0 z-30">
                 <div className="flex items-center gap-3">
                     <button onClick={onExitRoom} className="p-1 text-gray-400 hover:text-black"><ArrowLeft size={24}/></button>
                     <div>
                         <h1 className="text-lg font-bold text-[#1E1E1E] leading-none flex items-center gap-2">
                             {roomData?.name}
-                            {/* [신규] 관리자일 때만 정보 수정(연필) 버튼 노출 */}
                             {isAdmin && (
                                 <button onClick={() => setIsEditInfoOpen(true)} className="text-gray-400 hover:text-[#00B16A]">
                                     <Edit3 size={16} />
@@ -2325,17 +2338,31 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    {/* [수정] 관리자용 게임 설정(톱니바퀴) 버튼 */}
+                    {/* [신규] 휴식/복귀 버튼 추가 */}
+                    <button 
+                        onClick={handleToggleRest}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1 ${
+                            players[user.uid]?.isResting
+                            ? 'bg-gray-100 text-gray-500 border border-gray-200'  // 휴식 중 스타일
+                            : 'bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100' // 대기 중 스타일
+                        }`}
+                    >
+                        {players[user.uid]?.isResting ? '😴 휴식 중' : '🔥 대기 중'}
+                    </button>
+
+                    {/* 관리자용 게임 설정(톱니바퀴) 버튼 (기존 코드) */}
                     {isAdmin && (
                         <button 
                             onClick={() => setIsSettingsOpen(true)}
                             className="p-2 text-gray-400 hover:text-[#00B16A] transition-colors"
                         >
-                            <GripVertical size={20} /> {/* 아이콘 변경: 설정 느낌 */}
+                            <GripVertical size={20} />
                         </button>
                     )}
+                    
+                    {/* (기존 코드: 인원 수 표시 등) */}
                     <div className="flex flex-col items-end">
-                        <span className="text-xs font-bold text-[#00B16A]">{isAdmin ? '관리자 모드' : '개인 모드'}</span>
+                        <span className="text-xs font-bold text-[#00B16A]">{isAdmin ? '관리자' : '개인'}</span>
                         <span className="text-[10px] text-gray-400">
                             <Users size={10} className="inline mr-1"/>
                             {Object.keys(players).length}명
