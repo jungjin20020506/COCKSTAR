@@ -1419,39 +1419,56 @@ const CourtTimer = ({ startTime }) => {
 /**
  * [수정] 플레이어 카드 (드래그 오류 해결 버전)
  */
+/**
+ * [수정] 플레이어 카드 (클릭/롱프레스 충돌 해결 버전)
+ */
 const PlayerCard = React.memo(({ 
     player, 
     isAdmin, 
     isCurrentUser, 
-    isPlaying,
-    isResting,
+    isPlaying, 
+    isResting, 
     isSelected,
     onCardClick,
     onDeleteClick,
-    onLongPress, // [신규] 꾹 누르기 핸들러
+    onLongPress, 
     onDragStart, 
-    onDragEnd,
-    onDragOver,
+    onDragEnd, 
+    onDragOver, 
     onDrop
 }) => {
-    // [신규] 롱 프레스 감지 로직
+    // 롱 프레스 타이머 및 상태
     const longPressTimer = useRef(null);
-    const isLongPress = useRef(false);
+    const isLongPressExecuted = useRef(false); // 롱프레스가 실행되었는지 체크
 
-    const startPress = (e) => {
+    // 1. 누르기 시작 (타이머 가동)
+    const startPress = () => {
         if (!isAdmin || !onLongPress) return;
-        isLongPress.current = false;
+        
+        isLongPressExecuted.current = false; // 초기화
         longPressTimer.current = setTimeout(() => {
-            isLongPress.current = true;
-            onLongPress(player); // 1초 뒤 실행
-        }, 800); // 0.8초 꾹 누르면 실행
+            isLongPressExecuted.current = true; // 실행됨 표시
+            onLongPress(player); // 롱프레스 동작 수행
+        }, 800); 
     };
 
-    const endPress = (e) => {
+    // 2. 떼거나 나감 (타이머 취소)
+    const endPress = () => {
         if (longPressTimer.current) {
             clearTimeout(longPressTimer.current);
             longPressTimer.current = null;
         }
+    };
+
+    // 3. 클릭 확정 (롱프레스가 아니었을 때만 실행)
+    const handleClick = (e) => {
+        // 이미 롱프레스가 실행되었다면 클릭 동작 무시
+        if (isLongPressExecuted.current) {
+            isLongPressExecuted.current = false; // 다음을 위해 리셋
+            return;
+        }
+        // 일반 클릭 실행
+        if (onCardClick) onCardClick(player);
     };
 
     if (!player) return <div className="h-14 bg-gray-100 rounded-lg animate-pulse"></div>;
@@ -1475,24 +1492,13 @@ const PlayerCard = React.memo(({
     return (
         <div
             className={containerClass}
-            // [수정] 클릭과 롱프레스 분기 처리
+            // [중요] 이벤트 핸들러 정리
             onMouseDown={startPress}
-            onMouseUp={(e) => {
-                endPress();
-                if (!isLongPress.current) onCardClick && onCardClick(player);
-            }}
-            onMouseLeave={endPress}
+            onMouseUp={endPress}      // 여기서는 클릭 실행 안 함
+            onMouseLeave={endPress}   // 마우스 나가면 취소
             onTouchStart={startPress}
-            onTouchEnd={(e) => {
-                endPress();
-                // 터치 환경에서는 롱프레스가 아니면 클릭으로 처리 (e.preventDefault 방지)
-                if (!isLongPress.current && e.cancelable) {
-                     // 모바일 클릭 처리는 onClick에 맡김
-                }
-            }}
-            onClick={(e) => {
-                if(!isLongPress.current) onCardClick && onCardClick(player);
-            }}
+            onTouchEnd={endPress}     // 여기서는 클릭 실행 안 함
+            onClick={handleClick}     // 클릭은 오직 여기서만 처리
             
             draggable={canDrag}
             onDragStart={canDrag ? (e) => onDragStart(e, player.id) : undefined}
@@ -1506,10 +1512,9 @@ const PlayerCard = React.memo(({
                 </span>
                 {isAdmin && (
                     <button 
-                        // pointer-events-auto를 줘서 부모의 클릭 이벤트를 막고 독립적으로 실행
                         className="pointer-events-auto absolute -top-1.5 -right-1.5 bg-white text-gray-400 hover:text-red-500 rounded-full shadow-sm border border-gray-100 p-0.5 transition-colors z-20"
                         onClick={(e) => {
-                            e.stopPropagation();
+                            e.stopPropagation(); // 카드 클릭 방지
                             onDeleteClick && onDeleteClick(player);
                         }}
                     >
