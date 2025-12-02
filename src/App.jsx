@@ -2367,6 +2367,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                                         isSelected={selectedPlayerIds.includes(p.id)}
                                         onCardClick={handleCardClick}
                                         onDeleteClick={handleKickPlayer}
+                                        onLongPress={(p) => setEditGamePlayer(p)} // [추가] 이 줄을 넣어주세요!
                                     />
                                 ))}
                             </div>
@@ -2382,6 +2383,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                                         isSelected={selectedPlayerIds.includes(p.id)}
                                         onCardClick={handleCardClick}
                                         onDeleteClick={handleKickPlayer}
+                                        onLongPress={(p) => setEditGamePlayer(p)} // [추가] 이 줄을 넣어주세요!
                                     />
                                 ))}
                             </div>
@@ -2407,6 +2409,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                                                         isSelected={selectedPlayerIds.includes(pid)}
                                                         onCardClick={handleCardClick}
                                                         onDeleteClick={() => { /* 스케줄 삭제 로직 별도 필요 */ }}
+                                                        onLongPress={(p) => setEditGamePlayer(p)}
                                                     />
                                                 ) : (
                                                     <EmptySlot key={sIdx} onSlotClick={() => handleSlotClick(mIdx, sIdx)} />
@@ -2452,7 +2455,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                                     </div>
                                     <div className="p-2 grid grid-cols-4 gap-1.5">
                                         {isOccupied ? court.players.map(pid => (
-                                            players[pid] ? <PlayerCard key={pid} player={players[pid]} isPlaying={true} /> : <div key={pid} className="h-14 bg-gray-100 rounded"/>
+                                            players[pid] ? <PlayerCard key={pid} player={players[pid]} isPlaying={true} isAdmin={isAdmin} onLongPress={(p) => setEditGamePlayer(p)} /> : <div key={pid} className="h-14 bg-gray-100 rounded"/>
                                         )) : (
                                             <div className="col-span-4 h-14 flex items-center justify-center text-gray-300">
                                                 <TrophyIcon size={24} className="opacity-20"/>
