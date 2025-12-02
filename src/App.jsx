@@ -1529,6 +1529,27 @@ const PlayerCard = React.memo(({
         </div>
     );
 });
+/**
+ * [신규] 나간 선수 카드 (붉은색 점선 표시)
+ */
+const LeftPlayerCard = ({ onClick, isAdmin }) => (
+    <div className="h-16 bg-red-50 rounded-lg flex flex-col items-center justify-center border-2 border-dashed border-red-300 relative select-none">
+        <span className="text-xs font-bold text-red-500">나간 선수</span>
+        <span className="text-[10px] text-red-400">(Player Left)</span>
+        
+        {isAdmin && onClick && (
+            <button
+                onClick={(e) => { 
+                    e.stopPropagation(); 
+                    onClick(); 
+                }}
+                className="absolute -top-2 -right-2 bg-white text-red-500 hover:bg-red-100 rounded-full shadow-sm p-1 border border-red-100 transition-colors z-20"
+            >
+                <XIcon size={12} strokeWidth={3} />
+            </button>
+        )}
+    </div>
+);
 
 /**
  * [수정] 빈 슬롯 (크기 축소)
@@ -2165,6 +2186,25 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
             alert(`🚫 배치 실패: ${msg}`);
         }
     };
+    // [신규] 스케줄에서 특정 슬롯 비우기 (나간 선수 제거용)
+    const handleRemoveFromSchedule = async (matchIndex, slotIndex) => {
+        if (!isAdmin) return;
+        try {
+            await runTransaction(db, async (t) => {
+                const rd = await t.get(roomDocRef);
+                const data = rd.data();
+                const schedule = { ...data.scheduledMatches };
+
+                if (schedule[matchIndex]) {
+                    schedule[matchIndex][slotIndex] = null; // 해당 자리 비우기
+                    t.update(roomDocRef, { scheduledMatches: schedule });
+                }
+            });
+        } catch (e) {
+            console.error(e);
+            alert("삭제 실패: " + e.message);
+        }
+    };
     // [신규] 선수 강퇴
     const handleKickPlayer = async (player) => {
         if (!window.confirm(`'${player.name}'님을 내보내시겠습니까?`)) return;
@@ -2429,19 +2469,34 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                                             <span className="text-lg font-black text-[#1E1E1E]">{mIdx + 1}</span>
                                         </div>
                                         <div className="flex-1 grid grid-cols-4 gap-1.5">
-                                            {match.map((pid, sIdx) => (
-                                                pid ? (
-                                                    <PlayerCard 
-                                                        key={pid} player={players[pid]} isAdmin={isAdmin} isCurrentUser={user.uid === pid}
-                                                        isSelected={selectedPlayerIds.includes(pid)}
-                                                        onCardClick={handleCardClick}
-                                                        onDeleteClick={() => { /* 스케줄 삭제 로직 별도 필요 */ }}
-                                                        onLongPress={(p) => setEditGamePlayer(p)}
-                                                    />
-                                                ) : (
-                                                    <EmptySlot key={sIdx} onSlotClick={() => handleSlotClick(mIdx, sIdx)} />
-                                                )
-                                            ))}
+                                            {match.map((pid, sIdx) => {
+    if (pid && players[pid]) {
+        // 1. 정상 선수
+        return (
+            <PlayerCard 
+                key={pid} player={players[pid]} isAdmin={isAdmin} isCurrentUser={user.uid === pid}
+                isSelected={selectedPlayerIds.includes(pid)}
+                onCardClick={handleCardClick}
+                onDeleteClick={() => handleRemoveFromSchedule(mIdx, sIdx)} // 여기서 삭제 가능
+                onLongPress={(p) => setEditGamePlayer(p)}
+            />
+        );
+    } else if (pid && !players[pid]) {
+        // 2. [신규] 나간 선수 (ID는 있는데 정보가 없음)
+        return (
+            <LeftPlayerCard 
+                key={`left-${mIdx}-${sIdx}`} 
+                isAdmin={isAdmin} 
+                onClick={() => handleRemoveFromSchedule(mIdx, sIdx)} 
+            />
+        );
+    } else {
+        // 3. 빈 슬롯
+        return (
+            <EmptySlot key={sIdx} onSlotClick={() => handleSlotClick(mIdx, sIdx)} />
+        );
+    }
+})}
                                         </div>
                                         <div className="w-10 flex justify-center">
                                             <button 
@@ -2481,9 +2536,26 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                                         ) : <span className="text-xs text-gray-400">비어있음</span>}
                                     </div>
                                     <div className="p-2 grid grid-cols-4 gap-1.5">
-                                        {isOccupied ? court.players.map(pid => (
-                                            players[pid] ? <PlayerCard key={pid} player={players[pid]} isPlaying={true} isAdmin={isAdmin} onLongPress={(p) => setEditGamePlayer(p)} /> : <div key={pid} className="h-14 bg-gray-100 rounded"/>
-                                        )) : (
+                                        {isOccupied ? court.players.map((pid, idx) => { // idx 추가
+    if (pid && players[pid]) {
+        // 1. 정상 선수
+        return (
+            <PlayerCard 
+                key={pid} 
+                player={players[pid]} 
+                isPlaying={true} 
+                isAdmin={isAdmin}
+                onLongPress={(p) => setEditGamePlayer(p)}
+            /> 
+        );
+    } else if (pid && !players[pid]) {
+        // 2. [신규] 나간 선수
+        return <LeftPlayerCard key={`left-court-${cIdx}-${idx}`} isAdmin={false} />; // 경기 중엔 삭제 불가(종료해야 함)
+    } else {
+        // 3. 데이터 오류로 빈 경우
+        return <div key={`empty-${cIdx}-${idx}`} className="h-14 bg-gray-100 rounded"/>;
+    }
+}) : (
                                             <div className="col-span-4 h-14 flex items-center justify-center text-gray-300">
                                                 <TrophyIcon size={24} className="opacity-20"/>
                                             </div>
