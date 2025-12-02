@@ -2484,6 +2484,14 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                 onReset={handleSystemReset}
                 onKickAll={handleKickAll}
             />
+
+            {/* [신규] 누락되었던 게임 수 수정 모달 렌더링 코드 */}
+            <EditGamesModal 
+                isOpen={!!editGamePlayer}
+                onClose={() => setEditGamePlayer(null)}
+                player={editGamePlayer}
+                onSave={handleSaveGames}
+                />
         </div>
     );
 }
