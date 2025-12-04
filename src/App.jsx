@@ -1557,18 +1557,20 @@ const LeftPlayerCard = ({ onClick, isAdmin }) => (
 );
 
 /**
- * [수정] 빈 슬롯 (크기 축소)
+ * [수정] 빈 슬롯 (디자인 구분감 개선)
  */
 const EmptySlot = ({ onSlotClick, onDragOver, onDrop, isDragOver }) => (
     <div 
         onClick={onSlotClick}
         onDragOver={onDragOver} 
         onDrop={onDrop}
-        className={`h-16 bg-gray-50/80 rounded-lg flex items-center justify-center text-gray-300 border border-dashed border-gray-300 transition-all cursor-pointer hover:bg-white hover:border-[#00B16A] hover:text-[#00B16A] ${
-            isDragOver ? 'bg-green-50 border-[#00B16A] text-[#00B16A]' : ''
+        className={`h-16 rounded-lg flex items-center justify-center border-2 border-dashed transition-all cursor-pointer ${
+            isDragOver 
+            ? 'bg-green-50 border-[#00B16A] text-[#00B16A]' // 드래그 오버 시 강조
+            : 'bg-white border-gray-200 text-gray-300 hover:border-gray-400 hover:text-gray-400' // 평소 (흰 배경에 회색 점선)
         }`}
     >
-        <Plus size={16} />
+        <Plus size={20} strokeWidth={3} />
     </div>
 );
 /**
@@ -2365,9 +2367,9 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     if (error) return <div className="p-10 text-center">{error}</div>;
 
     return (
-        <div className="flex flex-col h-full bg-white">
-          {/* 헤더 */}
-            <header className="flex-shrink-0 px-4 py-3 flex items-center justify-between bg-white border-b border-gray-100 sticky top-0 z-30">
+        <div className="flex flex-col h-full bg-slate-100"> {/* [변경] 전체 배경 회색 처리 */}
+            {/* 헤더 (흰색 유지 + 그림자 강화) */}
+            <header className="flex-shrink-0 px-4 py-3 flex items-center justify-between bg-white shadow-sm sticky top-0 z-30">
                 <div className="flex items-center gap-3">
                     <button onClick={onExitRoom} className="p-1 text-gray-400 hover:text-black"><ArrowLeft size={24}/></button>
                     <div>
@@ -2383,19 +2385,18 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    {/* [신규] 휴식/복귀 버튼 추가 */}
+                    {/* 휴식/복귀 버튼 */}
                     <button 
                         onClick={handleToggleRest}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1 ${
                             players[user.uid]?.isResting
-                            ? 'bg-gray-100 text-gray-500 border border-gray-200'  // 휴식 중 스타일
-                            : 'bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100' // 대기 중 스타일
+                            ? 'bg-gray-100 text-gray-500 border border-gray-200'
+                            : 'bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100'
                         }`}
                     >
                         {players[user.uid]?.isResting ? '😴 휴식 중' : '🔥 대기 중'}
                     </button>
 
-                    {/* 관리자용 게임 설정(톱니바퀴) 버튼 (기존 코드) */}
                     {isAdmin && (
                         <button 
                             onClick={() => setIsSettingsOpen(true)}
@@ -2405,7 +2406,6 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                         </button>
                     )}
                     
-                    {/* (기존 코드: 인원 수 표시 등) */}
                     <div className="flex flex-col items-end">
                         <span className="text-xs font-bold text-[#00B16A]">{isAdmin ? '관리자' : '개인'}</span>
                         <span className="text-[10px] text-gray-400">
@@ -2416,38 +2416,54 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                 </div>
             </header>
 
-            {/* 탭 */}
-            <div className="flex border-b border-gray-100">
+            {/* 탭 (흰색 배경) */}
+            <div className="flex bg-white border-b border-gray-200">
                 <button onClick={() => setActiveTab('matching')} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'matching' ? 'border-[#00B16A] text-[#00B16A]' : 'border-transparent text-gray-400'}`}>매칭 대기</button>
                 <button onClick={() => setActiveTab('inProgress')} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'inProgress' ? 'border-[#00B16A] text-[#00B16A]' : 'border-transparent text-gray-400'}`}>경기 진행</button>
             </div>
 
-            {/* 메인 컨텐츠 */}
-            <main className="flex-grow overflow-y-auto p-3 bg-slate-50 space-y-4 pb-24">
+            {/* 메인 컨텐츠 (회색 배경 위 컨텐츠 배치) */}
+            <main className="flex-grow overflow-y-auto p-4 space-y-6 pb-24">
                 {activeTab === 'matching' ? (
                     <>
-                        {/* 대기 명단 (남녀 구분) */}
-                        <section className="bg-white rounded-xl shadow-sm p-3 border border-gray-100">
-                            <h2 className="text-sm font-bold text-gray-800 mb-3 flex justify-between">
-                                <span>대기 명단</span>
-                                <span className="text-[#00B16A]">{waitingPlayers.length}명</span>
-                            </h2>
-                            <div className="grid grid-cols-4 gap-2"> {/* 카드 작아짐 -> 컬럼 수 4개 유지/확대 */}
+                        {/* 1. 대기 명단 섹션 (흰색 박스로 감싸서 구분감 줌) */}
+                        <section className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
+                            <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-2">
+                                <h2 className="text-sm font-extrabold text-gray-800 flex items-center gap-2">
+                                    <Users size={16} className="text-[#00B16A]"/>
+                                    대기 명단
+                                </h2>
+                                <span className="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-0.5 rounded-full">
+                                    {waitingPlayers.length}명
+                                </span>
+                            </div>
+                            
+                            {/* 남자 대기 */}
+                            <div className="grid grid-cols-4 gap-2">
                                 {maleWaiting.map(p => (
                                     <PlayerCard 
                                         key={p.id} player={p} isAdmin={isAdmin} isCurrentUser={user.uid === p.id}
                                         isSelected={selectedPlayerIds.includes(p.id)}
                                         onCardClick={handleCardClick}
                                         onDeleteClick={handleKickPlayer}
-                                        onLongPress={(p) => setEditGamePlayer(p)} // [추가] 이 줄을 넣어주세요!
+                                        onLongPress={(p) => setEditGamePlayer(p)}
                                     />
                                 ))}
                             </div>
+
+                            {/* 구분선 (여성 회원이 있을 때만) */}
                             {maleWaiting.length > 0 && femaleWaiting.length > 0 && (
-                                <div className="my-3 border-t border-dashed border-gray-300 relative h-0">
-                                    <span className="absolute left-1/2 -top-2 bg-white px-2 text-[10px] text-gray-400 -translate-x-1/2">여성 회원</span>
+                                <div className="my-4 relative">
+                                    <div className="absolute inset-0 flex items-center">
+                                        <div className="w-full border-t border-dashed border-gray-200"></div>
+                                    </div>
+                                    <div className="relative flex justify-center">
+                                        <span className="bg-white px-2 text-[10px] text-gray-400 font-medium">여성 회원</span>
+                                    </div>
                                 </div>
                             )}
+
+                            {/* 여자 대기 */}
                             <div className="grid grid-cols-4 gap-2">
                                 {femaleWaiting.map(p => (
                                     <PlayerCard 
@@ -2455,66 +2471,72 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                                         isSelected={selectedPlayerIds.includes(p.id)}
                                         onCardClick={handleCardClick}
                                         onDeleteClick={handleKickPlayer}
-                                        onLongPress={(p) => setEditGamePlayer(p)} // [추가] 이 줄을 넣어주세요!
+                                        onLongPress={(p) => setEditGamePlayer(p)}
                                     />
                                 ))}
                             </div>
-                            {waitingPlayers.length === 0 && <p className="text-center text-xs text-gray-400 py-4">대기 중인 선수가 없습니다.</p>}
+
+                            {waitingPlayers.length === 0 && (
+                                <div className="text-center py-8">
+                                    <p className="text-sm text-gray-400 font-medium">대기 중인 선수가 없습니다.</p>
+                                    <p className="text-xs text-gray-300 mt-1">새로운 선수를 기다리는 중...</p>
+                                </div>
+                            )}
                         </section>
 
-                        {/* 경기 예정 테이블 */}
-                        <section className="space-y-2">
+                        {/* 2. 경기 예정 테이블 (각 매치마다 흰색 카드로 분리) */}
+                        <section className="space-y-3">
+                            <h2 className="text-sm font-extrabold text-gray-500 ml-1">경기 배정 (Schedule)</h2>
                             {Array.from({ length: roomData.numScheduledMatches }).map((_, mIdx) => {
                                 const match = roomData.scheduledMatches?.[mIdx] || Array(PLAYERS_PER_MATCH).fill(null);
                                 const fullCount = match.filter(Boolean).length;
                                 return (
-                                    <div key={mIdx} className="bg-white rounded-xl p-2 shadow-sm border border-gray-100 flex gap-2 items-center">
-                                        <div className="flex flex-col items-center justify-center w-8 gap-1">
-                                            <span className="text-xs font-bold text-gray-400">Match</span>
-                                            <span className="text-lg font-black text-[#1E1E1E]">{mIdx + 1}</span>
-                                        </div>
-                                        <div className="flex-1 grid grid-cols-4 gap-1.5">
-                                            {match.map((pid, sIdx) => {
-    if (pid && players[pid]) {
-        // 1. 정상 선수
-        return (
-            <PlayerCard 
-                key={pid} player={players[pid]} isAdmin={isAdmin} isCurrentUser={user.uid === pid}
-                isSelected={selectedPlayerIds.includes(pid)}
-                onCardClick={handleCardClick}
-                onDeleteClick={() => handleRemoveFromSchedule(mIdx, sIdx)} // 여기서 삭제 가능
-                onLongPress={(p) => setEditGamePlayer(p)}
-            />
-        );
-    } else if (pid && !players[pid]) {
-        // 2. [신규] 나간 선수 (ID는 있는데 정보가 없음)
-        return (
-            <LeftPlayerCard 
-                key={`left-${mIdx}-${sIdx}`} 
-                isAdmin={isAdmin} 
-                onClick={() => handleRemoveFromSchedule(mIdx, sIdx)} 
-            />
-        );
-    } else {
-        // 3. 빈 슬롯
-        return (
-            <EmptySlot key={sIdx} onSlotClick={() => handleSlotClick(mIdx, sIdx)} />
-        );
-    }
-})}
-                                        </div>
-                                        <div className="w-10 flex justify-center">
+                                    <div key={mIdx} className="bg-white rounded-2xl p-3 shadow-sm border border-gray-200 flex flex-col gap-2">
+                                        {/* 매치 헤더 */}
+                                        <div className="flex justify-between items-center px-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className="bg-gray-100 text-gray-500 text-xs font-bold px-2 py-1 rounded">MATCH {mIdx + 1}</span>
+                                            </div>
                                             <button 
                                                 onClick={() => handleStartClick(mIdx)}
                                                 disabled={fullCount < PLAYERS_PER_MATCH}
-                                                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                                                className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold transition-all ${
                                                     fullCount === PLAYERS_PER_MATCH 
-                                                    ? 'bg-[#00B16A] text-white shadow-md hover:scale-110' 
-                                                    : 'bg-gray-100 text-gray-300'
+                                                    ? 'bg-[#00B16A] text-white shadow-md hover:bg-green-600' 
+                                                    : 'bg-gray-100 text-gray-300 cursor-not-allowed'
                                                 }`}
                                             >
-                                                <ChevronRightIcon size={20} strokeWidth={3} />
+                                                경기 시작 <ChevronRightIcon size={14} />
                                             </button>
+                                        </div>
+
+                                        {/* 선수 슬롯 */}
+                                        <div className="grid grid-cols-4 gap-2">
+                                            {match.map((pid, sIdx) => {
+                                                if (pid && players[pid]) {
+                                                    return (
+                                                        <PlayerCard 
+                                                            key={pid} player={players[pid]} isAdmin={isAdmin} isCurrentUser={user.uid === pid}
+                                                            isSelected={selectedPlayerIds.includes(pid)}
+                                                            onCardClick={handleCardClick}
+                                                            onDeleteClick={() => handleRemoveFromSchedule(mIdx, sIdx)}
+                                                            onLongPress={(p) => setEditGamePlayer(p)}
+                                                        />
+                                                    );
+                                                } else if (pid && !players[pid]) {
+                                                    return (
+                                                        <LeftPlayerCard 
+                                                            key={`left-${mIdx}-${sIdx}`} 
+                                                            isAdmin={isAdmin} 
+                                                            onClick={() => handleRemoveFromSchedule(mIdx, sIdx)} 
+                                                        />
+                                                    );
+                                                } else {
+                                                    return (
+                                                        <EmptySlot key={sIdx} onSlotClick={() => handleSlotClick(mIdx, sIdx)} />
+                                                    );
+                                                }
+                                            })}
                                         </div>
                                     </div>
                                 )
@@ -2522,47 +2544,39 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                         </section>
                     </>
                 ) : (
-                    /* 경기 진행 탭 */
-                    <div className="space-y-3">
+                    /* 경기 진행 탭 (그리드 레이아웃 적용) */
+                    <div className="grid grid-cols-1 gap-4">
                         {Array.from({ length: roomData.numInProgressCourts }).map((_, cIdx) => {
                             const court = roomData.inProgressCourts?.[cIdx];
                             const isOccupied = !!court;
                             return (
-                                <div key={cIdx} className={`rounded-xl border-2 overflow-hidden ${isOccupied ? 'bg-white border-[#00B16A]/30' : 'bg-gray-50 border-dashed border-gray-200'}`}>
-                                    <div className={`px-3 py-2 flex justify-between items-center ${isOccupied ? 'bg-[#00B16A]/5' : ''}`}>
-                                        <span className="font-bold text-sm text-[#1E1E1E]">COURT {cIdx + 1}</span>
+                                <div key={cIdx} className={`rounded-2xl border transition-all ${isOccupied ? 'bg-white border-[#00B16A] shadow-md' : 'bg-white border-dashed border-gray-300'}`}>
+                                    <div className={`px-4 py-3 flex justify-between items-center border-b ${isOccupied ? 'bg-green-50/50 border-green-100' : 'border-gray-100'}`}>
+                                        <span className={`font-black text-sm ${isOccupied ? 'text-[#00B16A]' : 'text-gray-400'}`}>COURT {cIdx + 1}</span>
                                         {isOccupied ? (
                                             <div className="flex items-center gap-2">
                                                 <CourtTimer startTime={court.startTime} />
                                                 {isAdmin && (
-                                                    <button onClick={() => handleEndMatch(cIdx)} className="bg-white border border-red-100 text-red-500 text-xs font-bold px-2 py-1 rounded hover:bg-red-50">종료</button>
+                                                    <button onClick={() => handleEndMatch(cIdx)} className="bg-white border border-red-200 text-red-500 text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-red-50 shadow-sm">
+                                                        경기 종료
+                                                    </button>
                                                 )}
                                             </div>
-                                        ) : <span className="text-xs text-gray-400">비어있음</span>}
+                                        ) : <span className="text-xs text-gray-400 font-medium">대기 중</span>}
                                     </div>
-                                    <div className="p-2 grid grid-cols-4 gap-1.5">
-                                        {isOccupied ? court.players.map((pid, idx) => { // idx 추가
-    if (pid && players[pid]) {
-        // 1. 정상 선수
-        return (
-            <PlayerCard 
-                key={pid} 
-                player={players[pid]} 
-                isPlaying={true} 
-                isAdmin={isAdmin}
-                onLongPress={(p) => setEditGamePlayer(p)}
-            /> 
-        );
-    } else if (pid && !players[pid]) {
-        // 2. [신규] 나간 선수
-        return <LeftPlayerCard key={`left-court-${cIdx}-${idx}`} isAdmin={false} />; // 경기 중엔 삭제 불가(종료해야 함)
-    } else {
-        // 3. 데이터 오류로 빈 경우
-        return <div key={`empty-${cIdx}-${idx}`} className="h-14 bg-gray-100 rounded"/>;
-    }
-}) : (
-                                            <div className="col-span-4 h-14 flex items-center justify-center text-gray-300">
-                                                <TrophyIcon size={24} className="opacity-20"/>
+                                    <div className="p-3 grid grid-cols-4 gap-2">
+                                        {isOccupied ? court.players.map((pid, idx) => {
+                                            if (pid && players[pid]) {
+                                                return <PlayerCard key={pid} player={players[pid]} isPlaying={true} isAdmin={isAdmin} onLongPress={(p) => setEditGamePlayer(p)} />;
+                                            } else if (pid && !players[pid]) {
+                                                return <LeftPlayerCard key={`left-court-${cIdx}-${idx}`} isAdmin={false} />;
+                                            } else {
+                                                return <div key={`empty-${cIdx}-${idx}`} className="h-16 bg-gray-50 rounded-lg border border-gray-100"/>;
+                                            }
+                                        }) : (
+                                            <div className="col-span-4 h-16 flex items-center justify-center text-gray-300 gap-2">
+                                                <TrophyIcon size={20} />
+                                                <span className="text-sm font-medium">경기가 없습니다</span>
                                             </div>
                                         )}
                                     </div>
@@ -2589,13 +2603,22 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                 onKickAll={handleKickAll}
             />
 
-            {/* [신규] 누락되었던 게임 수 수정 모달 렌더링 코드 */}
+            {/* 게임 수 수정 모달 */}
             <EditGamesModal 
                 isOpen={!!editGamePlayer}
                 onClose={() => setEditGamePlayer(null)}
                 player={editGamePlayer}
                 onSave={handleSaveGames}
-                />
+            />
+            
+            {/* 방 정보 수정 모달 */}
+             <EditRoomInfoModal 
+                isOpen={isEditInfoOpen}
+                onClose={() => setIsEditInfoOpen(false)}
+                roomData={roomData}
+                onSave={handleRoomInfoSave}
+                onDelete={handleRoomDelete}
+            />
         </div>
     );
 }
