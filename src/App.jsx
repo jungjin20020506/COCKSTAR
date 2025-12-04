@@ -320,9 +320,81 @@ function AuthModal({ onClose, setUserData }) {
     }, [step]);
 
     // [2] 카카오 로그인 (플레이스홀더)
+ // [수정] 카카오 로그인 핸들러 (Firebase 연동)
     const handleKakaoLogin = () => {
-        alert("카카오 로그인은 '카카오 JavaScript 키' 설정이 필요합니다.\n현재는 데모용으로 휴대폰 로그인을 이용해주세요.");
-        // 실제 구현 시: Kakao SDK 초기화 -> Kakao.Auth.login -> Firebase Custom Token 처리 필요
+        if (!window.Kakao || !window.Kakao.isInitialized()) {
+            alert("카카오 SDK가 아직 로드되지 않았거나, 자바스크립트 키가 설정되지 않았습니다.");
+            return;
+        }
+
+        setLoading(true);
+
+        window.Kakao.Auth.login({
+            success: function (authObj) {
+                // 로그인 성공 시 사용자 정보 요청
+                window.Kakao.API.request({
+                    url: '/v2/user/me',
+                    success: async function (res) {
+                        const kakaoId = res.id;
+                        const nickname = res.properties?.nickname || '카카오 사용자';
+                        
+                        // [핵심] 카카오 ID를 기반으로 Firebase용 가짜 계정 생성
+                        const email = `kakao_${kakaoId}@cockstar.app`;
+                        const password = `kakao_secret_${kakaoId}`; // 클라이언트용 고정 비밀번호
+
+                        try {
+                            // 1. Firebase 로그인 시도
+                            await signInWithEmailAndPassword(auth, email, password);
+                            // 성공 시 onAuthStateChanged가 감지하여 모달 닫음
+                            onClose();
+                        } catch (error) {
+                            // 2. 계정이 없으면 회원가입 진행
+                            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-email') {
+                                try {
+                                    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                                    const user = userCredential.user;
+
+                                    // Firestore에 유저 정보 저장
+                                    await setDoc(doc(db, "users", user.uid), {
+                                        name: nickname,
+                                        email: email,
+                                        kakaoId: kakaoId, // 카카오 고유 ID 저장
+                                        level: 'N조',
+                                        gender: '미설정',
+                                        createdAt: serverTimestamp(),
+                                        role: 'user'
+                                    });
+                                    
+                                    // 프로필 업데이트
+                                    await updateProfile(user, { displayName: nickname });
+                                    
+                                    // 회원가입 완료 후 닫기
+                                    onClose();
+                                } catch (createError) {
+                                    console.error("카카오 회원가입 실패:", createError);
+                                    setError("카카오 계정 생성 중 오류가 발생했습니다.");
+                                }
+                            } else {
+                                console.error("Firebase 로그인 오류:", error);
+                                setError("로그인 중 오류가 발생했습니다.");
+                            }
+                        } finally {
+                            setLoading(false);
+                        }
+                    },
+                    fail: function (error) {
+                        console.error(error);
+                        setError("카카오 사용자 정보를 불러오는데 실패했습니다.");
+                        setLoading(false);
+                    },
+                });
+            },
+            fail: function (err) {
+                console.error(err);
+                setError("카카오 로그인에 실패했습니다.");
+                setLoading(false);
+            },
+        });
     };
 
     // [3] 인증번호 전송
@@ -2952,10 +3024,35 @@ const TabButton = ({ icon: Icon, label, isActive, onClick }) => {
 export default function App() {
     // 1. 상태 관리
     const [page, setPage] = useState('home'); // 현재 페이지 (home, game, store, community, myInfo)
+    // [신규] 카카오 SDK 스크립트 로드 및 초기화
+    useEffect(() => {
+        const script = document.createElement('script');
+        script.src = 'https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js';
+        script.integrity = 'sha384-TiCUE00h649CAMonG018J2ujOgDKW/kVWlChEuu4jK2txfYR9bBueBsW0r4PpPUo';
+        script.crossOrigin = 'anonymous';
+        script.async = true;
+        
+        script.onload = () => {
+            if (window.Kakao && !window.Kakao.isInitialized()) {
+                // [필수] 여기에 본인의 '카카오 자바스크립트 키'를 넣으세요!
+                // 예: window.Kakao.init('a1b2c3d4e5...');
+                window.Kakao.init('YOUR_KAKAO_JAVASCRIPT_KEY'); 
+                console.log("Kakao SDK Initialized");
+            }
+        };
+        document.body.appendChild(script);
+
+        return () => {
+            // 컴포넌트 언마운트 시 스크립트 정리 (선택 사항)
+            // document.body.removeChild(script);
+        };
+    }, []);
     const [user, setUser] = useState(null); // 로그인한 유저 객체
     const [userData, setUserData] = useState(null); // Firestore 유저 추가 정보
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false); // 로그인 모달 상태
     const [loading, setLoading] = useState(true); // 초기 로딩 상태
+
+    
 
     // 2. 인증 상태 감지 (로그인 여부 확인)
     useEffect(() => {
