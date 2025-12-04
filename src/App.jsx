@@ -3034,11 +3034,11 @@ export default function App() {
         
         script.onload = () => {
             if (window.Kakao && !window.Kakao.isInitialized()) {
-                // [필수] 여기에 본인의 '카카오 자바스크립트 키'를 넣으세요!
-                // 예: window.Kakao.init('a1b2c3d4e5...');
-                window.Kakao.init('YOUR_KAKAO_JAVASCRIPT_KEY'); 
-                console.log("Kakao SDK Initialized");
-            }
+            // [중요] 'YOUR_KAKAO_JAVASCRIPT_KEY'를 발급받은 실제 키로 꼭 바꿔주세요!
+            // 예: window.Kakao.init('a1b2c3d4e5f6g7h8');
+            window.Kakao.init('YOUR_KAKAO_JAVASCRIPT_KEY'); 
+            console.log("Kakao SDK Initialized");
+        }
         };
         document.body.appendChild(script);
 
