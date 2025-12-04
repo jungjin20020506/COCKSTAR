@@ -59,6 +59,16 @@ import {
     GripVertical as GripVerticalIcon
 } from 'lucide-react';
 
+import {
+    getAuth,
+    onAuthStateChanged,
+    signOut,
+    // [신규] 휴대폰 인증 관련 추가
+    RecaptchaVerifier,
+    signInWithPhoneNumber,
+    updateProfile
+} from 'firebase/auth';
+
 // [수정] 얇은 아이콘을 생성하는 '새로운' 헬퍼 함수
 // (createReactComponent가 비공개 함수라, 이 방식으로 우회합니다)
 const createThinIcon = (IconComponent) => {
@@ -275,181 +285,299 @@ function LoginRequiredPage({ icon: Icon, title, description, onLoginClick }) {
     );
 }
 
-
 // ===================================================================================
-// 로그인/회원가입 모달 (수정됨: 아이디 로그인 지원)
+// [신규] 로그인/회원가입 모달 (카카오 + 휴대폰 인증 + 추가정보 입력)
 // ===================================================================================
-function AuthModal({ onClose, setPage }) {
-    const [isLoginMode, setIsLoginMode] = useState(true);
-    const [username, setUsername] = useState(''); // [수정] email -> username
-    const [password, setPassword] = useState('');
-    const [name, setName] = useState(''); 
-    const [error, setError] = useState('');
+function AuthModal({ onClose, setUserData }) {
+    // 단계: 'method'(선택) -> 'phone'(번호입력) -> 'otp'(인증번호) -> 'info'(정보입력)
+    const [step, setStep] = useState('method'); 
+    
+    // 상태 관리
+    const [phoneNumber, setPhoneNumber] = useState('');
+    const [otp, setOtp] = useState('');
+    const [confirmationResult, setConfirmationResult] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
-    const handleGoogleLogin = async () => {
-        setLoading(true);
-        setError('');
-        try {
-            const result = await signInWithPopup(auth, googleProvider);
-            const user = result.user;
-            
-            const userDoc = await getDoc(doc(db, "users", user.uid));
-            if (!userDoc.exists()) {
-                await setDoc(doc(db, "users", user.uid), {
-                    name: user.displayName || '새 사용자',
-                    email: user.email,
-                    level: 'N조',
-                    gender: '미설정',
+    // 추가 정보 입력 상태
+    const [name, setName] = useState('');
+    const [gender, setGender] = useState('남');
+    const [level, setLevel] = useState('N조');
+
+    // 리캡차 설정을 위한 Ref
+    const recaptchaVerifier = useRef(null);
+
+    // [1] 리캡차 초기화 (휴대폰 인증 필수)
+    useEffect(() => {
+        if (step === 'phone' && !recaptchaVerifier.current) {
+            try {
+                recaptchaVerifier.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
+                    'size': 'invisible', // 보이지 않게 처리
+                    'callback': (response) => {
+                        // 리캡차 성공 시 자동 실행될 로직 (생략 가능)
+                    },
+                    'expired-callback': () => {
+                        setError('인증 시간이 만료되었습니다. 다시 시도해주세요.');
+                    }
                 });
+            } catch (e) {
+                console.error("Recaptcha Init Error:", e);
             }
-            onClose();
+        }
+    }, [step]);
+
+    // [2] 카카오 로그인 (플레이스홀더)
+    const handleKakaoLogin = () => {
+        alert("카카오 로그인은 '카카오 JavaScript 키' 설정이 필요합니다.\n현재는 데모용으로 휴대폰 로그인을 이용해주세요.");
+        // 실제 구현 시: Kakao SDK 초기화 -> Kakao.Auth.login -> Firebase Custom Token 처리 필요
+    };
+
+    // [3] 인증번호 전송
+    const sendOtp = async (e) => {
+        e.preventDefault();
+        setError('');
+        setLoading(true);
+
+        // 010-1234-5678 -> +821012345678 포맷 변환
+        const formattedPhone = phoneNumber.replace(/-/g, '').replace(/^0/, '+82');
+
+        try {
+            if (!recaptchaVerifier.current) throw new Error("Recaptcha not initialized");
+            
+            const confirmation = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier.current);
+            setConfirmationResult(confirmation);
+            setStep('otp'); // 인증번호 입력 단계로 이동
         } catch (err) {
-            console.error("Google 로그인 오류:", err);
-            setError("Google 로그인 중 오류가 발생했습니다.");
+            console.error(err);
+            setError("인증번호 전송 실패: " + err.message);
+            // 리캡차 리셋
+            if (recaptchaVerifier.current) recaptchaVerifier.current.clear();
+            recaptchaVerifier.current = null;
         } finally {
             setLoading(false);
         }
     };
 
-    const handleEmailAuth = async (e) => {
+    // [4] 인증번호 확인 & 로그인 처리
+    const verifyOtp = async (e) => {
         e.preventDefault();
-        setLoading(true);
         setError('');
-
-        // [수정] 입력된 아이디를 이메일 형식으로 변환
-        const finalEmail = convertToEmail(username);
+        setLoading(true);
 
         try {
-            if (isLoginMode) {
-                // 로그인 시도
-                await signInWithEmailAndPassword(auth, finalEmail, password);
+            const result = await confirmationResult.confirm(otp);
+            const user = result.user;
+
+            // Firestore에서 유저 정보 확인
+            const userDocRef = doc(db, "users", user.uid);
+            const userSnap = await getDoc(userDocRef);
+
+            if (userSnap.exists()) {
+                // 이미 가입된 유저 -> 로그인 완료
+                setUserData(userSnap.data());
+                onClose();
             } else {
-                // 회원가입 시도
-                if (name.length < 2) {
-                    setError("이름을 2자 이상 입력해주세요.");
-                    setLoading(false);
-                    return;
-                }
-                const userCredential = await createUserWithEmailAndPassword(auth, finalEmail, password);
-                const user = userCredential.user;
-                
-                await setDoc(doc(db, "users", user.uid), {
-                    name: name,
-                    email: user.email, // Firebase에는 변환된 이메일(@cockstar.app)이 저장됨
-                    username: username, // [선택] 입력한 원본 아이디도 저장해두면 좋음
-                    level: 'N조',
-                    gender: '미설정',
-                });
+                // 신규 유저 -> 정보 입력 단계로 이동
+                setStep('info');
             }
-            onClose();
         } catch (err) {
-            console.error("인증 오류:", err);
-            // 에러 메시지 한글화
-            if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-email' || err.code === 'auth/invalid-credential') {
-                setError('아이디 또는 비밀번호가 잘못되었습니다.');
-            } else if (err.code === 'auth/wrong-password') {
-                setError('비밀번호가 틀렸습니다.');
-            } else if (err.code === 'auth/email-already-in-use') {
-                setError('이미 사용 중인 아이디입니다.');
-            } else if (err.code === 'auth/weak-password') {
-                setError('비밀번호는 6자리 이상이어야 합니다.');
-            } else {
-                setError('오류가 발생했습니다: ' + err.message);
-            }
+            setError("인증번호가 올바르지 않습니다.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // [5] 신규 회원 정보 저장
+    const handleSignup = async (e) => {
+        e.preventDefault();
+        if (!name.trim()) return setError("이름을 입력해주세요.");
+        
+        setLoading(true);
+        const user = auth.currentUser;
+
+        try {
+            const newUserData = {
+                name: name,
+                email: `${phoneNumber}@phone.user`, // 가짜 이메일 생성
+                phoneNumber: phoneNumber,
+                gender: gender,
+                level: level,
+                createdAt: serverTimestamp(),
+                role: 'user'
+            };
+
+            // Firestore 저장
+            await setDoc(doc(db, "users", user.uid), newUserData);
+            
+            // Auth 프로필 업데이트
+            await updateProfile(user, { displayName: name });
+
+            setUserData(newUserData);
+            onClose(); // 모달 닫기
+        } catch (err) {
+            console.error(err);
+            setError("회원가입 저장 실패: " + err.message);
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-800 rounded-xl p-8 w-full max-w-md relative text-white shadow-2xl">
-                <button
-                    onClick={onClose}
-                    className="absolute top-4 right-4 text-gray-500 hover:text-white"
-                    disabled={loading}
-                >
-                    <X size={28} />
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl p-8 w-full max-w-sm shadow-2xl relative overflow-hidden">
+                <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-black">
+                    <XIcon size={24} />
                 </button>
-                
-                <h2 className="text-2xl font-extrabold text-center mb-6 text-[#FFD700] tracking-tighter">
-                    {isLoginMode ? '콕스타 로그인' : '콕스타 회원가입'}
-                </h2>
 
-                {error && <p className="text-red-400 text-center mb-4 bg-red-900/50 p-3 rounded-lg text-sm">{error}</p>}
-
-                <form onSubmit={handleEmailAuth} className="space-y-4">
-                    {!isLoginMode && (
-                        <input
-                            type="text"
-                            placeholder="이름 (닉네임)"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            required
-                            className="w-full p-4 bg-gray-700 rounded-lg text-white placeholder-gray-400 border-2 border-gray-600 focus:border-[#00B16A] focus:outline-none text-base"
-                        />
-                    )}
-                    {/* [수정] type="text"로 변경, placeholder 변경, value는 username 사용 */}
-                    <input
-                        type="text"
-                        placeholder="아이디"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        required
-                        className="w-full p-4 bg-gray-700 rounded-lg text-white placeholder-gray-400 border-2 border-gray-600 focus:border-[#00B16A] focus:outline-none text-base"
-                    />
-                    <input
-                        type="password"
-                        placeholder="비밀번호 (6자 이상)"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        className="w-full p-4 bg-gray-700 rounded-lg text-white placeholder-gray-400 border-2 border-gray-600 focus:border-[#00B16A] focus:outline-none text-base"
-                    />
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-lg text-base hover:bg-green-600 transition-colors disabled:bg-gray-600 flex items-center justify-center"
-                    >
-                        {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : (isLoginMode ? '로그인' : '회원가입')}
-                    </button>
-                </form>
-
-                <div className="relative my-6">
-                    <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t border-gray-600" />
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                        <span className="bg-gray-800 px-2 text-gray-400">OR</span>
-                    </div>
+                {/* 타이틀 영역 */}
+                <div className="text-center mb-8">
+                    <h2 className="text-2xl font-extrabold text-[#1E1E1E]">
+                        {step === 'info' ? '환영합니다! 🎉' : '콕스타 로그인'}
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-2">
+                        {step === 'method' && '간편하게 로그인하고 배드민턴을 즐기세요.'}
+                        {step === 'phone' && '휴대폰 번호를 입력해주세요.'}
+                        {step === 'otp' && '문자로 전송된 인증번호를 입력해주세요.'}
+                        {step === 'info' && '기본 정보를 입력하면 가입이 완료됩니다.'}
+                    </p>
                 </div>
 
-                <button
-                    onClick={handleGoogleLogin}
-                    disabled={loading}
-                    className="w-full py-4 bg-white text-black font-bold rounded-lg text-base hover:bg-gray-200 transition-colors flex items-center justify-center gap-3 disabled:bg-gray-400"
-                >
-                    <svg className="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.8 2.38 30.47 0 24 0 14.62 0 6.78 5.48 2.76 13.23l7.88 6.14C12.24 13.62 17.7 9.5 24 9.5z"></path><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.9-2.26 5.48-4.8 7.18l7.66 5.92C42.92 38.04 46.98 32.08 46.98 24.55z"></path><path fill="#FBBC05" d="M10.6 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59L2.76 13.23C1.18 16.29 0 19.99 0 24s1.18 7.71 2.76 10.77l7.84-5.18z"></path><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.66-5.92c-2.13 1.45-4.82 2.3-7.92 2.3-6.11 0-11.31-4.08-13.16-9.56L2.76 34.77C6.78 42.52 14.62 48 24 48z"></path><path fill="none" d="M0 0h48v48H0z"></path></svg>
-                    Google 계정으로 계속하기
-                </button>
+                {error && <div className="bg-red-50 text-red-500 text-sm p-3 rounded-lg mb-4 text-center">{error}</div>}
 
-                <p className="mt-6 text-center text-gray-400 text-sm font-medium">
-                    {isLoginMode ? '계정이 없으신가요?' : '이미 계정이 있으신가요?'}
-                    <button
-                        onClick={() => {
-                            setIsLoginMode(!isLoginMode);
-                            setError('');
-                        }}
-                        className="font-bold text-[#FFD700] hover:text-yellow-300 ml-2"
-                    >
-                        {isLoginMode ? '회원가입' : '로그인'}
-                    </button>
-                </p>
+                {/* [단계 1] 로그인 방식 선택 */}
+                {step === 'method' && (
+                    <div className="space-y-3">
+                        {/* 카카오 버튼 */}
+                        <button 
+                            onClick={handleKakaoLogin}
+                            className="w-full py-4 bg-[#FEE500] text-[#3c1e1e] font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-[#fdd835] transition-colors"
+                        >
+                            <MessageSquareIcon size={20} fill="#3c1e1e" className="border-none" /> 
+                            카카오톡으로 시작하기
+                        </button>
+                        
+                        {/* 휴대폰 버튼 */}
+                        <button 
+                            onClick={() => setStep('phone')}
+                            className="w-full py-4 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors"
+                        >
+                            <span className="text-lg">📱</span> 
+                            휴대폰 번호로 시작하기
+                        </button>
+                    </div>
+                )}
+
+                {/* [단계 2] 휴대폰 번호 입력 */}
+                {step === 'phone' && (
+                    <form onSubmit={sendOtp} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">휴대폰 번호</label>
+                            <input 
+                                type="tel" 
+                                placeholder="010-1234-5678" 
+                                value={phoneNumber}
+                                onChange={(e) => setPhoneNumber(e.target.value.replace(/[^0-9-]/g, ''))} // 숫자와 하이픈만 허용
+                                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#00B16A] focus:outline-none font-bold text-lg"
+                                required
+                            />
+                        </div>
+                        <div id="recaptcha-container"></div> {/* 리캡차 컨테이너 (필수) */}
+                        <button 
+                            type="submit" 
+                            disabled={loading || phoneNumber.length < 10}
+                            className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl hover:bg-green-600 transition-colors disabled:bg-gray-300"
+                        >
+                            {loading ? <Loader2Icon className="animate-spin mx-auto"/> : '인증번호 받기'}
+                        </button>
+                        <button onClick={() => setStep('method')} type="button" className="w-full py-2 text-gray-400 text-sm font-medium hover:text-gray-600">이전으로</button>
+                    </form>
+                )}
+
+                {/* [단계 3] 인증번호 입력 */}
+                {step === 'otp' && (
+                    <form onSubmit={verifyOtp} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">인증번호 6자리</label>
+                            <input 
+                                type="text" 
+                                placeholder="123456" 
+                                value={otp}
+                                onChange={(e) => setOtp(e.target.value)}
+                                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#00B16A] focus:outline-none font-bold text-lg tracking-widest text-center"
+                                maxLength={6}
+                                required
+                            />
+                        </div>
+                        <button 
+                            type="submit" 
+                            disabled={loading || otp.length < 6}
+                            className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl hover:bg-green-600 transition-colors disabled:bg-gray-300"
+                        >
+                            {loading ? <Loader2Icon className="animate-spin mx-auto"/> : '인증 확인'}
+                        </button>
+                        <button onClick={() => setStep('phone')} type="button" className="w-full py-2 text-gray-400 text-sm font-medium hover:text-gray-600">번호 다시 입력하기</button>
+                    </form>
+                )}
+
+                {/* [단계 4] 신규 회원 정보 입력 */}
+                {step === 'info' && (
+                    <form onSubmit={handleSignup} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">이름 (실명 권장)</label>
+                            <input 
+                                type="text" 
+                                placeholder="예: 홍길동" 
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#00B16A] focus:outline-none"
+                                required
+                            />
+                        </div>
+
+                        <div className="flex gap-3">
+                            <div className="flex-1">
+                                <label className="block text-sm font-bold text-gray-700 mb-1">성별</label>
+                                <div className="flex bg-gray-100 p-1 rounded-xl">
+                                    {['남', '여'].map(g => (
+                                        <button
+                                            key={g}
+                                            type="button"
+                                            onClick={() => setGender(g)}
+                                            className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${gender === g ? 'bg-white text-[#00B16A] shadow-sm' : 'text-gray-400'}`}
+                                        >
+                                            {g}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-sm font-bold text-gray-700 mb-1">급수</label>
+                                <select 
+                                    value={level}
+                                    onChange={(e) => setLevel(e.target.value)}
+                                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#00B16A] focus:outline-none text-sm font-bold"
+                                >
+                                    {Object.keys(LEVEL_ORDER).filter(l => l !== '미설정').map(l => (
+                                        <option key={l} value={l}>{l}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <button 
+                            type="submit" 
+                            disabled={loading}
+                            className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl hover:bg-green-600 transition-colors disabled:bg-gray-300 shadow-lg shadow-green-200 mt-2"
+                        >
+                            {loading ? <Loader2Icon className="animate-spin mx-auto"/> : '콕스타 시작하기!'}
+                        </button>
+                    </form>
+                )}
             </div>
         </div>
     );
 }
+
 
 // ===================================================================================
 // [신규] 모임 생성 모달 (GamePage용)
@@ -2955,7 +3083,7 @@ export default function App() {
             {isAuthModalOpen && (
                 <AuthModal 
                     onClose={() => setIsAuthModalOpen(false)} 
-                    setPage={setPage} 
+                    setUserData={setUserData} // [중요] 이 부분이 꼭 필요합니다!
                 />
             )}
         </div>
