@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
+// [수정] 중복된 import를 하나로 합쳤습니다.
 import {
     getAuth,
     onAuthStateChanged,
@@ -7,7 +8,11 @@ import {
     createUserWithEmailAndPassword,
     signInWithPopup,
     GoogleAuthProvider,
-    signOut
+    signOut,
+    // [신규] 휴대폰 인증 관련 추가
+    RecaptchaVerifier,
+    signInWithPhoneNumber,
+    updateProfile
 } from 'firebase/auth';
 import { 
     getFirestore, 
@@ -15,20 +20,18 @@ import {
     setDoc, 
     getDoc, 
     onSnapshot,
-    // [신규] Firestore 기능 추가
     collection, 
     query, 
     where, 
     addDoc, 
     serverTimestamp,
-    orderBy, // [신규] 정렬 기능
-    updateDoc, // [신규] 문서 업데이트 기능
-    deleteDoc, // [신규] 문서 삭제 기능
-    runTransaction, // [추가] 데이터 안전 이동
-    writeBatch      // [추가] 여러 문서 한번에 수정
+    orderBy,
+    updateDoc,
+    deleteDoc,
+    runTransaction,
+    writeBatch
 } from 'firebase/firestore';
 import {
-    // [수정] createReactComponent를 제거하고, 원본 아이콘만 'as'로 가져옵니다.
     Home as HomeIcon, 
     Trophy as TrophyIcon, 
     Store as StoreIcon, 
@@ -58,16 +61,6 @@ import {
     UserCheck as UserCheckIcon,
     GripVertical as GripVerticalIcon
 } from 'lucide-react';
-
-import {
-    getAuth,
-    onAuthStateChanged,
-    signOut,
-    // [신규] 휴대폰 인증 관련 추가
-    RecaptchaVerifier,
-    signInWithPhoneNumber,
-    updateProfile
-} from 'firebase/auth';
 
 // [수정] 얇은 아이콘을 생성하는 '새로운' 헬퍼 함수
 // (createReactComponent가 비공개 함수라, 이 방식으로 우회합니다)
