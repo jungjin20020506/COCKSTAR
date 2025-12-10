@@ -281,9 +281,402 @@ function LoginRequiredPage({ icon: Icon, title, description, onLoginClick }) {
 // ===================================================================================
 // [신규] 로그인/회원가입 모달 (카카오 + 휴대폰 인증 + 추가정보 입력)
 // ===================================================================================
+// [신규] 로그인/회원가입 모달 (카카오 + 휴대폰 + 관리자 이메일 로그인 추가)
 function AuthModal({ onClose, setUserData }) {
-    // 단계: 'method'(선택) -> 'phone'(번호입력) -> 'otp'(인증번호) -> 'info'(정보입력)
+    // 단계: 'method'(선택) -> 'phone'(번호입력) -> 'otp'(인증번호) -> 'info'(정보입력) -> 'email_login'(관리자용)
     const [step, setStep] = useState('method'); 
+    
+    // 상태 관리 (휴대폰 인증용)
+    const [phoneNumber, setPhoneNumber] = useState('');
+    const [otp, setOtp] = useState('');
+    const [confirmationResult, setConfirmationResult] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    // 상태 관리 (관리자 이메일 로그인용) [신규 추가]
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+
+    // 추가 정보 입력 상태
+    const [name, setName] = useState('');
+    const [gender, setGender] = useState('남');
+    const [level, setLevel] = useState('N조');
+
+    // 리캡차 설정을 위한 Ref
+    const recaptchaVerifier = useRef(null);
+
+    // [1] 리캡차 초기화 (휴대폰 인증 필수)
+    useEffect(() => {
+        if (step === 'phone' && !recaptchaVerifier.current) {
+            try {
+                recaptchaVerifier.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
+                    'size': 'invisible', // 보이지 않게 처리
+                    'callback': (response) => {
+                        // 리캡차 성공 시 자동 실행될 로직
+                    },
+                    'expired-callback': () => {
+                        setError('인증 시간이 만료되었습니다. 다시 시도해주세요.');
+                    }
+                });
+            } catch (e) {
+                console.error("Recaptcha Init Error:", e);
+            }
+        }
+    }, [step]);
+
+    // [2] 카카오 로그인 핸들러
+    const handleKakaoLogin = () => {
+        if (!window.Kakao || !window.Kakao.isInitialized()) {
+            alert("카카오 SDK가 로드되지 않았습니다.");
+            return;
+        }
+        setLoading(true);
+        window.Kakao.Auth.login({
+            success: function (authObj) {
+                window.Kakao.API.request({
+                    url: '/v2/user/me',
+                    success: async function (res) {
+                        const kakaoId = res.id;
+                        const nickname = res.properties?.nickname || '카카오 사용자';
+                        const email = `kakao_${kakaoId}@cockstar.app`;
+                        const password = `kakao_secret_${kakaoId}`;
+
+                        try {
+                            await signInWithEmailAndPassword(auth, email, password);
+                            onClose();
+                        } catch (error) {
+                            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-email') {
+                                try {
+                                    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                                    const user = userCredential.user;
+                                    await setDoc(doc(db, "users", user.uid), {
+                                        name: nickname,
+                                        email: email,
+                                        kakaoId: kakaoId,
+                                        level: 'N조',
+                                        gender: '미설정',
+                                        createdAt: serverTimestamp(),
+                                        role: 'user'
+                                    });
+                                    await updateProfile(user, { displayName: nickname });
+                                    onClose();
+                                } catch (createError) {
+                                    setError("카카오 계정 생성 실패: " + createError.message);
+                                }
+                            } else {
+                                setError("로그인 오류: " + error.message);
+                            }
+                        } finally {
+                            setLoading(false);
+                        }
+                    },
+                    fail: function (error) {
+                        setError("카카오 정보 요청 실패");
+                        setLoading(false);
+                    },
+                });
+            },
+            fail: function (err) {
+                setError("카카오 로그인 실패");
+                setLoading(false);
+            },
+        });
+    };
+
+    // [3] 인증번호 전송
+    const sendOtp = async (e) => {
+        e.preventDefault();
+        setError('');
+        setLoading(true);
+        const formattedPhone = phoneNumber.replace(/-/g, '').replace(/^0/, '+82');
+
+        try {
+            if (!recaptchaVerifier.current) throw new Error("Recaptcha not initialized");
+            const confirmation = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier.current);
+            setConfirmationResult(confirmation);
+            setStep('otp');
+        } catch (err) {
+            setError("인증번호 전송 실패: " + err.message);
+            if (recaptchaVerifier.current) recaptchaVerifier.current.clear();
+            recaptchaVerifier.current = null;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // [4] 인증번호 확인 & 로그인 처리
+    const verifyOtp = async (e) => {
+        e.preventDefault();
+        setError('');
+        setLoading(true);
+
+        try {
+            const result = await confirmationResult.confirm(otp);
+            const user = result.user;
+            const userDocRef = doc(db, "users", user.uid);
+            const userSnap = await getDoc(userDocRef);
+
+            if (userSnap.exists()) {
+                setUserData(userSnap.data());
+                onClose();
+            } else {
+                setStep('info');
+            }
+        } catch (err) {
+            setError("인증번호가 올바르지 않습니다.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // [5] 신규 회원 정보 저장
+    const handleSignup = async (e) => {
+        e.preventDefault();
+        if (!name.trim()) return setError("이름을 입력해주세요.");
+        setLoading(true);
+        const user = auth.currentUser;
+
+        try {
+            const newUserData = {
+                name: name,
+                email: `${phoneNumber}@phone.user`,
+                phoneNumber: phoneNumber,
+                gender: gender,
+                level: level,
+                createdAt: serverTimestamp(),
+                role: 'user'
+            };
+            await setDoc(doc(db, "users", user.uid), newUserData);
+            await updateProfile(user, { displayName: name });
+            setUserData(newUserData);
+            onClose();
+        } catch (err) {
+            setError("정보 저장 실패: " + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // [6] 관리자 이메일 로그인 핸들러 [신규 추가]
+    const handleEmailLogin = async (e) => {
+        e.preventDefault();
+        if (!email || !password) return setError("이메일과 비밀번호를 입력해주세요.");
+        setLoading(true);
+
+        try {
+            // Firebase 이메일 로그인 시도
+            await signInWithEmailAndPassword(auth, email, password);
+            // 성공 시 onAuthStateChanged가 감지하므로 닫기만 하면 됨
+            onClose();
+        } catch (err) {
+            console.error(err);
+            setError("로그인 실패: 이메일이나 비밀번호를 확인해주세요.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl p-8 w-full max-w-sm shadow-2xl relative overflow-hidden">
+                <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-black">
+                    <XIcon size={24} />
+                </button>
+
+                {/* 타이틀 영역 */}
+                <div className="text-center mb-8">
+                    <h2 className="text-2xl font-extrabold text-[#1E1E1E]">
+                        {step === 'info' ? '환영합니다! 🎉' : 
+                         step === 'email_login' ? '관리자 로그인' : '콕스타 로그인'}
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-2">
+                        {step === 'method' && '간편하게 로그인하고 배드민턴을 즐기세요.'}
+                        {step === 'phone' && '휴대폰 번호를 입력해주세요.'}
+                        {step === 'otp' && '문자로 전송된 인증번호를 입력해주세요.'}
+                        {step === 'info' && '기본 정보를 입력하면 가입이 완료됩니다.'}
+                        {step === 'email_login' && '관리자 계정으로 로그인합니다.'}
+                    </p>
+                </div>
+
+                {error && <div className="bg-red-50 text-red-500 text-sm p-3 rounded-lg mb-4 text-center">{error}</div>}
+
+                {/* [단계 1] 로그인 방식 선택 */}
+                {step === 'method' && (
+                    <div className="space-y-3">
+                        {/* 카카오 버튼 */}
+                        <button 
+                            onClick={handleKakaoLogin}
+                            className="w-full py-4 bg-[#FEE500] text-[#3c1e1e] font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-[#fdd835] transition-colors"
+                        >
+                            <MessageSquareIcon size={20} fill="#3c1e1e" className="border-none" /> 
+                            카카오톡으로 시작하기
+                        </button>
+                        
+                        {/* 휴대폰 버튼 */}
+                        <button 
+                            onClick={() => setStep('phone')}
+                            className="w-full py-4 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors"
+                        >
+                            <span className="text-lg">📱</span> 
+                            휴대폰 번호로 시작하기
+                        </button>
+
+                        {/* [신규] 관리자 로그인 버튼 (숨김 처리 느낌으로 작게) */}
+                        <div className="pt-4 text-center">
+                            <button 
+                                onClick={() => setStep('email_login')}
+                                className="text-xs text-gray-400 underline hover:text-gray-600"
+                            >
+                                관리자 로그인 (이메일)
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* [단계 2] 휴대폰 번호 입력 */}
+                {step === 'phone' && (
+                    <form onSubmit={sendOtp} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">휴대폰 번호</label>
+                            <input 
+                                type="tel" 
+                                placeholder="010-1234-5678" 
+                                value={phoneNumber}
+                                onChange={(e) => setPhoneNumber(e.target.value.replace(/[^0-9-]/g, ''))}
+                                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#00B16A] focus:outline-none font-bold text-lg"
+                                required
+                            />
+                        </div>
+                        <div id="recaptcha-container"></div>
+                        <button 
+                            type="submit" 
+                            disabled={loading || phoneNumber.length < 10}
+                            className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl hover:bg-green-600 transition-colors disabled:bg-gray-300"
+                        >
+                            {loading ? <Loader2Icon className="animate-spin mx-auto"/> : '인증번호 받기'}
+                        </button>
+                        <button onClick={() => setStep('method')} type="button" className="w-full py-2 text-gray-400 text-sm font-medium hover:text-gray-600">이전으로</button>
+                    </form>
+                )}
+
+                {/* [단계 3] 인증번호 입력 */}
+                {step === 'otp' && (
+                    <form onSubmit={verifyOtp} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">인증번호 6자리</label>
+                            <input 
+                                type="text" 
+                                placeholder="123456" 
+                                value={otp}
+                                onChange={(e) => setOtp(e.target.value)}
+                                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#00B16A] focus:outline-none font-bold text-lg tracking-widest text-center"
+                                maxLength={6}
+                                required
+                            />
+                        </div>
+                        <button 
+                            type="submit" 
+                            disabled={loading || otp.length < 6}
+                            className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl hover:bg-green-600 transition-colors disabled:bg-gray-300"
+                        >
+                            {loading ? <Loader2Icon className="animate-spin mx-auto"/> : '인증 확인'}
+                        </button>
+                        <button onClick={() => setStep('phone')} type="button" className="w-full py-2 text-gray-400 text-sm font-medium hover:text-gray-600">번호 다시 입력하기</button>
+                    </form>
+                )}
+
+                {/* [단계 4] 신규 회원 정보 입력 */}
+                {step === 'info' && (
+                    <form onSubmit={handleSignup} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">이름 (실명 권장)</label>
+                            <input 
+                                type="text" 
+                                placeholder="예: 홍길동" 
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#00B16A] focus:outline-none"
+                                required
+                            />
+                        </div>
+                        <div className="flex gap-3">
+                            <div className="flex-1">
+                                <label className="block text-sm font-bold text-gray-700 mb-1">성별</label>
+                                <div className="flex bg-gray-100 p-1 rounded-xl">
+                                    {['남', '여'].map(g => (
+                                        <button
+                                            key={g}
+                                            type="button"
+                                            onClick={() => setGender(g)}
+                                            className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${gender === g ? 'bg-white text-[#00B16A] shadow-sm' : 'text-gray-400'}`}
+                                        >
+                                            {g}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-sm font-bold text-gray-700 mb-1">급수</label>
+                                <select 
+                                    value={level}
+                                    onChange={(e) => setLevel(e.target.value)}
+                                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#00B16A] focus:outline-none text-sm font-bold"
+                                >
+                                    {Object.keys(LEVEL_ORDER).filter(l => l !== '미설정').map(l => (
+                                        <option key={l} value={l}>{l}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <button 
+                            type="submit" 
+                            disabled={loading}
+                            className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl hover:bg-green-600 transition-colors disabled:bg-gray-300 shadow-lg shadow-green-200 mt-2"
+                        >
+                            {loading ? <Loader2Icon className="animate-spin mx-auto"/> : '콕스타 시작하기!'}
+                        </button>
+                    </form>
+                )}
+
+                {/* [단계 5] 관리자 이메일 로그인 폼 [신규] */}
+                {step === 'email_login' && (
+                    <form onSubmit={handleEmailLogin} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">관리자 이메일</label>
+                            <input 
+                                type="email" 
+                                placeholder="domain@cockstar.app" 
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#00B16A] focus:outline-none font-bold text-base"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">비밀번호</label>
+                            <input 
+                                type="password" 
+                                placeholder="비밀번호 입력" 
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#00B16A] focus:outline-none font-bold text-base"
+                                required
+                            />
+                        </div>
+                        <button 
+                            type="submit" 
+                            disabled={loading}
+                            className="w-full py-4 bg-[#1E1E1E] text-white font-bold rounded-xl hover:bg-black transition-colors disabled:bg-gray-300"
+                        >
+                            {loading ? <Loader2Icon className="animate-spin mx-auto"/> : '관리자 로그인'}
+                        </button>
+                        <button onClick={() => setStep('method')} type="button" className="w-full py-2 text-gray-400 text-sm font-medium hover:text-gray-600">이전으로</button>
+                    </form>
+                )}
+            </div>
+        </div>
+    );
+}
     
     // 상태 관리
     const [phoneNumber, setPhoneNumber] = useState('');
