@@ -3094,11 +3094,11 @@ export default function App() {
     // 1. 상태 관리
     const [page, setPage] = useState('home'); // 현재 페이지 (home, game, store, community, myInfo)
     
-    // [신규] 카카오 SDK 스크립트 로드 및 초기화 (수정됨: 호환성 좋은 Legacy 버전 사용)
+    // [신규] 카카오 SDK 스크립트 로드 및 초기화 (수정됨: 가장 안정적인 V1 CDN 주소 사용)
     useEffect(() => {
         const script = document.createElement('script');
-        // 👇 [핵심 변경] V2 버전 대신, 호환성이 좋은 Legacy(V1) 주소로 변경했습니다.
-        script.src = 'https://developers.kakao.com/sdk/js/kakao.js';
+        // 👇 [핵심 변경] 로딩 속도가 빠르고 안정적인 구버전(V1) 전용 CDN 주소로 변경했습니다.
+        script.src = 'https://t1.kakaocdn.net/kakao_js_sdk/v1/kakao.min.js';
         script.async = true; 
         
         script.onload = () => {
@@ -3106,14 +3106,21 @@ export default function App() {
             if (window.Kakao && !window.Kakao.isInitialized()) {
                 // 발급받은 키가 정상적으로 적용되어 있습니다.
                 window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e'); 
-                console.log("Kakao SDK Initialized");
+                console.log("Kakao SDK Initialized (V1)");
             }
         };
-        document.body.appendChild(script);
+        
+        script.onerror = () => {
+            console.error("Kakao SDK 로드 실패");
+        };
+
+        document.head.appendChild(script); // body 대신 head에 추가하여 더 빨리 로드되도록 변경
 
         return () => {
             // 컴포넌트 언마운트 시 스크립트 정리 (선택 사항)
-            // document.body.removeChild(script);
+            // if (document.head.contains(script)) {
+            //    document.head.removeChild(script);
+            // }
         };
     }, []);
 
