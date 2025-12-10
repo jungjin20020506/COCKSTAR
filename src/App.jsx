@@ -3037,7 +3037,7 @@ export default function App() {
             if (window.Kakao && !window.Kakao.isInitialized()) {
             // [중요] 'YOUR_KAKAO_JAVASCRIPT_KEY'를 발급받은 실제 키로 꼭 바꿔주세요!
             // 예: window.Kakao.init('a1b2c3d4e5f6g7h8');
-            window.Kakao.init('YOUR_KAKAO_JAVASCRIPT_KEY'); 
+            window.Kakao.init(4bebedd2921e9ecf2412417b5b35762e); 
             console.log("Kakao SDK Initialized");
         }
         };
