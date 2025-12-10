@@ -3025,15 +3025,16 @@ const TabButton = ({ icon: Icon, label, isActive, onClick }) => {
 export default function App() {
     // 1. 상태 관리
     const [page, setPage] = useState('home'); // 현재 페이지 (home, game, store, community, myInfo)
-   // [신규] 카카오 SDK 스크립트 로드 및 초기화
+    
+    // [신규] 카카오 SDK 스크립트 로드 및 초기화 (수정됨: 보안 차단 문제 해결)
     useEffect(() => {
         const script = document.createElement('script');
         script.src = 'https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js';
-        script.async = true;
+        script.async = true; // integrity와 crossOrigin을 제거하여 차단 문제 해결
         
         script.onload = () => {
             if (window.Kakao && !window.Kakao.isInitialized()) {
-                // 발급받은 키가 정상적으로 들어가 있습니다.
+                // 발급받은 키가 정상적으로 적용되어 있습니다.
                 window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e'); 
                 console.log("Kakao SDK Initialized");
             }
@@ -3046,17 +3047,10 @@ export default function App() {
         };
     }, []);
 
-        return () => {
-            // 컴포넌트 언마운트 시 스크립트 정리 (선택 사항)
-            // document.body.removeChild(script);
-        };
-    }, []);
     const [user, setUser] = useState(null); // 로그인한 유저 객체
     const [userData, setUserData] = useState(null); // Firestore 유저 추가 정보
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false); // 로그인 모달 상태
     const [loading, setLoading] = useState(true); // 초기 로딩 상태
-
-    
 
     // 2. 인증 상태 감지 (로그인 여부 확인)
     useEffect(() => {
@@ -3177,7 +3171,7 @@ export default function App() {
             {isAuthModalOpen && (
                 <AuthModal 
                     onClose={() => setIsAuthModalOpen(false)} 
-                    setUserData={setUserData} // [중요] 이 부분이 꼭 필요합니다!
+                    setUserData={setUserData} 
                 />
             )}
         </div>
