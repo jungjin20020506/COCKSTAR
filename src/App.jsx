@@ -278,9 +278,6 @@ function LoginRequiredPage({ icon: Icon, title, description, onLoginClick }) {
     );
 }
 
-// ===================================================================================
-// [신규] 로그인/회원가입 모달 (카카오 + 휴대폰 인증 + 추가정보 입력)
-// ===================================================================================
 // [신규] 로그인/회원가입 모달 (카카오 + 휴대폰 + 관리자 이메일 로그인 추가)
 function AuthModal({ onClose, setUserData }) {
     // 단계: 'method'(선택) -> 'phone'(번호입력) -> 'otp'(인증번호) -> 'info'(정보입력) -> 'email_login'(관리자용)
@@ -292,6 +289,10 @@ function AuthModal({ onClose, setUserData }) {
     const [confirmationResult, setConfirmationResult] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+
+    // 상태 관리 (관리자 이메일 로그인용)
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
 
     // 추가 정보 입력 상태
     const [name, setName] = useState('');
@@ -308,7 +309,7 @@ function AuthModal({ onClose, setUserData }) {
                 recaptchaVerifier.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
                     'size': 'invisible', // 보이지 않게 처리
                     'callback': (response) => {
-                        // 리캡차 성공 시 자동 실행될 로직 (생략 가능)
+                        // 리캡차 성공 시 자동 실행될 로직
                     },
                     'expired-callback': () => {
                         setError('인증 시간이 만료되었습니다. 다시 시도해주세요.');
@@ -320,8 +321,7 @@ function AuthModal({ onClose, setUserData }) {
         }
     }, [step]);
 
-    // [2] 카카오 로그인 (플레이스홀더)
- // [수정] 카카오 로그인 핸들러 (Firebase 연동)
+    // [2] 카카오 로그인 핸들러 (수정됨: 앱 실행 방지 옵션 추가)
     const handleKakaoLogin = () => {
         if (!window.Kakao || !window.Kakao.isInitialized()) {
             alert("카카오 SDK가 아직 로드되지 않았거나, 자바스크립트 키가 설정되지 않았습니다.");
@@ -330,7 +330,9 @@ function AuthModal({ onClose, setUserData }) {
 
         setLoading(true);
 
+        // 👇 여기에 'throughTalk: false'를 추가하여 웹 로그인을 강제합니다.
         window.Kakao.Auth.login({
+            throughTalk: false, 
             success: function (authObj) {
                 // 로그인 성공 시 사용자 정보 요청
                 window.Kakao.API.request({
@@ -392,7 +394,8 @@ function AuthModal({ onClose, setUserData }) {
             },
             fail: function (err) {
                 console.error(err);
-                setError("카카오 로그인에 실패했습니다.");
+                // 사용자가 로그인을 취소하거나 창을 닫았을 때 에러 처리
+                setError("카카오 로그인이 취소되었습니다.");
                 setLoading(false);
             },
         });
@@ -488,6 +491,25 @@ function AuthModal({ onClose, setUserData }) {
         }
     };
 
+    // [6] 관리자 이메일 로그인 핸들러
+    const handleEmailLogin = async (e) => {
+        e.preventDefault();
+        if (!email || !password) return setError("이메일과 비밀번호를 입력해주세요.");
+        setLoading(true);
+
+        try {
+            // Firebase 이메일 로그인 시도
+            await signInWithEmailAndPassword(auth, email, password);
+            // 성공 시 onAuthStateChanged가 감지하므로 닫기만 하면 됨
+            onClose();
+        } catch (err) {
+            console.error(err);
+            setError("로그인 실패: 이메일이나 비밀번호를 확인해주세요.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
             <div className="bg-white rounded-2xl p-8 w-full max-w-sm shadow-2xl relative overflow-hidden">
@@ -498,13 +520,15 @@ function AuthModal({ onClose, setUserData }) {
                 {/* 타이틀 영역 */}
                 <div className="text-center mb-8">
                     <h2 className="text-2xl font-extrabold text-[#1E1E1E]">
-                        {step === 'info' ? '환영합니다! 🎉' : '콕스타 로그인'}
+                        {step === 'info' ? '환영합니다! 🎉' : 
+                         step === 'email_login' ? '관리자 로그인' : '콕스타 로그인'}
                     </h2>
                     <p className="text-sm text-gray-500 mt-2">
                         {step === 'method' && '간편하게 로그인하고 배드민턴을 즐기세요.'}
                         {step === 'phone' && '휴대폰 번호를 입력해주세요.'}
                         {step === 'otp' && '문자로 전송된 인증번호를 입력해주세요.'}
                         {step === 'info' && '기본 정보를 입력하면 가입이 완료됩니다.'}
+                        {step === 'email_login' && '관리자 계정으로 로그인합니다.'}
                     </p>
                 </div>
 
@@ -530,6 +554,16 @@ function AuthModal({ onClose, setUserData }) {
                             <span className="text-lg">📱</span> 
                             휴대폰 번호로 시작하기
                         </button>
+
+                        {/* 관리자 로그인 버튼 (숨김 처리 느낌으로 작게) */}
+                        <div className="pt-4 text-center">
+                            <button 
+                                onClick={() => setStep('email_login')}
+                                className="text-xs text-gray-400 underline hover:text-gray-600"
+                            >
+                                관리자 로그인 (이메일)
+                            </button>
+                        </div>
                     </div>
                 )}
 
@@ -542,12 +576,12 @@ function AuthModal({ onClose, setUserData }) {
                                 type="tel" 
                                 placeholder="010-1234-5678" 
                                 value={phoneNumber}
-                                onChange={(e) => setPhoneNumber(e.target.value.replace(/[^0-9-]/g, ''))} // 숫자와 하이픈만 허용
+                                onChange={(e) => setPhoneNumber(e.target.value.replace(/[^0-9-]/g, ''))}
                                 className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#00B16A] focus:outline-none font-bold text-lg"
                                 required
                             />
                         </div>
-                        <div id="recaptcha-container"></div> {/* 리캡차 컨테이너 (필수) */}
+                        <div id="recaptcha-container"></div>
                         <button 
                             type="submit" 
                             disabled={loading || phoneNumber.length < 10}
@@ -599,7 +633,6 @@ function AuthModal({ onClose, setUserData }) {
                                 required
                             />
                         </div>
-
                         <div className="flex gap-3">
                             <div className="flex-1">
                                 <label className="block text-sm font-bold text-gray-700 mb-1">성별</label>
@@ -629,7 +662,6 @@ function AuthModal({ onClose, setUserData }) {
                                 </select>
                             </div>
                         </div>
-
                         <button 
                             type="submit" 
                             disabled={loading}
@@ -637,6 +669,42 @@ function AuthModal({ onClose, setUserData }) {
                         >
                             {loading ? <Loader2Icon className="animate-spin mx-auto"/> : '콕스타 시작하기!'}
                         </button>
+                    </form>
+                )}
+
+                {/* [단계 5] 관리자 이메일 로그인 폼 */}
+                {step === 'email_login' && (
+                    <form onSubmit={handleEmailLogin} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">관리자 이메일</label>
+                            <input 
+                                type="email" 
+                                placeholder="domain@cockstar.app" 
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#00B16A] focus:outline-none font-bold text-base"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">비밀번호</label>
+                            <input 
+                                type="password" 
+                                placeholder="비밀번호 입력" 
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#00B16A] focus:outline-none font-bold text-base"
+                                required
+                            />
+                        </div>
+                        <button 
+                            type="submit" 
+                            disabled={loading}
+                            className="w-full py-4 bg-[#1E1E1E] text-white font-bold rounded-xl hover:bg-black transition-colors disabled:bg-gray-300"
+                        >
+                            {loading ? <Loader2Icon className="animate-spin mx-auto"/> : '관리자 로그인'}
+                        </button>
+                        <button onClick={() => setStep('method')} type="button" className="w-full py-2 text-gray-400 text-sm font-medium hover:text-gray-600">이전으로</button>
                     </form>
                 )}
             </div>
