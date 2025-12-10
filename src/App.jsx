@@ -3029,19 +3029,23 @@ export default function App() {
     useEffect(() => {
         const script = document.createElement('script');
         script.src = 'https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js';
-        script.integrity = 'sha384-TiCUE00h649CAMonG018J2ujOgDKW/kVWlChEuu4jK2txfYR9bBueBsW0r4PpPUo';
-        script.crossOrigin = 'anonymous';
+        // [수정] integrity와 crossOrigin 줄을 삭제하여 로딩 차단 문제를 해결했습니다.
         script.async = true;
         
         script.onload = () => {
             if (window.Kakao && !window.Kakao.isInitialized()) {
-            // [중요] 'YOUR_KAKAO_JAVASCRIPT_KEY'를 발급받은 실제 키로 꼭 바꿔주세요!
-            // 예: window.Kakao.init('a1b2c3d4e5f6g7h8');
-            window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e'); 
-            console.log("Kakao SDK Initialized");
-        }
+                // 키 값에 따옴표가 잘 들어가 있습니다. 그대로 두시면 됩니다.
+                window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e'); 
+                console.log("Kakao SDK Initialized");
+            }
         };
         document.body.appendChild(script);
+
+        return () => {
+            // 컴포넌트 언마운트 시 스크립트 정리 (선택 사항)
+            // document.body.removeChild(script);
+        };
+    }, []);
 
         return () => {
             // 컴포넌트 언마운트 시 스크립트 정리 (선택 사항)
