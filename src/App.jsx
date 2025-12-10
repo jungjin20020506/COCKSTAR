@@ -3026,13 +3026,15 @@ export default function App() {
     // 1. 상태 관리
     const [page, setPage] = useState('home'); // 현재 페이지 (home, game, store, community, myInfo)
     
-    // [신규] 카카오 SDK 스크립트 로드 및 초기화 (수정됨: 보안 차단 문제 해결)
+    // [신규] 카카오 SDK 스크립트 로드 및 초기화 (수정됨: 호환성 좋은 Legacy 버전 사용)
     useEffect(() => {
         const script = document.createElement('script');
-        script.src = 'https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js';
-        script.async = true; // integrity와 crossOrigin을 제거하여 차단 문제 해결
+        // 👇 [핵심 변경] V2 버전 대신, 호환성이 좋은 Legacy(V1) 주소로 변경했습니다.
+        script.src = 'https://developers.kakao.com/sdk/js/kakao.js';
+        script.async = true; 
         
         script.onload = () => {
+            // SDK 로드 완료 후 초기화
             if (window.Kakao && !window.Kakao.isInitialized()) {
                 // 발급받은 키가 정상적으로 적용되어 있습니다.
                 window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e'); 
