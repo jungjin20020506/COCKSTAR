@@ -9,10 +9,13 @@ import {
     signInWithPopup,
     GoogleAuthProvider,
     signOut,
-    // [신규] 휴대폰 인증 관련 추가
     RecaptchaVerifier,
     signInWithPhoneNumber,
-    updateProfile
+    updateProfile,
+    // [추가] 프로필 수정 및 비밀번호 변경용
+    EmailAuthProvider,
+    reauthenticateWithCredential,
+    updatePassword
 } from 'firebase/auth';
 import { 
     getFirestore, 
@@ -2104,7 +2107,213 @@ function SettingsModal({ isOpen, onClose, roomData, onSave, onReset, onKickAll }
         </div>
     );
 }
+// (기존 SettingsModal 코드 끝)
+    );
+}
 
+/**
+ * [신규] 프로필 수정 모달 (현재 디자인 적용 + 이전 앱 로직 통합)
+ */
+function EditProfileModal({ isOpen, onClose, userData, user }) {
+    // 폼 상태 관리
+    const [formData, setFormData] = useState({
+        name: '',
+        level: 'N조',
+        gender: '남',
+        birthYear: '2000',
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+    });
+    
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [showPassword, setShowPassword] = useState(false); // 비밀번호 보이기 토글
+
+    // 모달 열릴 때 기존 데이터 로드
+    useEffect(() => {
+        if (isOpen && userData) {
+            setFormData(prev => ({
+                ...prev,
+                name: userData.name || '',
+                level: userData.level || 'N조',
+                gender: userData.gender || '남',
+                birthYear: userData.birthYear || '2000',
+                currentPassword: '',
+                newPassword: '',
+                confirmPassword: ''
+            }));
+        }
+    }, [isOpen, userData]);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    // 카카오 유저인지 확인 (비밀번호 변경 숨김 처리용)
+    const isKakaoUser = userData?.kakaoId || (user?.email && user.email.startsWith('kakao'));
+
+    const handleSave = async (e) => {
+        e.preventDefault();
+        setError('');
+        setLoading(true);
+
+        try {
+            // 1. 비밀번호 변경 로직 (일반 유저만)
+            if (!isKakaoUser && formData.newPassword) {
+                if (formData.newPassword.length < 6) throw new Error("새 비밀번호는 6자 이상이어야 합니다.");
+                if (formData.newPassword !== formData.confirmPassword) throw new Error("새 비밀번호가 일치하지 않습니다.");
+                if (!formData.currentPassword) throw new Error("비밀번호를 변경하려면 현재 비밀번호를 입력해주세요.");
+
+                const credential = EmailAuthProvider.credential(user.email, formData.currentPassword);
+                await reauthenticateWithCredential(user, credential); // 재인증
+                await updatePassword(user, formData.newPassword); // 비밀번호 업데이트
+            }
+
+            // 2. Firestore 정보 업데이트
+            const userRef = doc(db, "users", user.uid);
+            await updateDoc(userRef, {
+                name: formData.name,
+                level: formData.level,
+                gender: formData.gender,
+                birthYear: formData.birthYear
+            });
+
+            // 3. Auth 프로필 이름 업데이트
+            if (user.displayName !== formData.name) {
+                await updateProfile(user, { displayName: formData.name });
+            }
+
+            alert("프로필이 성공적으로 수정되었습니다.");
+            onClose();
+        } catch (err) {
+            console.error(err);
+            if (err.code === 'auth/wrong-password') {
+                setError('현재 비밀번호가 올바르지 않습니다.');
+            } else {
+                setError(err.message || "프로필 수정 중 오류가 발생했습니다.");
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    // 출생년도 옵션 (1950 ~ 현재)
+    const currentYear = new Date().getFullYear();
+    const birthYears = Array.from({ length: 70 }, (_, i) => currentYear - i - 10);
+
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto animate-fade-in-up">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-[#1E1E1E]">프로필 수정</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-black transition-colors">
+                        <X size={24} />
+                    </button>
+                </div>
+
+                {error && <div className="bg-red-50 text-red-500 text-sm p-3 rounded-lg mb-4 text-center font-medium">{error}</div>}
+
+                <form onSubmit={handleSave} className="space-y-4">
+                    {/* 이름 */}
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">이름</label>
+                        <input 
+                            type="text" name="name" value={formData.name} onChange={handleChange} 
+                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#00B16A] focus:outline-none transition-colors"
+                        />
+                    </div>
+
+                    {/* 급수 & 성별 */}
+                    <div className="flex gap-3">
+                        <div className="flex-1">
+                            <label className="block text-sm font-bold text-gray-700 mb-1">급수</label>
+                            <select name="level" value={formData.level} onChange={handleChange}
+                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#00B16A] focus:outline-none"
+                            >
+                                {['S조', 'A조', 'B조', 'C조', 'D조', 'E조', 'N조'].map(l => (
+                                    <option key={l} value={l}>{l}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="flex-1">
+                            <label className="block text-sm font-bold text-gray-700 mb-1">성별</label>
+                            <div className="flex bg-gray-100 p-1 rounded-xl">
+                                {['남', '여'].map(g => (
+                                    <button
+                                        key={g} type="button"
+                                        onClick={() => setFormData(prev => ({...prev, gender: g}))}
+                                        className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${formData.gender === g ? 'bg-white text-[#00B16A] shadow-sm' : 'text-gray-400'}`}
+                                    >
+                                        {g}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 출생년도 */}
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">출생년도</label>
+                        <select name="birthYear" value={formData.birthYear} onChange={handleChange}
+                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#00B16A] focus:outline-none"
+                        >
+                            {birthYears.map(year => (
+                                <option key={year} value={year}>{year}년생</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* 비밀번호 변경 (카카오 유저가 아닐 때만 표시) */}
+                    {!isKakaoUser && (
+                        <div className="pt-4 border-t border-gray-100">
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="text-sm font-bold text-gray-700">비밀번호 변경</label>
+                                <button type="button" onClick={() => setShowPassword(!showPassword)} className="text-xs text-gray-400 hover:text-[#00B16A]">
+                                    {showPassword ? '숨기기' : '보이기'}
+                                </button>
+                            </div>
+                            <div className="space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                <input 
+                                    type={showPassword ? "text" : "password"} name="currentPassword" 
+                                    placeholder="현재 비밀번호 (변경 시 필수)" 
+                                    value={formData.currentPassword} onChange={handleChange}
+                                    className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#00B16A] focus:outline-none text-sm"
+                                />
+                                <input 
+                                    type={showPassword ? "text" : "password"} name="newPassword" 
+                                    placeholder="새 비밀번호 (6자 이상)" 
+                                    value={formData.newPassword} onChange={handleChange}
+                                    className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#00B16A] focus:outline-none text-sm"
+                                />
+                                <input 
+                                    type={showPassword ? "text" : "password"} name="confirmPassword" 
+                                    placeholder="새 비밀번호 확인" 
+                                    value={formData.confirmPassword} onChange={handleChange}
+                                    className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#00B16A] focus:outline-none text-sm"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    <button 
+                        type="submit" disabled={loading}
+                        className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl shadow-lg shadow-green-200 hover:bg-green-700 transition-colors disabled:bg-gray-300 mt-2"
+                    >
+                        {loading ? <Loader2 className="animate-spin mx-auto"/> : '저장하기'}
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+/**
+ * [신규] 오류 해결을 위한 코트 선택 모달 정의
+ */
 /**
  * [신규] 오류 해결을 위한 코트 선택 모달 정의
  */
@@ -2923,9 +3132,11 @@ function CommunityPage() {
 }
 
 /**
- * 6. 내 정보 페이지
+ * 6. 내 정보 페이지 (수정됨: 프로필 수정 기능 연결)
  */
-function MyInfoPage({ user, userData, onLoginClick, onLogout, setPage }) { // setPage 프롭스 추가
+function MyInfoPage({ user, userData, onLoginClick, onLogout, setPage }) {
+    // 프로필 수정 모달 상태
+    const [showEditProfile, setShowEditProfile] = useState(false);
 
     if (!user) {
         return (
@@ -2948,46 +3159,58 @@ function MyInfoPage({ user, userData, onLoginClick, onLogout, setPage }) { // se
     }
 
     return (
-        <div className="p-5 text-[#1E1E1E] space-y-6"> {/* 여백 조정 */}
-            <h1 className="text-2xl font-bold mb-2">내 정보</h1> {/* mb-8 -> mb-2 */}
+        <div className="p-5 text-[#1E1E1E] space-y-6">
+            <h1 className="text-2xl font-bold mb-2">내 정보</h1>
             
+            {/* 프로필 요약 카드 */}
             <div className="bg-white rounded-xl shadow-lg p-6">
                 <div className="flex items-center space-x-5">
-                    <div className="w-20 h-20 bg-[#00B16A] rounded-full flex items-center justify-center">
-                        <User className="w-12 h-12 text-white" />
+                    <div className="w-20 h-20 bg-[#00B16A] rounded-full flex items-center justify-center shadow-md">
+                        <User className="w-10 h-10 text-white" />
                     </div>
-                    <div>
-                        <h2 className="text-lg font-bold">{userData?.name || '사용자'}</h2>
-                        <p className="text-gray-600 text-base">{userData?.email || user.email}</p>
+                    <div className="overflow-hidden">
+                        <h2 className="text-xl font-extrabold truncate">{userData?.name || '사용자'}</h2>
+                        <p className="text-gray-500 text-sm truncate">{userData?.email || user.email}</p>
+                        {/* 카카오 마크 표시 (옵션) */}
+                        {userData.kakaoId && <span className="text-[10px] bg-[#FEE500] text-black px-1.5 py-0.5 rounded font-bold mt-1 inline-block">Kakao</span>}
                     </div>
                 </div>
             </div>
 
+            {/* 상세 프로필 정보 카드 */}
             <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-lg font-semibold mb-4 text-[#00B16A]">나의 프로필</h3>
-                <div className="space-y-3 text-base">
-                    <div className="flex justify-between">
-                        <span className="text-gray-500">급수</span>
-                        <span className="font-semibold">{userData?.level || '미설정'}</span>
+                <h3 className="text-lg font-bold mb-5 text-[#00B16A] flex items-center gap-2">
+                    <UserCheck size={20}/> 나의 프로필
+                </h3>
+                <div className="space-y-4 text-base">
+                    <div className="flex justify-between items-center border-b border-gray-50 pb-2">
+                        <span className="text-gray-400 font-medium">급수</span>
+                        <span className="font-bold text-[#1E1E1E]">{userData?.level || '미설정'}</span>
                     </div>
-                    <div className="flex justify-between">
-                        <span className="text-gray-500">성별</span>
-                        <span className="font-semibold">{userData?.gender || '미설정'}</span>
+                    <div className="flex justify-between items-center border-b border-gray-50 pb-2">
+                        <span className="text-gray-400 font-medium">성별</span>
+                        <span className="font-bold text-[#1E1E1E]">{userData?.gender || '미설정'}</span>
                     </div>
-                    {/* [신규] 이메일 정보 추가 (userData에서 가져오기) */}
-                    <div className="flex justify-between">
-                        <span className="text-gray-500">이메일</span>
-                        <span className="font-semibold truncate max-w-[200px]">{userData?.email || '미설정'}</span>
+                    <div className="flex justify-between items-center border-b border-gray-50 pb-2">
+                        <span className="text-gray-400 font-medium">출생년도</span>
+                        <span className="font-bold text-[#1E1E1E]">{userData?.birthYear ? `${userData.birthYear}년생` : '미설정'}</span>
                     </div>
                 </div>
-                 <button className="mt-6 w-full py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-base font-bold">
-                    프로필 수정 (준비 중)
+                
+                {/* 수정 버튼 (기능 연결됨) */}
+                 <button 
+                    onClick={() => setShowEditProfile(true)}
+                    className="mt-6 w-full py-3 bg-gray-50 border border-gray-200 text-gray-700 rounded-xl hover:bg-[#00B16A] hover:text-white hover:border-[#00B16A] transition-all text-base font-bold shadow-sm"
+                >
+                    프로필 수정하기
                 </button>
             </div>
 
-            {/* [아이디어 #3] 빈 화면(Empty State) 적용 예시 */}
+            {/* 찜한 아이템 (예시) */}
             <div className="bg-white rounded-xl shadow-lg p-6">
-                 <h3 className="text-lg font-semibold mb-4 text-[#00B16A]">찜한 아이템</h3>
+                 <h3 className="text-lg font-bold mb-4 text-[#00B16A] flex items-center gap-2">
+                    <HeartIcon size={20}/> 찜한 아이템
+                 </h3>
                  <EmptyState
                     icon={Archive}
                     title="찜한 아이템이 없습니다"
@@ -2997,12 +3220,21 @@ function MyInfoPage({ user, userData, onLoginClick, onLogout, setPage }) { // se
                  />
             </div>
 
+            {/* 로그아웃 버튼 */}
             <button
                 onClick={onLogout}
-                className="w-full py-4 bg-red-600 text-white font-bold rounded-lg text-base hover:bg-red-700 transition-colors"
+                className="w-full py-4 bg-red-50 text-red-500 font-bold rounded-xl text-base hover:bg-red-100 transition-colors"
             >
                 로그아웃
             </button>
+
+            {/* [신규] 프로필 수정 모달 연결 */}
+            <EditProfileModal 
+                isOpen={showEditProfile}
+                onClose={() => setShowEditProfile(false)}
+                userData={userData}
+                user={user}
+            />
         </div>
     );
 }
