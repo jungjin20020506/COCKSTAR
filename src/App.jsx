@@ -2099,15 +2099,12 @@ function SettingsModal({ isOpen, onClose, roomData, onSave, onReset, onKickAll }
                         </div>
                     </div>
 
-                    <button onClick={handleSave} className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl text-lg shadow-lg hover:bg-green-600 transition-colors">
+                   <button onClick={handleSave} className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl text-lg shadow-lg hover:bg-green-600 transition-colors">
                         설정 저장
                     </button>
                 </div>
             </div>
         </div>
-    );
-}
-// (기존 SettingsModal 코드 끝)
     );
 }
 
