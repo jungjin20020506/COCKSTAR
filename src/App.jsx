@@ -2445,11 +2445,19 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         return () => unsubPlayers();
     }, [playersCollectionRef, roomDocRef]);
 
-    // 3. 내 입장 처리
+    // 3. 내 입장 처리 (수정됨: 최신 프로필 동기화)
     useEffect(() => {
         const myDocRef = doc(playersCollectionRef, user.uid);
         getDoc(myDocRef).then(snap => {
-            if(!snap.exists()) {
+            if (snap.exists()) {
+                // 이미 방에 기록이 남아있다면 -> 프로필 정보만 최신으로 업데이트 (게임 수는 유지)
+                updateDoc(myDocRef, {
+                    name: userData.name,
+                    level: userData.level || 'N조',
+                    gender: userData.gender || '미설정'
+                });
+            } else {
+                // 처음 입장이라면 -> 새로 생성 (게임 수 0)
                 setDoc(myDocRef, {
                     name: userData.name,
                     email: userData.email,
@@ -2461,12 +2469,8 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                 });
             }
         });
-        return () => {
-            // 퇴장 시 플레이어 삭제하지 않음 (이전 앱 로직상 유지하는 경우도 있음. 
-            // 만약 퇴장 시 자동 삭제를 원하면 여기서 deleteDoc 호출)
-        };
-    }, [user.uid]);
-
+    }, [user.uid, userData]); // userData 변경 시에도 반응하도록 의존성 추가
+    
     // --- Helper Lists ---
     const inProgressPlayerIds = useMemo(() => new Set((roomData?.inProgressCourts || []).flatMap(c => c?.players || []).filter(Boolean)), [roomData]);
     const scheduledPlayerIds = useMemo(() => new Set(Object.values(roomData?.scheduledMatches || {}).flatMap(m => m || []).filter(Boolean)), [roomData]);
@@ -2836,10 +2840,26 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 
     return (
         <div className="flex flex-col h-full bg-slate-100"> {/* [변경] 전체 배경 회색 처리 */}
-            {/* 헤더 (흰색 유지 + 그림자 강화) */}
+           {/* 헤더 (흰색 유지 + 그림자 강화) */}
             <header className="flex-shrink-0 px-4 py-3 flex items-center justify-between bg-white shadow-sm sticky top-0 z-30">
                 <div className="flex items-center gap-3">
-                    <button onClick={onExitRoom} className="p-1 text-gray-400 hover:text-black"><ArrowLeft size={24}/></button>
+                    {/* [수정] 나가기 버튼 클릭 시 DB에서 삭제 후 퇴장 */}
+                    <button 
+                        onClick={async () => {
+                            if (confirm("방을 나가시겠습니까?")) {
+                                try {
+                                    // 내 플레이어 데이터 삭제
+                                    await deleteDoc(doc(playersCollectionRef, user.uid));
+                                } catch (e) {
+                                    console.error("퇴장 처리 중 오류:", e);
+                                }
+                                onExitRoom(); // 화면 전환
+                            }
+                        }} 
+                        className="p-1 text-gray-400 hover:text-black"
+                    >
+                        <ArrowLeft size={24}/>
+                    </button>
                     <div>
                         <h1 className="text-lg font-bold text-[#1E1E1E] leading-none flex items-center gap-2">
                             {roomData?.name}
