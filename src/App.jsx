@@ -3179,15 +3179,29 @@ function MyInfoPage({ user, userData, onLoginClick, onLogout, setPage }) {
         <div className="p-5 text-[#1E1E1E] space-y-6">
             <h1 className="text-2xl font-bold mb-2">내 정보</h1>
             
-            {/* 프로필 요약 카드 */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
+            {/* 프로필 요약 카드 (클릭 시 아이디 복사) */}
+            <div 
+                onClick={() => {
+                    const idToCopy = userData?.email || user.email;
+                    if (idToCopy) {
+                        navigator.clipboard.writeText(idToCopy);
+                        alert(`아이디(이메일)가 복사되었습니다!\n${idToCopy}`);
+                    }
+                }}
+                className="bg-white rounded-xl shadow-lg p-6 cursor-pointer transition-all hover:bg-gray-50 active:scale-95 group relative"
+            >
+                {/* 복사 안내 툴팁 (우측 상단) */}
+                <div className="absolute top-4 right-4 text-xs text-gray-300 group-hover:text-[#00B16A] font-medium transition-colors flex items-center gap-1">
+                    <span className="bg-gray-100 px-2 py-1 rounded-md">📋 터치해서 복사</span>
+                </div>
+
                 <div className="flex items-center space-x-5">
-                    <div className="w-20 h-20 bg-[#00B16A] rounded-full flex items-center justify-center shadow-md">
+                    <div className="w-20 h-20 bg-[#00B16A] rounded-full flex items-center justify-center shadow-md group-hover:ring-4 ring-green-100 transition-all">
                         <User className="w-10 h-10 text-white" />
                     </div>
                     <div className="overflow-hidden">
-                        <h2 className="text-xl font-extrabold truncate">{userData?.name || '사용자'}</h2>
-                        <p className="text-gray-500 text-sm truncate">{userData?.email || user.email}</p>
+                        <h2 className="text-xl font-extrabold truncate text-[#1E1E1E]">{userData?.name || '사용자'}</h2>
+                        <p className="text-gray-500 text-sm truncate font-medium">{userData?.email || user.email}</p>
                         {/* 카카오 마크 표시 (옵션) */}
                         {userData.kakaoId && <span className="text-[10px] bg-[#FEE500] text-black px-1.5 py-0.5 rounded font-bold mt-1 inline-block">Kakao</span>}
                     </div>
@@ -3378,26 +3392,37 @@ export default function App() {
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false); // 로그인 모달 상태
     const [loading, setLoading] = useState(true); // 초기 로딩 상태
 
-    // 2. 인증 상태 감지 (로그인 여부 확인)
+    // 2. 인증 상태 감지 & 유저 정보 실시간 동기화
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        let unsubscribeUserDoc = null;
+
+        const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+            // 1. 로그인 상태 변경 시 처리
             if (currentUser) {
-                // 로그인 된 경우: Firestore에서 유저 정보 가져오기
-                const userDocRef = doc(db, "users", currentUser.uid);
-                const userDoc = await getDoc(userDocRef);
-                
-                if (userDoc.exists()) {
-                    setUserData(userDoc.data());
-                }
                 setUser(currentUser);
+                
+                // 2. 로그인 했다면 -> Firestore 내 정보 실시간 구독(onSnapshot) 시작
+                // (이 부분이 추가되어 수정 즉시 화면이 바뀝니다)
+                const userDocRef = doc(db, "users", currentUser.uid);
+                unsubscribeUserDoc = onSnapshot(userDocRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        setUserData(docSnap.data());
+                    }
+                });
             } else {
-                // 로그아웃 된 경우
+                // 로그아웃 했다면 -> 상태 초기화
                 setUser(null);
                 setUserData(null);
+                if (unsubscribeUserDoc) unsubscribeUserDoc(); // 구독 해제
             }
-            setLoading(false); // 로딩 완료
+            setLoading(false);
         });
-        return () => unsubscribe();
+
+        // 컴포넌트 종료 시 정리
+        return () => {
+            unsubscribeAuth();
+            if (unsubscribeUserDoc) unsubscribeUserDoc();
+        };
     }, []);
 
     // 3. 로그아웃 핸들러
