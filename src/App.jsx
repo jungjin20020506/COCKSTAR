@@ -2840,67 +2840,73 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 
     return (
         <div className="flex flex-col h-full bg-slate-100"> {/* [변경] 전체 배경 회색 처리 */}
-           {/* 헤더 (흰색 유지 + 그림자 강화) */}
-            <header className="flex-shrink-0 px-4 py-3 flex items-center justify-between bg-white shadow-sm sticky top-0 z-30">
-                <div className="flex items-center gap-3">
-                    {/* [수정] 나가기 버튼 클릭 시 DB에서 삭제 후 퇴장 */}
+         {/* [수정] 모바일 최적화 헤더: 높이를 줄이고 정보를 통합하여 슬림하게 변경 */}
+            <header className="flex-shrink-0 h-14 px-3 flex items-center justify-between bg-white/95 backdrop-blur-sm shadow-sm sticky top-0 z-30 border-b border-gray-100">
+                {/* 좌측: 뒤로가기 + 방 정보 (타이틀/메타정보 통합) */}
+                <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
                     <button 
                         onClick={async () => {
                             if (confirm("방을 나가시겠습니까?")) {
-                                try {
-                                    // 내 플레이어 데이터 삭제
-                                    await deleteDoc(doc(playersCollectionRef, user.uid));
-                                } catch (e) {
-                                    console.error("퇴장 처리 중 오류:", e);
-                                }
-                                onExitRoom(); // 화면 전환
+                                try { await deleteDoc(doc(playersCollectionRef, user.uid)); } 
+                                catch (e) { console.error(e); }
+                                onExitRoom(); 
                             }
                         }} 
-                        className="p-1 text-gray-400 hover:text-black"
+                        className="p-2 -ml-2 text-gray-400 hover:text-[#1E1E1E] transition-colors"
                     >
-                        <ArrowLeft size={24}/>
+                        <ArrowLeft size={22}/>
                     </button>
-                    <div>
-                        <h1 className="text-lg font-bold text-[#1E1E1E] leading-none flex items-center gap-2">
-                            {roomData?.name}
+                    
+                    {/* 텍스트 영역: 세로로 배치하되 간격 최소화 */}
+                    <div className="flex flex-col overflow-hidden justify-center">
+                        <div className="flex items-center gap-1">
+                            <h1 className="text-base font-bold text-[#1E1E1E] truncate leading-tight">
+                                {roomData?.name}
+                            </h1>
                             {isAdmin && (
-                                <button onClick={() => setIsEditInfoOpen(true)} className="text-gray-400 hover:text-[#00B16A]">
-                                    <Edit3 size={16} />
+                                <button onClick={() => setIsEditInfoOpen(true)} className="text-gray-300 hover:text-[#00B16A] p-0.5">
+                                    <Edit3 size={14} />
                                 </button>
                             )}
-                        </h1>
-                        <span className="text-xs text-gray-500 font-medium">{roomData?.location}</span>
+                        </div>
+                        {/* 메타 정보 한 줄로 통합 (장소 · 인원 · 역할) */}
+                        <div className="flex items-center text-[11px] text-gray-400 font-medium leading-none mt-0.5 space-x-1.5 truncate">
+                            <span className="truncate max-w-[100px]">{roomData?.location}</span>
+                            <span className="w-0.5 h-2 bg-gray-300 rounded-full"></span>
+                            <span className="flex items-center">
+                                <Users size={10} className="mr-0.5"/> {Object.keys(players).length}명
+                            </span>
+                            <span className="w-0.5 h-2 bg-gray-300 rounded-full"></span>
+                            <span className={isAdmin ? "text-[#00B16A]" : "text-gray-400"}>
+                                {isAdmin ? '관리자' : '개인'}
+                            </span>
+                        </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    {/* 휴식/복귀 버튼 */}
+
+                {/* 우측: 액션 버튼 (콤팩트하게 변경) */}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {/* 휴식 버튼: 텍스트 대신 상태에 따른 심플한 스타일 적용 */}
                     <button 
                         onClick={handleToggleRest}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1 ${
+                        className={`h-8 px-3 rounded-full text-xs font-bold transition-all flex items-center justify-center border ${
                             players[user.uid]?.isResting
-                            ? 'bg-gray-100 text-gray-500 border border-gray-200'
-                            : 'bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100'
+                            ? 'bg-gray-50 text-gray-400 border-gray-200' // 휴식 중 (회색조)
+                            : 'bg-white text-[#00B16A] border-[#00B16A] shadow-sm' // 대기 중 (초록 라인)
                         }`}
                     >
-                        {players[user.uid]?.isResting ? '😴 휴식 중' : '🔥 대기 중'}
+                        {players[user.uid]?.isResting ? '휴식' : '대기'}
                     </button>
 
+                    {/* 설정 버튼: 아이콘만 깔끔하게 노출 */}
                     {isAdmin && (
                         <button 
                             onClick={() => setIsSettingsOpen(true)}
-                            className="p-2 text-gray-400 hover:text-[#00B16A] transition-colors"
+                            className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-[#1E1E1E] hover:bg-gray-100 transition-all"
                         >
                             <GripVertical size={20} />
                         </button>
                     )}
-                    
-                    <div className="flex flex-col items-end">
-                        <span className="text-xs font-bold text-[#00B16A]">{isAdmin ? '관리자' : '개인'}</span>
-                        <span className="text-[10px] text-gray-400">
-                            <Users size={10} className="inline mr-1"/>
-                            {Object.keys(players).length}명
-                        </span>
-                    </div>
                 </div>
             </header>
 
