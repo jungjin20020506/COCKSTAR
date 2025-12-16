@@ -2339,7 +2339,44 @@ function CourtSelectionModal({ isOpen, onClose, courts, onSelect }) {
         </div>
     );
 }
+// [신규] 얇은 띠배너 컴포넌트 (자동 슬라이드)
+function GameBanner() {
+    const [index, setIndex] = useState(0);
+    // 광고 데이터 예시 (배경색과 텍스트로 디자인)
+    const ads = [
+        { id: 1, title: "🏸 요넥스 신상 라켓 출시!", desc: "지금 스토어에서 확인하세요", bg: "bg-gray-800", text: "text-white" },
+        { id: 2, title: "🛡️ 안전한 중고거래 콕스타", desc: "사기 피해 0건 달성 기념", bg: "bg-[#FFF3E0]", text: "text-[#F57C00]" },
+        { id: 3, title: "👕 우리 모임 유니폼 제작", desc: "단체 주문시 최대 20% 할인", bg: "bg-[#E3F2FD]", text: "text-[#1976D2]" }
+    ];
 
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setIndex((prev) => (prev + 1) % ads.length);
+        }, 4000); // 4초마다 변경
+        return () => clearInterval(timer);
+    }, []);
+
+    return (
+        <div className="w-full h-14 relative overflow-hidden border-b border-gray-100 bg-white">
+            {ads.map((ad, i) => (
+                <div 
+                    key={ad.id}
+                    className={`absolute inset-0 flex items-center justify-between px-4 transition-transform duration-500 ease-in-out ${ad.bg}`}
+                    style={{ transform: `translateX(${(i - index) * 100}%)` }}
+                >
+                    <div className="flex flex-col justify-center">
+                        <span className={`text-[10px] opacity-80 font-medium ${ad.text}`}>{ad.desc}</span>
+                        <span className={`text-sm font-extrabold ${ad.text}`}>{ad.title}</span>
+                    </div>
+                    <span className="text-[9px] border border-current px-1 rounded opacity-50 font-medium ml-2 shrink-0">AD</span>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+// [신규] 경기방 뷰 컴포넌트 (모든 요청사항 반영)
+function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }) {
 // [신규] 경기방 뷰 컴포넌트 (모든 요청사항 반영)
 function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }) {
     const [roomData, setRoomData] = useState(null);
@@ -2839,10 +2876,10 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     if (error) return <div className="p-10 text-center">{error}</div>;
 
     return (
-        <div className="flex flex-col h-full bg-slate-100"> {/* [변경] 전체 배경 회색 처리 */}
-         {/* [수정] 모바일 최적화 헤더: 높이를 줄이고 정보를 통합하여 슬림하게 변경 */}
+        <div className="flex flex-col h-full bg-slate-100">
+            {/* [수정] 모바일 최적화 헤더 */}
             <header className="flex-shrink-0 h-14 px-3 flex items-center justify-between bg-white/95 backdrop-blur-sm shadow-sm sticky top-0 z-30 border-b border-gray-100">
-                {/* 좌측: 뒤로가기 + 방 정보 (타이틀/메타정보 통합) */}
+                {/* 좌측: 뒤로가기 + 방 정보 */}
                 <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
                     <button 
                         onClick={async () => {
@@ -2857,7 +2894,6 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                         <ArrowLeft size={22}/>
                     </button>
                     
-                    {/* 텍스트 영역: 세로로 배치하되 간격 최소화 */}
                     <div className="flex flex-col overflow-hidden justify-center">
                         <div className="flex items-center gap-1">
                             <h1 className="text-base font-bold text-[#1E1E1E] truncate leading-tight">
@@ -2869,7 +2905,6 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                                 </button>
                             )}
                         </div>
-                        {/* 메타 정보 한 줄로 통합 (장소 · 인원 · 역할) */}
                         <div className="flex items-center text-[11px] text-gray-400 font-medium leading-none mt-0.5 space-x-1.5 truncate">
                             <span className="truncate max-w-[100px]">{roomData?.location}</span>
                             <span className="w-0.5 h-2 bg-gray-300 rounded-full"></span>
@@ -2884,21 +2919,19 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                     </div>
                 </div>
 
-                {/* 우측: 액션 버튼 (콤팩트하게 변경) */}
+                {/* 우측: 액션 버튼 */}
                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {/* 휴식 버튼: 텍스트 대신 상태에 따른 심플한 스타일 적용 */}
                     <button 
                         onClick={handleToggleRest}
                         className={`h-8 px-3 rounded-full text-xs font-bold transition-all flex items-center justify-center border ${
                             players[user.uid]?.isResting
-                            ? 'bg-gray-50 text-gray-400 border-gray-200' // 휴식 중 (회색조)
-                            : 'bg-white text-[#00B16A] border-[#00B16A] shadow-sm' // 대기 중 (초록 라인)
+                            ? 'bg-gray-50 text-gray-400 border-gray-200' 
+                            : 'bg-white text-[#00B16A] border-[#00B16A] shadow-sm' 
                         }`}
                     >
                         {players[user.uid]?.isResting ? '휴식' : '대기'}
                     </button>
 
-                    {/* 설정 버튼: 아이콘만 깔끔하게 노출 */}
                     {isAdmin && (
                         <button 
                             onClick={() => setIsSettingsOpen(true)}
@@ -2909,6 +2942,9 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                     )}
                 </div>
             </header>
+
+            {/* [추가] 광고 배너 (헤더와 탭 사이) */}
+            <GameBanner />
 
             {/* 탭 (흰색 배경) */}
             <div className="flex bg-white border-b border-gray-200">
