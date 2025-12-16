@@ -2339,10 +2339,10 @@ function CourtSelectionModal({ isOpen, onClose, courts, onSelect }) {
         </div>
     );
 }
-// [신규] 얇은 띠배너 컴포넌트 (자동 슬라이드)
+// [신규] 얇은 띠배너 컴포넌트 (자동 슬라이드) - 크기 확대 및 고정 수정됨
 function GameBanner() {
     const [index, setIndex] = useState(0);
-    // 광고 데이터 예시 (배경색과 텍스트로 디자인)
+    // 광고 데이터 예시
     const ads = [
         { id: 1, title: "🏸 요넥스 신상 라켓 출시!", desc: "지금 스토어에서 확인하세요", bg: "bg-gray-800", text: "text-white" },
         { id: 2, title: "🛡️ 안전한 중고거래 콕스타", desc: "사기 피해 0건 달성 기념", bg: "bg-[#FFF3E0]", text: "text-[#F57C00]" },
@@ -2352,23 +2352,26 @@ function GameBanner() {
     useEffect(() => {
         const timer = setInterval(() => {
             setIndex((prev) => (prev + 1) % ads.length);
-        }, 4000); // 4초마다 변경
+        }, 4000); 
         return () => clearInterval(timer);
     }, []);
 
     return (
-        <div className="w-full h-14 relative overflow-hidden border-b border-gray-100 bg-white">
+        // [수정] h-14 -> h-20 (높이 확대)
+        // [수정] flex-shrink-0 추가 (화면 내용이 많아져도 배너가 찌그러지지 않음)
+        <div className="w-full h-20 flex-shrink-0 relative overflow-hidden border-b border-gray-100 bg-white shadow-sm z-0">
             {ads.map((ad, i) => (
                 <div 
                     key={ad.id}
-                    className={`absolute inset-0 flex items-center justify-between px-4 transition-transform duration-500 ease-in-out ${ad.bg}`}
+                    className={`absolute inset-0 flex items-center justify-between px-5 transition-transform duration-500 ease-in-out ${ad.bg}`}
                     style={{ transform: `translateX(${(i - index) * 100}%)` }}
                 >
-                    <div className="flex flex-col justify-center">
-                        <span className={`text-[10px] opacity-80 font-medium ${ad.text}`}>{ad.desc}</span>
-                        <span className={`text-sm font-extrabold ${ad.text}`}>{ad.title}</span>
+                    <div className="flex flex-col justify-center gap-1">
+                        {/* 폰트 사이즈도 공간에 맞춰 조금 더 키움 */}
+                        <span className={`text-xs opacity-90 font-medium ${ad.text}`}>{ad.desc}</span>
+                        <span className={`text-lg font-extrabold ${ad.text} tracking-tight`}>{ad.title}</span>
                     </div>
-                    <span className="text-[9px] border border-current px-1 rounded opacity-50 font-medium ml-2 shrink-0">AD</span>
+                    <span className="text-[10px] border border-current px-1.5 py-0.5 rounded opacity-60 font-bold ml-2 shrink-0">AD</span>
                 </div>
             ))}
         </div>
