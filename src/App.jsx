@@ -2378,7 +2378,6 @@ function GameBanner() {
 // [신규] 경기방 뷰 컴포넌트 (모든 요청사항 반영)
 function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }) {
     const [roomData, setRoomData] = useState(null);
-    const [roomData, setRoomData] = useState(null);
     const [players, setPlayers] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
