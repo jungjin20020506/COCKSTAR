@@ -2343,12 +2343,18 @@ function CourtSelectionModal({ isOpen, onClose, courts, onSelect }) {
 function GameBanner() {
     const [index, setIndex] = useState(0);
     // 광고 데이터 예시
-    const ads = [
-        { id: 1, title: "🏸 요넥스 신상 라켓 출시!", desc: "지금 스토어에서 확인하세요", bg: "bg-gray-800", text: "text-white" },
-        { id: 2, title: "🛡️ 안전한 중고거래 콕스타", desc: "사기 피해 0건 달성 기념", bg: "bg-[#FFF3E0]", text: "text-[#F57C00]" },
-        { id: 3, title: "👕 우리 모임 유니폼 제작", desc: "단체 주문시 최대 20% 할인", bg: "bg-[#E3F2FD]", text: "text-[#1976D2]" }
+   const ads = [
+        { 
+            id: 1, 
+            imageUrl: "https://firebasestorage.googleapis.com/v0/b/noerror-14ce3.firebasestorage.app/o/KakaoTalk_20251222_170201045.png?alt=media&token=cdefe786-bfce-4a51-a7c1-bb4885cfa32d", 
+            link: "https://... (클릭 시 이동할 주소)" 
+        },
+        { 
+            id: 2, 
+            imageUrl: "https://firebasestorage.googleapis.com/v0/b/noerror-14ce3.firebasestorage.app/o/KakaoTalk_20251222_170201045.png?alt=media&token=cdefe786-bfce-4a51-a7c1-bb4885cfa32d", 
+            link: "https://..." 
+        },
     ];
-
     useEffect(() => {
         const timer = setInterval(() => {
             setIndex((prev) => (prev + 1) % ads.length);
