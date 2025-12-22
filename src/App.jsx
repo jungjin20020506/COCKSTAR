@@ -2347,12 +2347,12 @@ function GameBanner() {
         { 
             id: 1, 
             imageUrl: "https://firebasestorage.googleapis.com/v0/b/noerror-14ce3.firebasestorage.app/o/KakaoTalk_20251222_170201045.png?alt=media&token=cdefe786-bfce-4a51-a7c1-bb4885cfa32d", 
-            link: "https://... (클릭 시 이동할 주소)" 
+            link: "https://www.pjbsports.com/INTRO" 
         },
         { 
             id: 2, 
             imageUrl: "https://firebasestorage.googleapis.com/v0/b/noerror-14ce3.firebasestorage.app/o/KakaoTalk_20251222_170201045.png?alt=media&token=cdefe786-bfce-4a51-a7c1-bb4885cfa32d", 
-            link: "https://..." 
+            link: "https://www.pjbsports.com/INTRO" 
         },
     ];
     useEffect(() => {
