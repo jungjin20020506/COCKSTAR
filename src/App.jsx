@@ -2356,28 +2356,31 @@ function GameBanner() {
         },
     ];
     useEffect(() => {
+        if (ads.length <= 1) return;
         const timer = setInterval(() => {
             setIndex((prev) => (prev + 1) % ads.length);
-        }, 4000); 
+        }, 4000); // 4초마다 다음 광고로 변경
         return () => clearInterval(timer);
-    }, []);
+    }, [ads.length]);
 
     return (
-        // [수정] h-14 -> h-20 (높이 확대)
-        // [수정] flex-shrink-0 추가 (화면 내용이 많아져도 배너가 찌그러지지 않음)
-        <div className="w-full h-20 flex-shrink-0 relative overflow-hidden border-b border-gray-100 bg-white shadow-sm z-0">
+        <div className="w-full h-24 flex-shrink-0 relative overflow-hidden bg-gray-100 border-b border-gray-100 z-0">
             {ads.map((ad, i) => (
                 <div 
                     key={ad.id}
-                    className={`absolute inset-0 flex items-center justify-between px-5 transition-transform duration-500 ease-in-out ${ad.bg}`}
+                    className="absolute inset-0 transition-transform duration-700 ease-in-out cursor-pointer"
                     style={{ transform: `translateX(${(i - index) * 100}%)` }}
+                    onClick={() => ad.link && window.open(ad.link, '_blank')} // 클릭 시 링크 열기
                 >
-                    <div className="flex flex-col justify-center gap-1">
-                        {/* 폰트 사이즈도 공간에 맞춰 조금 더 키움 */}
-                        <span className={`text-xs opacity-90 font-medium ${ad.text}`}>{ad.desc}</span>
-                        <span className={`text-lg font-extrabold ${ad.text} tracking-tight`}>{ad.title}</span>
+                    <img 
+                        src={ad.imageUrl} 
+                        alt={`광고 ${ad.id}`} 
+                        className="w-full h-full object-cover" // 이미지를 꽉 차게 표시
+                    />
+                    {/* 광고임을 알리는 작은 표시 */}
+                    <div className="absolute top-1 right-2 bg-black/30 text-[8px] text-white px-1 rounded font-bold">
+                        AD
                     </div>
-                    <span className="text-[10px] border border-current px-1.5 py-0.5 rounded opacity-60 font-bold ml-2 shrink-0">AD</span>
                 </div>
             ))}
         </div>
