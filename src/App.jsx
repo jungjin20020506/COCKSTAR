@@ -3509,9 +3509,10 @@ export default function App() {
             };
             document.head.appendChild(kakaoScript);
 
-            // 2. 네이버 지도
+            // 2. 네이버 지도 (실제 발급받은 Client ID로 교체)
             const naverScript = document.createElement('script');
-            naverScript.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=xmkkny4qbm`;
+            // ncpClientId 뒤에 실제 본인의 Client ID를 입력하세요.
+            naverScript.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=kttkb37n60`; 
             naverScript.async = true;
             document.head.appendChild(naverScript);
 
