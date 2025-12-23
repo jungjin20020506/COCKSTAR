@@ -3595,7 +3595,7 @@ export default function App() {
                 />
             )}
 
-           {/* 메인 콘텐츠 영역 (중복 제거 및 정리) */}
+          {/* 메인 콘텐츠 영역 */}
             <main className="flex-grow overflow-y-auto hide-scrollbar bg-white">
                 {page === 'home' && <HomePage user={user} setPage={setPage} />}
                 
@@ -3608,20 +3608,6 @@ export default function App() {
                 )}
                 
                 {page === 'kokMap' && <KokMapPage />}
-                
-                {page === 'community' && <CommunityPage />}
-                
-                {page === 'myInfo' && (
-                    <MyInfoPage 
-                        user={user} 
-                        userData={userData} 
-                        onLoginClick={() => setIsAuthModalOpen(true)} 
-                        onLogout={handleLogout}
-                        setPage={setPage}
-                    />
-                )}
-            </main>
-                
                 {page === 'community' && <CommunityPage />}
                 
                 {page === 'myInfo' && (
@@ -3635,39 +3621,39 @@ export default function App() {
                 )}
             </main>
 
-           <nav className="flex justify-around items-center bg-white border-t border-gray-100 pb-safe pt-1 px-2 z-20">
-    <TabButton 
-        icon={Home} 
-        label="홈" 
-        isActive={page === 'home'} 
-        onClick={() => setPage('home')} 
-    />
-    <TabButton 
-        icon={Trophy} 
-        label="경기" 
-        isActive={page === 'game'} 
-        onClick={() => setPage('game')} 
-    />
-    {/* 스토어를 콕맵으로 교체 */}
-    <TabButton 
-        icon={KokMap} 
-        label="콕맵" 
-        isActive={page === 'kokMap'} 
-        onClick={() => setPage('kokMap')} 
-    />
-    <TabButton 
-        icon={MessageSquare} 
-        label="커뮤니티" 
-        isActive={page === 'community'} 
-        onClick={() => setPage('community')} 
-    />
-    <TabButton 
-        icon={User} 
-        label="내 정보" 
-        isActive={page === 'myInfo'} 
-        onClick={() => setPage('myInfo')} 
-    />
-</nav>
+            {/* 하단 탭 바 (중복 없이 한 번만 선언) */}
+            <nav className="flex justify-around items-center bg-white border-t border-gray-100 pb-safe pt-1 px-2 z-20">
+                <TabButton 
+                    icon={Home} 
+                    label="홈" 
+                    isActive={page === 'home'} 
+                    onClick={() => setPage('home')} 
+                />
+                <TabButton 
+                    icon={Trophy} 
+                    label="경기" 
+                    isActive={page === 'game'} 
+                    onClick={() => setPage('game')} 
+                />
+                <TabButton 
+                    icon={KokMap} 
+                    label="콕맵" 
+                    isActive={page === 'kokMap'} 
+                    onClick={() => setPage('kokMap')} 
+                />
+                <TabButton 
+                    icon={MessageSquare} 
+                    label="커뮤니티" 
+                    isActive={page === 'community'} 
+                    onClick={() => setPage('community')} 
+                />
+                <TabButton 
+                    icon={User} 
+                    label="내 정보" 
+                    isActive={page === 'myInfo'} 
+                    onClick={() => setPage('myInfo')} 
+                />
+            </nav>
             {/* 로그인/회원가입 모달 */}
             {isAuthModalOpen && (
                 <AuthModal 
