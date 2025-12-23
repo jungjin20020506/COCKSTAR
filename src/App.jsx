@@ -3268,14 +3268,14 @@ function KokMapPage() {
                     </div>
                     <span className="bg-green-100 text-[#00B16A] text-xs font-bold px-2 py-1 rounded">영업중</span>
                 </div>
-                <div className="flex gap-4 mt-4">
+               <div className="flex gap-4 mt-4">
                     <button className="flex-1 py-3 bg-gray-50 text-gray-700 font-bold rounded-xl text-sm border border-gray-100">상세 정보</button>
                     <button onClick={() => alert('경기방 생성 기능 준비 중')} className="flex-1 py-3 bg-[#00B16A] text-white font-bold rounded-xl text-sm shadow-md">경기방 만들기</button>
                 </div>
             </div>
         </div>
     );
-}
+} // ✅ KokMapPage 함수를 닫는 중괄호를 추가했습니다.
 
 /**
  * 5. 커뮤니티 페이지
