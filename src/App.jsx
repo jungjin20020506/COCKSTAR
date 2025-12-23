@@ -66,6 +66,9 @@ import {
     GripVertical as GripVerticalIcon
 } from 'lucide-react';
 
+// [추가] Lucide 아이콘의 선 굵기를 일괄 조절하는 헬퍼 함수
+const createThinIcon = (Icon) => (props) => <Icon {...props} strokeWidth={1.5} />;
+
 const Home = createThinIcon(HomeIcon);
 const Trophy = createThinIcon(TrophyIcon);
 const KokMap = createThinIcon(MapIcon); // Store -> KokMap으로 명칭 변경
@@ -714,9 +717,26 @@ function AuthModal({ onClose, setUserData }) {
 // ===================================================================================
 function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
     // 폼 상태
-    const [roomName, setRoomName] = useState('');
-    const [location, setLocation] = useState('');
+   const [roomName, setRoomName] = useState('');
+    const [location, setLocation] = useState(''); // 주소 명칭
+    const [address, setAddress] = useState('');   // 상세 주소
+    const [coords, setCoords] = useState({ lat: 37.5665, lng: 126.9780 }); // 좌표 정보
     const [description, setDescription] = useState('');
+
+    // [신규] 다음 주소 검색 팝업 실행
+    const handleAddressSearch = () => {
+        new window.daum.Postcode({
+            oncomplete: function(data) {
+                // 주소 선택 시 처리
+                const fullAddr = data.address;
+                setAddress(fullAddr);
+                setLocation(data.buildingName || data.address);
+                
+                // 네이버 지오코딩을 사용하여 좌표를 가져올 수 있습니다. (생략 시 기본좌표 저장)
+                // 여기에 좌표 변환 로직 추가 가능
+            }
+        }).open();
+    };
     const [levelLimit, setLevelLimit] = useState('N조'); // 급수 제한
     const [maxPlayers, setMaxPlayers] = useState(20); // 인원 제한
     const [usePassword, setUsePassword] = useState(false);
@@ -3172,12 +3192,50 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 /**
  * 4. 콕맵 (KokMap) 페이지
  * 지도를 띄우고 배드민턴장 정보를 표시하는 메인 화면입니다.
- */
 function KokMapPage() {
-    // 실제 지도 SDK(네이버/카카오)를 연동하기 전, 
-    // 지도가 표시될 영역을 레이아웃으로 먼저 잡습니다.
+    const mapRef = useRef(null);
+    const [rooms, setRooms] = useState([]);
+
+    // 1. Firestore에서 경기방 목록 가져오기
+    useEffect(() => {
+        const q = query(collection(db, "rooms"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            setRooms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // 2. 지도 초기화 및 마커 표시
+    useEffect(() => {
+        if (!window.naver || rooms.length === 0) return;
+
+        const mapOptions = {
+            center: new window.naver.maps.LatLng(37.5665, 126.9780),
+            zoom: 13
+        };
+        const map = new window.naver.maps.Map(mapRef.current, mapOptions);
+
+        rooms.forEach(room => {
+            if (room.coords) {
+                new window.naver.maps.Marker({
+                    position: new window.naver.maps.LatLng(room.coords.lat, room.coords.lng),
+                    map: map,
+                    title: room.name
+                });
+            }
+        });
+    }, [rooms]);
+
     return (
-        <div className="relative h-full w-full bg-gray-100 flex flex-col">
+        <div className="relative h-full w-full flex flex-col">
+            <div className="absolute top-4 left-4 right-4 z-20">
+                {/* 검색 바 유지 */}
+            </div>
+            {/* [수정] 지도가 렌더링될 실제 컨테이너 */}
+            <div ref={mapRef} className="flex-grow w-full h-full" />
+        </div>
+    );
+}
             {/* 상단 검색 및 필터 바 */}
             <div className="absolute top-4 left-4 right-4 z-20 space-y-2">
                 <div className="bg-white rounded-xl shadow-lg flex items-center p-3 border border-gray-100">
@@ -3476,14 +3534,35 @@ export default function App() {
     const [page, setPage] = useState('home'); // 현재 페이지 (home, game, store, community, myInfo)
     
     // [신규] 카카오 SDK 스크립트 로드 및 초기화 (수정됨: 가장 안정적인 V1 CDN 주소 사용)
-    useEffect(() => {
-        const script = document.createElement('script');
-        // 👇 [핵심 변경] 로딩 속도가 빠르고 안정적인 구버전(V1) 전용 CDN 주소로 변경했습니다.
-        script.src = 'https://t1.kakaocdn.net/kakao_js_sdk/v1/kakao.min.js';
-        script.async = true; 
-        
-        script.onload = () => {
-            // SDK 로드 완료 후 초기화
+  useEffect(() => {
+        // [수정] 카카오, 네이버 지도, 다음 주소검색 스크립트 통합 로드
+        const loadScripts = () => {
+            // 1. 카카오
+            const kakaoScript = document.createElement('script');
+            kakaoScript.src = 'https://t1.kakaocdn.net/kakao_js_sdk/v1/kakao.min.js';
+            kakaoScript.async = true;
+            kakaoScript.onload = () => {
+                if (window.Kakao && !window.Kakao.isInitialized()) {
+                    window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e');
+                }
+            };
+            document.head.appendChild(kakaoScript);
+
+            // 2. 네이버 지도 (ClientId 입력 필요)
+            const naverScript = document.createElement('script');
+            naverScript.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=YOUR_NAVER_CLIENT_ID`; // 발급받은 ID 입력
+            naverScript.async = true;
+            document.head.appendChild(naverScript);
+
+            // 3. 다음 주소 검색
+            const daumScript = document.createElement('script');
+            daumScript.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+            daumScript.async = true;
+            document.head.appendChild(daumScript);
+        };
+
+        loadScripts();
+    }, []);
             if (window.Kakao && !window.Kakao.isInitialized()) {
                 // 발급받은 키가 정상적으로 적용되어 있습니다.
                 window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e'); 
