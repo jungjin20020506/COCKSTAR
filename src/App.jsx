@@ -3494,34 +3494,43 @@ const TabButton = ({ icon: Icon, label, isActive, onClick }) => {
 // ===================================================================================
 export default function App() {
     // 1. 상태 관리
-    const [page, setPage] = useState('home'); // 현재 페이지 (home, game, store, community, myInfo)
-    
-    // [신규] 카카오 SDK 스크립트 로드 및 초기화 (수정됨: 가장 안정적인 V1 CDN 주소 사용)
-  useEffect(() => {
-        // [수정] 카카오, 네이버 지도, 다음 주소검색 스크립트 통합 로드
+    const [page, setPage] = useState('home'); 
+
+    // [통합 수정] 외부 SDK 스크립트 통합 로드 (카카오, 네이버, 다음)
+    useEffect(() => {
         const loadScripts = () => {
-            // 1. 카카오
-            const kakaoScript = document.createElement('script');
-            kakaoScript.src = 'https://t1.kakaocdn.net/kakao_js_sdk/v1/kakao.min.js';
-            kakaoScript.async = true;
-            kakaoScript.onload = () => {
-                if (window.Kakao && !window.Kakao.isInitialized()) {
-                    window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e');
-                }
-            };
-            document.head.appendChild(kakaoScript);
+            // 1. 카카오 SDK 로드
+            if (!document.getElementById('kakao-sdk')) {
+                const kakaoScript = document.createElement('script');
+                kakaoScript.id = 'kakao-sdk';
+                kakaoScript.src = 'https://t1.kakaocdn.net/kakao_js_sdk/v1/kakao.min.js';
+                kakaoScript.async = true;
+                kakaoScript.onload = () => {
+                    if (window.Kakao && !window.Kakao.isInitialized()) {
+                        window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e');
+                        console.log("Kakao SDK Initialized");
+                    }
+                };
+                document.head.appendChild(kakaoScript);
+            }
 
-            // 2. 네이버 지도 (ClientId 입력 필요)
-            const naverScript = document.createElement('script');
-            naverScript.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=xmkkny4qbm`; // 발급받은 ID 입력
-            naverScript.async = true;
-            document.head.appendChild(naverScript);
+            // 2. 네이버 지도 로드
+            if (!document.getElementById('naver-map-sdk')) {
+                const naverScript = document.createElement('script');
+                naverScript.id = 'naver-map-sdk';
+                naverScript.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=xmkkny4qbm`;
+                naverScript.async = true;
+                document.head.appendChild(naverScript);
+            }
 
-            // 3. 다음 주소 검색
-            const daumScript = document.createElement('script');
-            daumScript.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
-            daumScript.async = true;
-            document.head.appendChild(daumScript);
+            // 3. 다음 주소 검색 로드
+            if (!document.getElementById('daum-postcode-sdk')) {
+                const daumScript = document.createElement('script');
+                daumScript.id = 'daum-postcode-sdk';
+                daumScript.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+                daumScript.async = true;
+                document.head.appendChild(daumScript);
+            }
         };
 
         loadScripts();
@@ -3617,7 +3626,7 @@ export default function App() {
                 />
             )}
 
-            {/* 메인 콘텐츠 영역 */}
+           {/* 메인 콘텐츠 영역 (중복 제거 및 정리) */}
             <main className="flex-grow overflow-y-auto hide-scrollbar bg-white">
                 {page === 'home' && <HomePage user={user} setPage={setPage} />}
                 
