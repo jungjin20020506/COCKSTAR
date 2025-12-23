@@ -3512,7 +3512,8 @@ export default function App() {
          // 2. 네이버 지도 (확인된 신규 Client ID 적용)
             const naverScript = document.createElement('script');
             // 로그에서 확인된 kttkb37n60 번호를 적용합니다.
-            naverScript.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=kttkb37n60`; 
+           // ncpClientId 뒤에 공백이나 오타가 없는지 확인하세요.
+naverScript.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=kttkb37n60`;
             naverScript.async = true;
             document.head.appendChild(naverScript);
             // 3. 다음 주소 검색
