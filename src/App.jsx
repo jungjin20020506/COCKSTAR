@@ -3201,16 +3201,35 @@ function KokMapPage() {
         return () => unsubscribe();
     }, []);
 
-    // 2. 지도 초기화 및 마커 표시
+    // 2. 지도 초기화 및 마커 표시 (안전한 접근 로직 추가)
     useEffect(() => {
-        if (!window.naver || rooms.length === 0 || !mapRef.current) return;
+        // window.naver뿐만 아니라 window.naver.maps가 있는지까지 확실히 체크합니다.
+        if (!window.naver || !window.naver.maps || !mapRef.current) {
+            console.log("네이버 지도 객체가 아직 준비되지 않았습니다.");
+            return;
+        }
 
+        // 방 데이터가 로딩 중일 때를 대비해 기본 좌표 설정
         const mapOptions = {
             center: new window.naver.maps.LatLng(37.5665, 126.9780),
             zoom: 13
         };
+        
         const map = new window.naver.maps.Map(mapRef.current, mapOptions);
 
+        // 방 목록이 있을 때만 마커 표시
+        if (rooms.length > 0) {
+            rooms.forEach(room => {
+                if (room.coords && room.coords.lat && room.coords.lng) {
+                    new window.naver.maps.Marker({
+                        position: new window.naver.maps.LatLng(room.coords.lat, room.coords.lng),
+                        map: map,
+                        title: room.name
+                    });
+                }
+            });
+        }
+    }, [rooms]); // rooms 데이터가 바뀔 때마다 다시 그리도록 설정
         rooms.forEach(room => {
             if (room.coords) {
                 new window.naver.maps.Marker({
