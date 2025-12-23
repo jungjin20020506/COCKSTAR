@@ -34,10 +34,11 @@ import {
     runTransaction,
     writeBatch
 } from 'firebase/firestore';
+// StoreIcon 대신 Map 아이콘을 가져옵니다.
 import {
     Home as HomeIcon, 
     Trophy as TrophyIcon, 
-    Store as StoreIcon, 
+    Map as MapIcon, 
     Users as UsersIcon, 
     User as UserIcon, 
     X as XIcon, 
@@ -65,17 +66,9 @@ import {
     GripVertical as GripVerticalIcon
 } from 'lucide-react';
 
-// [수정] 얇은 아이콘을 생성하는 '새로운' 헬퍼 함수
-// (createReactComponent가 비공개 함수라, 이 방식으로 우회합니다)
-const createThinIcon = (IconComponent) => {
-    // props를 받아서 strokeWidth=1.5를 기본값으로 추가한 새 컴포넌트를 반환
-    return (props) => <IconComponent {...props} strokeWidth={1.5} />;
-};
-
-// [수정] 앱에서 사용할 얇은 아이콘을 새 헬퍼로 재정의합니다.
 const Home = createThinIcon(HomeIcon);
 const Trophy = createThinIcon(TrophyIcon);
-const Store = createThinIcon(StoreIcon);
+const KokMap = createThinIcon(MapIcon); // Store -> KokMap으로 명칭 변경
 const Users = createThinIcon(UsersIcon);
 const User = createThinIcon(UserIcon);
 const X = createThinIcon(XIcon);
@@ -3177,15 +3170,77 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                     
 
 /**
- * 4. 스토어 페이지
+ * 4. 콕맵 (KokMap) 페이지
+ * 지도를 띄우고 배드민턴장 정보를 표시하는 메인 화면입니다.
  */
-function StorePage() {
+function KokMapPage() {
+    // 실제 지도 SDK(네이버/카카오)를 연동하기 전, 
+    // 지도가 표시될 영역을 레이아웃으로 먼저 잡습니다.
     return (
-        <ComingSoonPage
-            icon={ShoppingBag}
-            title="브랜드 스토어"
-            description="여러 배드민턴 브랜드 용품을 모아보는 쇼핑몰 기능을 준비 중입니다."
-        />
+        <div className="relative h-full w-full bg-gray-100 flex flex-col">
+            {/* 상단 검색 및 필터 바 */}
+            <div className="absolute top-4 left-4 right-4 z-20 space-y-2">
+                <div className="bg-white rounded-xl shadow-lg flex items-center p-3 border border-gray-100">
+                    <Search size={20} className="text-gray-400 mr-2" />
+                    <input 
+                        type="text" 
+                        placeholder="체육관, 클럽, 모임 검색" 
+                        className="flex-1 bg-transparent outline-none text-sm font-medium"
+                    />
+                </div>
+                {/* 퀵 필터 버튼 */}
+                <div className="flex gap-2 overflow-x-auto hide-scrollbar">
+                    {['전용구장', '다목적', '동호회', '진행중인 모임'].map((filter) => (
+                        <button key={filter} className="flex-shrink-0 px-4 py-2 bg-white rounded-full shadow-md text-xs font-bold text-gray-600 border border-gray-50 active:bg-[#00B16A] active:text-white transition-colors">
+                            {filter}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* 지도 영역 (이곳에 실제 SDK Map이 렌더링됩니다) */}
+            <div className="flex-grow flex items-center justify-center relative overflow-hidden">
+                {/* 지도 배경 (임시 이미지 또는 컬러) */}
+                <div className="absolute inset-0 bg-[#e5e3df]">
+                    {/* 격자 무늬 배경으로 지도 느낌 내기 */}
+                    <div className="w-full h-full opacity-20" style={{ backgroundImage: 'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
+                </div>
+
+                {/* 마커 예시 (나중에 데이터와 연동) */}
+                <div className="z-10 flex flex-col items-center animate-bounce">
+                    <div className="bg-[#00B16A] text-white p-2 rounded-xl shadow-xl border-2 border-white flex items-center gap-1">
+                        <MapPin size={16} fill="white" />
+                        <span className="text-xs font-bold">콕스타 전용구장</span>
+                    </div>
+                    <div className="w-1 h-3 bg-[#00B16A]"></div>
+                </div>
+
+                <div className="absolute bottom-6 right-6 z-20 flex flex-col gap-2">
+                    <button className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-[#1E1E1E]">
+                        <MapPin size={24} />
+                    </button>
+                    <button className="w-12 h-12 bg-[#00B16A] text-white rounded-full shadow-lg flex items-center justify-center">
+                        <Plus size={24} />
+                    </button>
+                </div>
+            </div>
+
+            {/* 하단 장소 정보 카드 (마커 클릭 시 나타날 영역) */}
+            <div className="bg-white rounded-t-3xl shadow-[0_-10px_20px_rgba(0,0,0,0.05)] p-5 z-20">
+                <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-4"></div>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h3 className="text-lg font-bold text-[#1E1E1E]">콕스타 배드민턴 센터</h3>
+                        <p className="text-sm text-gray-500 mt-0.5">경기도 화성시 00로 123-4</p>
+                    </div>
+                    <span className="bg-green-100 text-[#00B16A] text-xs font-bold px-2 py-1 rounded">영업중</span>
+                </div>
+                <div className="flex gap-4 mt-4">
+                    <button className="flex-1 py-3 bg-gray-50 text-gray-700 font-bold rounded-xl text-sm border border-gray-100">상세 정보</button>
+                    <button className="flex-1 py-3 bg-[#00B16A] text-white font-bold rounded-xl text-sm shadow-md">경기방 만들기</button>
+                </div>
+            </div>
+        </div>
     );
 }
 
@@ -3532,7 +3587,8 @@ export default function App() {
                     />
                 )}
                 
-                {page === 'store' && <StorePage />}
+               // ... 메인 콘텐츠 스위칭 영역 (App 함수 내부)
+{page === 'kokMap' && <KokMapPage />} // store -> kokMap으로 변경
                 
                 {page === 'community' && <CommunityPage />}
                 
@@ -3547,40 +3603,39 @@ export default function App() {
                 )}
             </main>
 
-            {/* 하단 탭 네비게이션 (GNB) */}
-            <nav className="flex justify-around items-center bg-white border-t border-gray-100 pb-safe pt-1 px-2 z-20">
-                <TabButton 
-                    icon={Home} 
-                    label="홈" 
-                    isActive={page === 'home'} 
-                    onClick={() => setPage('home')} 
-                />
-                <TabButton 
-                    icon={Trophy} 
-                    label="경기" 
-                    isActive={page === 'game'} 
-                    onClick={() => setPage('game')} 
-                />
-                <TabButton 
-                    icon={Store} 
-                    label="스토어" 
-                    isActive={page === 'store'} 
-                    onClick={() => setPage('store')} 
-                />
-                <TabButton 
-                    icon={MessageSquare} 
-                    label="커뮤니티" 
-                    isActive={page === 'community'} 
-                    onClick={() => setPage('community')} 
-                />
-                <TabButton 
-                    icon={User} 
-                    label="내 정보" 
-                    isActive={page === 'myInfo'} 
-                    onClick={() => setPage('myInfo')} 
-                />
-            </nav>
-
+           <nav className="flex justify-around items-center bg-white border-t border-gray-100 pb-safe pt-1 px-2 z-20">
+    <TabButton 
+        icon={Home} 
+        label="홈" 
+        isActive={page === 'home'} 
+        onClick={() => setPage('home')} 
+    />
+    <TabButton 
+        icon={Trophy} 
+        label="경기" 
+        isActive={page === 'game'} 
+        onClick={() => setPage('game')} 
+    />
+    {/* 스토어를 콕맵으로 교체 */}
+    <TabButton 
+        icon={KokMap} 
+        label="콕맵" 
+        isActive={page === 'kokMap'} 
+        onClick={() => setPage('kokMap')} 
+    />
+    <TabButton 
+        icon={MessageSquare} 
+        label="커뮤니티" 
+        isActive={page === 'community'} 
+        onClick={() => setPage('community')} 
+    />
+    <TabButton 
+        icon={User} 
+        label="내 정보" 
+        isActive={page === 'myInfo'} 
+        onClick={() => setPage('myInfo')} 
+    />
+</nav>
             {/* 로그인/회원가입 모달 */}
             {isAuthModalOpen && (
                 <AuthModal 
