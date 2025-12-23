@@ -3203,13 +3203,11 @@ function KokMapPage() {
 
     // 2. 지도 초기화 및 마커 표시 (안전한 접근 로직 추가)
     useEffect(() => {
-        // window.naver뿐만 아니라 window.naver.maps가 있는지까지 확실히 체크합니다.
         if (!window.naver || !window.naver.maps || !mapRef.current) {
             console.log("네이버 지도 객체가 아직 준비되지 않았습니다.");
             return;
         }
 
-        // 방 데이터가 로딩 중일 때를 대비해 기본 좌표 설정
         const mapOptions = {
             center: new window.naver.maps.LatLng(37.5665, 126.9780),
             zoom: 13
@@ -3217,7 +3215,6 @@ function KokMapPage() {
         
         const map = new window.naver.maps.Map(mapRef.current, mapOptions);
 
-      // 방 목록이 있을 때만 마커 표시
         if (rooms.length > 0) {
             rooms.forEach(room => {
                 if (room.coords && room.coords.lat && room.coords.lng) {
@@ -3229,10 +3226,7 @@ function KokMapPage() {
                 }
             });
         }
-    }, [rooms]); // 깔끔하게 한 번만 닫아줍니다.
-
-    return (
-        <div className="relative h-full w-full flex flex-col">
+    }, [rooms]);
 
     return (
         <div className="relative h-full w-full flex flex-col">
@@ -3268,14 +3262,14 @@ function KokMapPage() {
                     </div>
                     <span className="bg-green-100 text-[#00B16A] text-xs font-bold px-2 py-1 rounded">영업중</span>
                 </div>
-               <div className="flex gap-4 mt-4">
+                <div className="flex gap-4 mt-4">
                     <button className="flex-1 py-3 bg-gray-50 text-gray-700 font-bold rounded-xl text-sm border border-gray-100">상세 정보</button>
                     <button onClick={() => alert('경기방 생성 기능 준비 중')} className="flex-1 py-3 bg-[#00B16A] text-white font-bold rounded-xl text-sm shadow-md">경기방 만들기</button>
                 </div>
             </div>
         </div>
     );
-} // ✅ KokMapPage 함수를 닫는 중괄호를 추가했습니다.
+}
 
 /**
  * 5. 커뮤니티 페이지
