@@ -3550,7 +3550,7 @@ export default function App() {
 
             // 2. 네이버 지도 (ClientId 입력 필요)
             const naverScript = document.createElement('script');
-            naverScript.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=YOUR_NAVER_CLIENT_ID`; // 발급받은 ID 입력
+            naverScript.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=xmkkny4qbm`; // 발급받은 ID 입력
             naverScript.async = true;
             document.head.appendChild(naverScript);
 
