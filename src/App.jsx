@@ -3188,10 +3188,6 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 }
 
                     
-
-/**
- * 4. 콕맵 (KokMap) 페이지
- * 지도를 띄우고 배드민턴장 정보를 표시하는 메인 화면입니다.
 function KokMapPage() {
     const mapRef = useRef(null);
     const [rooms, setRooms] = useState([]);
@@ -3207,7 +3203,7 @@ function KokMapPage() {
 
     // 2. 지도 초기화 및 마커 표시
     useEffect(() => {
-        if (!window.naver || rooms.length === 0) return;
+        if (!window.naver || rooms.length === 0 || !mapRef.current) return;
 
         const mapOptions = {
             center: new window.naver.maps.LatLng(37.5665, 126.9780),
@@ -3228,14 +3224,6 @@ function KokMapPage() {
 
     return (
         <div className="relative h-full w-full flex flex-col">
-            <div className="absolute top-4 left-4 right-4 z-20">
-                {/* 검색 바 유지 */}
-            </div>
-            {/* [수정] 지도가 렌더링될 실제 컨테이너 */}
-            <div ref={mapRef} className="flex-grow w-full h-full" />
-        </div>
-    );
-}
             {/* 상단 검색 및 필터 바 */}
             <div className="absolute top-4 left-4 right-4 z-20 space-y-2">
                 <div className="bg-white rounded-xl shadow-lg flex items-center p-3 border border-gray-100">
@@ -3246,7 +3234,6 @@ function KokMapPage() {
                         className="flex-1 bg-transparent outline-none text-sm font-medium"
                     />
                 </div>
-                {/* 퀵 필터 버튼 */}
                 <div className="flex gap-2 overflow-x-auto hide-scrollbar">
                     {['전용구장', '다목적', '동호회', '진행중인 모임'].map((filter) => (
                         <button key={filter} className="flex-shrink-0 px-4 py-2 bg-white rounded-full shadow-md text-xs font-bold text-gray-600 border border-gray-50 active:bg-[#00B16A] active:text-white transition-colors">
@@ -3256,46 +3243,22 @@ function KokMapPage() {
                 </div>
             </div>
 
-            {/* 지도 영역 (이곳에 실제 SDK Map이 렌더링됩니다) */}
-            <div className="flex-grow flex items-center justify-center relative overflow-hidden">
-                {/* 지도 배경 (임시 이미지 또는 컬러) */}
-                <div className="absolute inset-0 bg-[#e5e3df]">
-                    {/* 격자 무늬 배경으로 지도 느낌 내기 */}
-                    <div className="w-full h-full opacity-20" style={{ backgroundImage: 'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
-                </div>
+            {/* 지도 영역 */}
+            <div ref={mapRef} className="flex-grow w-full h-full bg-[#e5e3df]" />
 
-                {/* 마커 예시 (나중에 데이터와 연동) */}
-                <div className="z-10 flex flex-col items-center animate-bounce">
-                    <div className="bg-[#00B16A] text-white p-2 rounded-xl shadow-xl border-2 border-white flex items-center gap-1">
-                        <MapPin size={16} fill="white" />
-                        <span className="text-xs font-bold">콕스타 전용구장</span>
-                    </div>
-                    <div className="w-1 h-3 bg-[#00B16A]"></div>
-                </div>
-
-                <div className="absolute bottom-6 right-6 z-20 flex flex-col gap-2">
-                    <button className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-[#1E1E1E]">
-                        <MapPin size={24} />
-                    </button>
-                    <button className="w-12 h-12 bg-[#00B16A] text-white rounded-full shadow-lg flex items-center justify-center">
-                        <Plus size={24} />
-                    </button>
-                </div>
-            </div>
-
-            {/* 하단 장소 정보 카드 (마커 클릭 시 나타날 영역) */}
+            {/* 하단 장소 정보 카드 */}
             <div className="bg-white rounded-t-3xl shadow-[0_-10px_20px_rgba(0,0,0,0.05)] p-5 z-20">
                 <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-4"></div>
                 <div className="flex justify-between items-start">
                     <div>
                         <h3 className="text-lg font-bold text-[#1E1E1E]">콕스타 배드민턴 센터</h3>
-                        <p className="text-sm text-gray-500 mt-0.5">경기도 화성시 00로 123-4</p>
+                        <p className="text-sm text-gray-500 mt-0.5">상세 주소를 확인하려면 마커를 클릭하세요.</p>
                     </div>
                     <span className="bg-green-100 text-[#00B16A] text-xs font-bold px-2 py-1 rounded">영업중</span>
                 </div>
                 <div className="flex gap-4 mt-4">
                     <button className="flex-1 py-3 bg-gray-50 text-gray-700 font-bold rounded-xl text-sm border border-gray-100">상세 정보</button>
-                    <button className="flex-1 py-3 bg-[#00B16A] text-white font-bold rounded-xl text-sm shadow-md">경기방 만들기</button>
+                    <button onClick={() => alert('경기방 생성 기능 준비 중')} className="flex-1 py-3 bg-[#00B16A] text-white font-bold rounded-xl text-sm shadow-md">경기방 만들기</button>
                 </div>
             </div>
         </div>
@@ -3654,7 +3617,7 @@ export default function App() {
                 />
             )}
 
-            {/* 메인 콘텐츠 영역 (스크롤 가능) */}
+            {/* 메인 콘텐츠 영역 */}
             <main className="flex-grow overflow-y-auto hide-scrollbar bg-white">
                 {page === 'home' && <HomePage user={user} setPage={setPage} />}
                 
@@ -3666,8 +3629,20 @@ export default function App() {
                     />
                 )}
                 
-               // ... 메인 콘텐츠 스위칭 영역 (App 함수 내부)
-{page === 'kokMap' && <KokMapPage />} // store -> kokMap으로 변경
+                {page === 'kokMap' && <KokMapPage />}
+                
+                {page === 'community' && <CommunityPage />}
+                
+                {page === 'myInfo' && (
+                    <MyInfoPage 
+                        user={user} 
+                        userData={userData} 
+                        onLoginClick={() => setIsAuthModalOpen(true)} 
+                        onLogout={handleLogout}
+                        setPage={setPage}
+                    />
+                )}
+            </main>
                 
                 {page === 'community' && <CommunityPage />}
                 
