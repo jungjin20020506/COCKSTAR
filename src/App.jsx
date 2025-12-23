@@ -2359,25 +2359,31 @@ function GameBanner() {
         if (ads.length <= 1) return;
         const timer = setInterval(() => {
             setIndex((prev) => (prev + 1) % ads.length);
-        }, 4000); // 4초마다 다음 광고로 변경
+        }, 4000);
         return () => clearInterval(timer);
     }, [ads.length]);
 
     return (
-        <div className="w-full h-24 flex-shrink-0 relative overflow-hidden bg-gray-100 border-b border-gray-100 z-0">
+        /* [핵심 수정] 
+           h-24(높이 고정)를 삭제하고 aspect-[5/1]을 추가했습니다.
+           이제 화면이 넓어지면 높이도 비례해서 늘어나고, 좁아지면 같이 줄어듭니다.
+        */
+        <div className="w-full aspect-[5/1] flex-shrink-0 relative overflow-hidden bg-gray-100 border-b border-gray-100 z-0">
             {ads.map((ad, i) => (
                 <div 
                     key={ad.id}
                     className="absolute inset-0 transition-transform duration-700 ease-in-out cursor-pointer"
                     style={{ transform: `translateX(${(i - index) * 100}%)` }}
-                    onClick={() => ad.link && window.open(ad.link, '_blank')} // 클릭 시 링크 열기
+                    onClick={() => ad.link && window.open(ad.link, '_blank')}
                 >
                     <img 
                         src={ad.imageUrl} 
                         alt={`광고 ${ad.id}`} 
-                        className="w-full h-full object-cover" // 이미지를 꽉 차게 표시
+                        /* 이미지도 5:1, 상자도 5:1이므로 
+                           object-cover를 써도 전혀 잘림 없이 딱 맞게 들어갑니다. 
+                        */
+                        className="w-full h-full object-cover" 
                     />
-                    {/* 광고임을 알리는 작은 표시 */}
                     <div className="absolute top-1 right-2 bg-black/30 text-[8px] text-white px-1 rounded font-bold">
                         AD
                     </div>
