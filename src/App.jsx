@@ -3491,70 +3491,39 @@ const TabButton = ({ icon: Icon, label, isActive, onClick }) => {
 // ===================================================================================
 // [필수] 메인 App 컴포넌트
 // 이 부분이 없으면 "default is not exported" 오류가 발생합니다.
-// ===================================================================================
 export default function App() {
     // 1. 상태 관리
     const [page, setPage] = useState('home'); 
 
-    // [통합 수정] 외부 SDK 스크립트 통합 로드 (카카오, 네이버, 다음)
+    // [수정] 스크립트 로드 로직 통합 및 중복 코드 제거
     useEffect(() => {
         const loadScripts = () => {
-            // 1. 카카오 SDK 로드
-            if (!document.getElementById('kakao-sdk')) {
-                const kakaoScript = document.createElement('script');
-                kakaoScript.id = 'kakao-sdk';
-                kakaoScript.src = 'https://t1.kakaocdn.net/kakao_js_sdk/v1/kakao.min.js';
-                kakaoScript.async = true;
-                kakaoScript.onload = () => {
-                    if (window.Kakao && !window.Kakao.isInitialized()) {
-                        window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e');
-                        console.log("Kakao SDK Initialized");
-                    }
-                };
-                document.head.appendChild(kakaoScript);
-            }
+            // 1. 카카오 SDK
+            const kakaoScript = document.createElement('script');
+            kakaoScript.src = 'https://t1.kakaocdn.net/kakao_js_sdk/v1/kakao.min.js';
+            kakaoScript.async = true;
+            kakaoScript.onload = () => {
+                if (window.Kakao && !window.Kakao.isInitialized()) {
+                    window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e');
+                }
+            };
+            document.head.appendChild(kakaoScript);
 
-            // 2. 네이버 지도 로드
-            if (!document.getElementById('naver-map-sdk')) {
-                const naverScript = document.createElement('script');
-                naverScript.id = 'naver-map-sdk';
-                naverScript.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=xmkkny4qbm`;
-                naverScript.async = true;
-                document.head.appendChild(naverScript);
-            }
+            // 2. 네이버 지도
+            const naverScript = document.createElement('script');
+            naverScript.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=xmkkny4qbm`;
+            naverScript.async = true;
+            document.head.appendChild(naverScript);
 
-            // 3. 다음 주소 검색 로드
-            if (!document.getElementById('daum-postcode-sdk')) {
-                const daumScript = document.createElement('script');
-                daumScript.id = 'daum-postcode-sdk';
-                daumScript.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
-                daumScript.async = true;
-                document.head.appendChild(daumScript);
-            }
+            // 3. 다음 주소 검색
+            const daumScript = document.createElement('script');
+            daumScript.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+            daumScript.async = true;
+            document.head.appendChild(daumScript);
         };
 
         loadScripts();
-    }, []);
-            if (window.Kakao && !window.Kakao.isInitialized()) {
-                // 발급받은 키가 정상적으로 적용되어 있습니다.
-                window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e'); 
-                console.log("Kakao SDK Initialized (V1)");
-            }
-        };
-        
-        script.onerror = () => {
-            console.error("Kakao SDK 로드 실패");
-        };
-
-        document.head.appendChild(script); // body 대신 head에 추가하여 더 빨리 로드되도록 변경
-
-        return () => {
-            // 컴포넌트 언마운트 시 스크립트 정리 (선택 사항)
-            // if (document.head.contains(script)) {
-            //    document.head.removeChild(script);
-            // }
-        };
-    }, []);
+    }, []); // 깔끔하게 한 번만 닫음
 
     const [user, setUser] = useState(null); // 로그인한 유저 객체
     const [userData, setUserData] = useState(null); // Firestore 유저 추가 정보
