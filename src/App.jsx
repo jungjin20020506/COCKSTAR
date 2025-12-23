@@ -1736,12 +1736,13 @@ const PlayerCard = React.memo(({
         if (onCardClick) onCardClick(player);
     };
 
-    if (!player) return <div className="h-14 bg-gray-100 rounded-lg animate-pulse"></div>;
+    if (!player) return <div className="h-[52px] bg-gray-100 rounded-lg animate-pulse"></div>;
 
     const levelColorClass = getLevelColor(player.level);
     const genderBorder = player.gender === '남' ? 'border-l-blue-500' : 'border-l-pink-500';
 
-    let containerClass = `relative bg-white rounded-lg shadow-sm p-2 h-16 flex flex-col justify-between border-l-[3px] transition-all duration-200 cursor-pointer hover:shadow-md ${genderBorder} select-none `;
+    // [수정] 높이 h-16 -> h-[52px], 패딩 px-2 py-1, justify-center로 변경하여 여백 축소
+    let containerClass = `relative bg-white rounded-lg shadow-sm px-2 py-1 h-[52px] flex flex-col justify-center border-l-[3px] transition-all duration-200 cursor-pointer hover:shadow-md ${genderBorder} select-none `;
     
     if (isPlaying) containerClass += " opacity-50 bg-gray-50 grayscale ";
     if (isResting) containerClass += " opacity-40 bg-gray-100 grayscale ";
@@ -1771,24 +1772,27 @@ const PlayerCard = React.memo(({
             onDragOver={canDrag ? onDragOver : undefined}
             onDrop={canDrag ? (e) => onDrop(e, { type: 'player', player: player }) : undefined}
         >
-            <div className="flex justify-between items-start pointer-events-none">
-                <span className="text-xs font-bold text-[#1E1E1E] truncate w-full pr-1 leading-tight">
+            {/* [수정] mb-0.5 추가로 이름과 하단 정보 사이 간격 미세 조정 */}
+            <div className="flex justify-between items-start pointer-events-none mb-0.5">
+                {/* [수정] leading-none 추가로 텍스트 줄간격 축소 */}
+                <span className="text-xs font-bold text-[#1E1E1E] truncate w-full pr-1 leading-none">
                     {player.name}
                 </span>
                 {isAdmin && (
                     <button 
-                        className="pointer-events-auto absolute -top-1.5 -right-1.5 bg-white text-gray-400 hover:text-red-500 rounded-full shadow-sm border border-gray-100 p-0.5 transition-colors z-20"
+                        className="pointer-events-auto absolute -top-1 -right-1 bg-white text-gray-400 hover:text-red-500 rounded-full shadow-sm border border-gray-100 p-0.5 transition-colors z-20"
                         onClick={(e) => {
                             e.stopPropagation(); // 카드 클릭 방지
                             onDeleteClick && onDeleteClick(player);
                         }}
                     >
-                        <XIcon size={12} strokeWidth={3} />
+                        <XIcon size={10} strokeWidth={3} />
                     </button>
                 )}
             </div>
             
-            <div className="flex justify-between items-end mt-1 pointer-events-none">
+            {/* [수정] items-end -> items-center로 변경 */}
+            <div className="flex justify-between items-center pointer-events-none">
                 <span className={`text-[10px] font-extrabold ${levelColorClass.replace('border-', 'text-')}`}>
                     {player.level || 'N'}
                 </span>
@@ -1803,9 +1807,9 @@ const PlayerCard = React.memo(({
  * [신규] 나간 선수 카드 (붉은색 점선 표시)
  */
 const LeftPlayerCard = ({ onClick, isAdmin }) => (
-    <div className="h-16 bg-red-50 rounded-lg flex flex-col items-center justify-center border-2 border-dashed border-red-300 relative select-none">
-        <span className="text-xs font-bold text-red-500">나간 선수</span>
-        <span className="text-[10px] text-red-400">(Player Left)</span>
+    // [수정] h-16 -> h-[52px]
+    <div className="h-[52px] bg-red-50 rounded-lg flex flex-col items-center justify-center border-2 border-dashed border-red-300 relative select-none">
+        <span className="text-[10px] font-bold text-red-500 leading-tight">나간 선수</span>
         
         {isAdmin && onClick && (
             <button
@@ -1813,9 +1817,9 @@ const LeftPlayerCard = ({ onClick, isAdmin }) => (
                     e.stopPropagation(); 
                     onClick(); 
                 }}
-                className="absolute -top-2 -right-2 bg-white text-red-500 hover:bg-red-100 rounded-full shadow-sm p-1 border border-red-100 transition-colors z-20"
+                className="absolute -top-1 -right-1 bg-white text-red-500 hover:bg-red-100 rounded-full shadow-sm p-0.5 border border-red-100 transition-colors z-20"
             >
-                <XIcon size={12} strokeWidth={3} />
+                <XIcon size={10} strokeWidth={3} />
             </button>
         )}
     </div>
@@ -1829,13 +1833,14 @@ const EmptySlot = ({ onSlotClick, onDragOver, onDrop, isDragOver }) => (
         onClick={onSlotClick}
         onDragOver={onDragOver} 
         onDrop={onDrop}
-        className={`h-16 rounded-lg flex items-center justify-center border-2 border-dashed transition-all cursor-pointer ${
+        // [수정] h-16 -> h-[52px]
+        className={`h-[52px] rounded-lg flex items-center justify-center border-2 border-dashed transition-all cursor-pointer ${
             isDragOver 
             ? 'bg-green-50 border-[#00B16A] text-[#00B16A]' // 드래그 오버 시 강조
             : 'bg-white border-gray-200 text-gray-300 hover:border-gray-400 hover:text-gray-400' // 평소 (흰 배경에 회색 점선)
         }`}
     >
-        <Plus size={20} strokeWidth={3} />
+        <Plus size={18} strokeWidth={3} />
     </div>
 );
 /**
