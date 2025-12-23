@@ -3217,7 +3217,7 @@ function KokMapPage() {
         
         const map = new window.naver.maps.Map(mapRef.current, mapOptions);
 
-        // 방 목록이 있을 때만 마커 표시
+      // 방 목록이 있을 때만 마커 표시
         if (rooms.length > 0) {
             rooms.forEach(room => {
                 if (room.coords && room.coords.lat && room.coords.lng) {
@@ -3229,17 +3229,10 @@ function KokMapPage() {
                 }
             });
         }
-    }, [rooms]); // rooms 데이터가 바뀔 때마다 다시 그리도록 설정
-        rooms.forEach(room => {
-            if (room.coords) {
-                new window.naver.maps.Marker({
-                    position: new window.naver.maps.LatLng(room.coords.lat, room.coords.lng),
-                    map: map,
-                    title: room.name
-                });
-            }
-        });
-    }, [rooms]);
+    }, [rooms]); // 깔끔하게 한 번만 닫아줍니다.
+
+    return (
+        <div className="relative h-full w-full flex flex-col">
 
     return (
         <div className="relative h-full w-full flex flex-col">
