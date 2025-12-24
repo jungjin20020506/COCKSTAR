@@ -3291,9 +3291,13 @@ function KokMapPage() {
                     ))}
                 </div>
             </div>
-
-            {/* 지도 영역 */}
-            <div ref={mapRef} className="flex-grow w-full h-full bg-[#e5e3df] min-h-[400px]" />
+            
+           {/* 지도 영역 */}
+            <div 
+                id="kakao-map" /* [필수] CSS 적용을 위한 ID 추가 */
+                ref={mapRef} 
+                className="flex-grow w-full h-full bg-[#e5e3df] min-h-[400px]" 
+            />
 
             {/* 하단 카드 */}
             <div className="bg-white rounded-t-3xl shadow-[0_-10px_20px_rgba(0,0,0,0.05)] p-5 z-20">
