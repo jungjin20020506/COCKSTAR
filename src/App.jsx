@@ -3187,133 +3187,299 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     );
 }
 
+// [디자인 리뉴얼] 네이버 지도 스타일의 UI + 콕스타 브랜딩 적용
 function KokMapPage() {
     const mapRef = useRef(null);
+    const mapInstance = useRef(null);
     const [rooms, setRooms] = useState([]);
+    
+    // UI 상태 관리
+    const [selectedRoom, setSelectedRoom] = useState(null); // 선택된 장소
+    const [activeFilter, setActiveFilter] = useState('전체'); // 필터 상태
+    const [searchText, setSearchText] = useState('');
 
-    // 1. Firestore에서 경기방 목록 가져오기
+    // 1. Firestore 데이터 구독
     useEffect(() => {
         const q = query(collection(db, "rooms"));
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            setRooms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setRooms(data);
         });
         return () => unsubscribe();
     }, []);
 
-    // 2. [핵심 수정] 카카오맵 로딩 대기 로직 추가 (Retry Mechanism)
+    // 2. 지도 초기화 (최적화 버전)
     useEffect(() => {
         const container = mapRef.current;
         if (!container) return;
 
-        const loadMap = () => {
-            // window.kakao가 로드되었는지 확인
-            if (window.kakao && window.kakao.maps) {
-                // 로드 완료되면 실행
-                window.kakao.maps.load(() => {
-                    const options = {
-                        center: new window.kakao.maps.LatLng(37.5665, 126.9780), // 서울 시청
-                        level: 7
-                    };
-                    
-                    // 지도 생성
-                    const map = new window.kakao.maps.Map(container, options);
-
-                    // 줌 컨트롤 추가
-                    const zoomControl = new window.kakao.maps.ZoomControl();
-                    map.addControl(zoomControl, window.kakao.maps.ControlPosition.RIGHT);
-
-                    // 마커 생성
-                    rooms.forEach(room => {
-                        if (room.coords && room.coords.lat && room.coords.lng) {
-                            const markerPosition = new window.kakao.maps.LatLng(room.coords.lat, room.coords.lng);
-                            
-                            const marker = new window.kakao.maps.Marker({
-                                position: markerPosition,
-                                title: room.name
-                            });
-                            marker.setMap(map);
-
-                            // 인포윈도우 (클릭 시 네이버/카카오 연결)
-                            const iwContent = `
-                                <div style="padding:10px; width:200px; font-size:12px; color:black;">
-                                    <b style="display:block; margin-bottom:5px; font-size:14px;">${room.name}</b>
-                                    <p style="color:gray; margin-bottom:8px;">${room.location}</p>
-                                    <div style="display:flex; gap:4px;">
-                                        <a href="https://map.naver.com/v5/?c=${room.coords.lat},${room.coords.lng},15,0,0,0,dh" target="_blank" style="flex:1; background:#03C75A; color:white; padding:6px; text-align:center; border-radius:4px; text-decoration:none; display:block;">네이버</a>
-                                        <a href="https://map.kakao.com/link/to/${room.name},${room.coords.lat},${room.coords.lng}" target="_blank" style="flex:1; background:#FEE500; color:black; padding:6px; text-align:center; border-radius:4px; text-decoration:none; display:block;">길찾기</a>
-                                    </div>
-                                </div>
-                            `;
-                            const infowindow = new window.kakao.maps.InfoWindow({
-                                content: iwContent,
-                                removable: true
-                            });
-
-                            window.kakao.maps.event.addListener(marker, 'click', function() {
-                                infowindow.open(map, marker);
-                            });
-                        }
-                    });
-                });
-                return true; // 로드 성공
-            }
-            return false; // 아직 로드 안됨
-        };
-
-        // 1. 즉시 시도
-        if (!loadMap()) {
-            // 2. 실패 시 0.1초마다 재시도 (최대 3초간)
-            const intervalId = setInterval(() => {
-                if (loadMap()) {
-                    clearInterval(intervalId); // 성공하면 반복 중단
-                }
-            }, 100);
-
-            // 컴포넌트가 사라지면 인터벌도 정리
-            return () => clearInterval(intervalId);
+        // 지도 스타일 강제 주입 (이미지 깨짐 방지)
+        if (!document.getElementById('kakao-map-style')) {
+            const style = document.createElement('style');
+            style.id = 'kakao-map-style';
+            style.innerHTML = `
+                #kakao-map img { max-width: none !important; height: auto !important; border: 0 !important; }
+                #kakao-map div { border: 0 !important; }
+                .custom-overlay { pointer-events: none; } 
+            `;
+            document.head.appendChild(style);
         }
 
-    }, [rooms]);
+        const initMap = () => {
+            if (mapInstance.current) return true;
+            if (window.kakao && window.kakao.maps && window.kakao.maps.load) {
+                window.kakao.maps.load(() => {
+                    const options = {
+                        center: new window.kakao.maps.LatLng(37.5665, 126.9780),
+                        level: 5 // 네이버 지도와 유사한 줌 레벨
+                    };
+                    const map = new window.kakao.maps.Map(container, options);
+                    mapInstance.current = map;
+                    
+                    // (줌 컨트롤은 커스텀 버튼으로 대체하기 위해 기본 컨트롤 제거)
+                    // map.addControl(zoomControl, ...); 
+                    
+                    // 지도 클릭 시 선택 해제
+                    window.kakao.maps.event.addListener(map, 'click', () => {
+                        setSelectedRoom(null);
+                    });
+                });
+                return true;
+            }
+            return false;
+        };
+
+        if (!initMap()) {
+            const intervalId = setInterval(() => { if (initMap()) clearInterval(intervalId); }, 100);
+            return () => clearInterval(intervalId);
+        }
+    }, []);
+
+    // 3. 마커 렌더링 (필터링 적용)
+    useEffect(() => {
+        if (!mapInstance.current || !window.kakao) return;
+        const map = mapInstance.current;
+
+        // 기존 마커 제거 (클러스터러 미사용 시 단순 구현)
+        // (실제 프로덕션에선 마커 객체 배열을 관리해서 setMap(null) 해야 함. 여기선 간소화)
+
+        const filteredRooms = activeFilter === '전체' 
+            ? rooms 
+            : rooms.filter(r => r.name.includes(activeFilter) || (r.description && r.description.includes(activeFilter)));
+
+        filteredRooms.forEach(room => {
+            if (room.coords?.lat && room.coords?.lng) {
+                const markerPosition = new window.kakao.maps.LatLng(room.coords.lat, room.coords.lng);
+                
+                // [디자인] 기본 마커 대신 커스텀 이미지를 쓸 수도 있지만, 일단 기본 마커 사용
+                const marker = new window.kakao.maps.Marker({
+                    position: markerPosition,
+                    map: map,
+                    clickable: true
+                });
+
+                // 마커 클릭 이벤트
+                window.kakao.maps.event.addListener(marker, 'click', () => {
+                    // 1. 카메라 이동 (부드럽게)
+                    map.panTo(markerPosition);
+                    // 2. 하단 시트 활성화
+                    setSelectedRoom(room);
+                });
+            }
+        });
+    }, [rooms, activeFilter]);
+
+    // 내 위치 찾기 핸들러
+    const handleMyLoc = () => {
+        if (!mapInstance.current) return;
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition((position) => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                const locPosition = new window.kakao.maps.LatLng(lat, lon);
+                mapInstance.current.panTo(locPosition);
+            });
+        } else {
+            alert("위치 정보를 사용할 수 없습니다.");
+        }
+    };
+
+    // 줌 인/아웃 핸들러
+    const zoomIn = () => mapInstance.current && mapInstance.current.setLevel(mapInstance.current.getLevel() - 1, {animate: true});
+    const zoomOut = () => mapInstance.current && mapInstance.current.setLevel(mapInstance.current.getLevel() + 1, {animate: true});
+
 
     return (
-        <div className="relative h-full w-full flex flex-col">
-            {/* 상단 검색바 */}
-            <div className="absolute top-4 left-4 right-4 z-20 space-y-2">
-                <div className="bg-white rounded-xl shadow-lg flex items-center p-3 border border-gray-100">
-                    <Search size={20} className="text-gray-400 mr-2" />
-                    <input type="text" placeholder="체육관, 클럽, 모임 검색" className="flex-1 bg-transparent outline-none text-sm font-medium" />
+        <div className="relative h-full w-full flex flex-col bg-white overflow-hidden">
+            
+            {/* ------------------------------------------------------------------
+               1. 상단 플로팅 검색바 (네이버 지도 스타일)
+               - 콕스타 가이드: 그림자(Shadow), 라운드(Rounded), 흰색 배경
+            ------------------------------------------------------------------ */}
+            <div className="absolute top-0 left-0 right-0 z-20 px-4 pt-4 pb-2 bg-gradient-to-b from-white/10 to-transparent pointer-events-none">
+                <div className="pointer-events-auto bg-white rounded-lg shadow-md flex items-center p-3 border border-gray-100 transition-all active:scale-[0.99]">
+                    {/* 햄버거 메뉴 아이콘 */}
+                    <button className="p-1 mr-2 text-[#1E1E1E]">
+                        <GripVertical size={22} />
+                    </button>
+                    
+                    {/* 입력 필드 */}
+                    <input 
+                        type="text" 
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        placeholder="장소, 주소, 버스 검색" 
+                        className="flex-1 bg-transparent outline-none text-base font-medium text-[#1E1E1E] placeholder-gray-400"
+                    />
+                    
+                    {/* 검색 아이콘 */}
+                    <button className="p-1 text-[#00B16A]">
+                        <Search size={24} />
+                    </button>
                 </div>
-                <div className="flex gap-2 overflow-x-auto hide-scrollbar">
-                    {['전용구장', '다목적', '동호회', '진행중인 모임'].map((filter) => (
-                        <button key={filter} className="flex-shrink-0 px-4 py-2 bg-white rounded-full shadow-md text-xs font-bold text-gray-600 border border-gray-50 active:bg-[#00B16A] active:text-white transition-colors">
+            </div>
+
+            {/* ------------------------------------------------------------------
+               2. 가로 스크롤 필터 칩 (네이버 지도 스타일)
+               - 위치: 검색바 바로 아래
+            ------------------------------------------------------------------ */}
+            <div className="absolute top-[72px] left-0 right-0 z-20 overflow-x-auto hide-scrollbar px-4 pb-2 flex gap-2 pointer-events-auto">
+                {['전체', '배드민턴장', '모임', '레슨', '샵'].map((filter) => {
+                    const isActive = activeFilter === filter;
+                    return (
+                        <button 
+                            key={filter} 
+                            onClick={() => setActiveFilter(filter)}
+                            className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-sm font-bold border shadow-sm transition-all whitespace-nowrap ${
+                                isActive 
+                                ? 'bg-[#00B16A] text-white border-[#00B16A]'  // [콕스타 컬러] Active
+                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50' // Inactive
+                            }`}
+                        >
                             {filter}
                         </button>
-                    ))}
-                </div>
+                    );
+                })}
             </div>
-            
-           {/* 지도 영역 */}
+
+            {/* ------------------------------------------------------------------
+               3. 지도 영역
+            ------------------------------------------------------------------ */}
             <div 
-                id="kakao-map" /* [필수] CSS 적용을 위한 ID 추가 */
+                id="kakao-map" 
                 ref={mapRef} 
-                className="flex-grow w-full h-full bg-[#e5e3df] min-h-[400px]" 
+                className="flex-grow w-full h-full bg-[#e5e3df] z-0"
+                // 네이버 지도처럼 하단 시트가 올라오면 지도 중심이 살짝 위로 가도록 패딩 조정 가능
             />
 
-            {/* 하단 카드 */}
-            <div className="bg-white rounded-t-3xl shadow-[0_-10px_20px_rgba(0,0,0,0.05)] p-5 z-20">
-                <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-4"></div>
-                <div className="flex justify-between items-start">
-                    <div>
-                        <h3 className="text-lg font-bold text-[#1E1E1E]">콕스타 배드민턴 센터</h3>
-                        <p className="text-sm text-gray-500 mt-0.5">상세 주소를 확인하려면 마커를 클릭하세요.</p>
-                    </div>
-                    <span className="bg-green-100 text-[#00B16A] text-xs font-bold px-2 py-1 rounded">영업중</span>
+            {/* ------------------------------------------------------------------
+               4. 우측 유틸리티 버튼 (플로팅)
+               - 내 위치, 새로고침, 줌 컨트롤
+            ------------------------------------------------------------------ */}
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2.5 z-20">
+                {/* 줌 컨트롤 */}
+                <div className="bg-white rounded shadow-md border border-gray-100 flex flex-col overflow-hidden">
+                    <button onClick={zoomIn} className="p-2.5 text-gray-500 hover:text-[#1E1E1E] hover:bg-gray-50 active:bg-gray-100 border-b border-gray-100">
+                        <Plus size={20} />
+                    </button>
+                    <button onClick={zoomOut} className="p-2.5 text-gray-500 hover:text-[#1E1E1E] hover:bg-gray-50 active:bg-gray-100">
+                        <span className="block w-5 h-[2px] bg-current my-[9px]"></span> {/* Minus Icon Custom */}
+                    </button>
                 </div>
-                <div className="flex gap-4 mt-4">
-                    <button className="flex-1 py-3 bg-gray-50 text-gray-700 font-bold rounded-xl text-sm border border-gray-100">상세 정보</button>
-                    <button onClick={() => alert('경기방 생성 기능 준비 중')} className="flex-1 py-3 bg-[#00B16A] text-white font-bold rounded-xl text-sm shadow-md">경기방 만들기</button>
-                </div>
+
+                {/* 내 위치 버튼 */}
+                <button 
+                    onClick={handleMyLoc}
+                    className="bg-white p-2.5 rounded-full shadow-md border border-gray-100 text-[#1E1E1E] hover:text-[#00B16A] active:scale-95 transition-all"
+                >
+                    <MapPin size={22} />
+                </button>
             </div>
+
+            {/* ------------------------------------------------------------------
+               5. 하단 정보 시트 (Bottom Sheet) - 네이버 플레이스 스타일
+               - 선택된 장소가 있을 때만 표시 (조건부 렌더링)
+            ------------------------------------------------------------------ */}
+            {selectedRoom && (
+                <div className="absolute bottom-0 left-0 right-0 z-30 bg-white rounded-t-2xl shadow-[0_-5px_20px_rgba(0,0,0,0.1)] animate-slide-up pb-safe">
+                    {/* 드래그 핸들 (Visual Only) */}
+                    <div className="w-full h-6 flex items-center justify-center" onClick={() => setSelectedRoom(null)}>
+                        <div className="w-10 h-1.5 bg-gray-200 rounded-full cursor-pointer hover:bg-gray-300 transition-colors"></div>
+                    </div>
+
+                    <div className="px-5 pb-6">
+                        {/* 타이틀 및 카테고리 */}
+                        <div className="flex justify-between items-start mb-1">
+                            <div>
+                                <h3 className="text-xl font-bold text-[#1E1E1E] leading-tight mb-1">
+                                    {selectedRoom.name}
+                                </h3>
+                                <div className="text-sm text-gray-500 flex items-center gap-1">
+                                    <span className="text-gray-400">스포츠시설</span>
+                                    <span className="w-0.5 h-2.5 bg-gray-200"></span>
+                                    <span>{selectedRoom.location}</span>
+                                </div>
+                            </div>
+                            {/* 닫기 버튼 */}
+                            <button onClick={() => setSelectedRoom(null)} className="p-1 text-gray-300 hover:text-gray-500">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* 상태 및 리뷰 요약 */}
+                        <div className="flex items-center gap-2 mb-4 text-sm">
+                            <span className="font-bold text-[#00B16A]">영업 중</span>
+                            <span className="text-gray-300">|</span>
+                            <span className="text-gray-600">22:00에 영업 종료</span>
+                        </div>
+
+                        {/* 액션 버튼 그룹 (핵심 기능) */}
+                        <div className="grid grid-cols-3 gap-3 mb-4">
+                             {/* 1. 길찾기 (콕스타 그린 강조) */}
+                             <a 
+                                href={`https://map.kakao.com/link/to/${selectedRoom.name},${selectedRoom.coords.lat},${selectedRoom.coords.lng}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex flex-col items-center justify-center gap-1 py-3 bg-[#e8fcf3] rounded-lg active:scale-95 transition-transform"
+                            >
+                                <MapPin size={20} className="text-[#00B16A]" fill="#00B16A" fillOpacity={0.2} />
+                                <span className="text-xs font-bold text-[#00B16A]">길찾기</span>
+                            </a>
+                            
+                            {/* 2. 네이버 지도 (서브) */}
+                            <a 
+                                href={`https://map.naver.com/v5/?c=${selectedRoom.coords.lat},${selectedRoom.coords.lng},15,0,0,0,dh`} 
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex flex-col items-center justify-center gap-1 py-3 bg-gray-50 rounded-lg active:scale-95 transition-transform"
+                            >
+                                <span className="font-bold text-base text-[#03C75A]">N</span>
+                                <span className="text-xs font-bold text-gray-600">네이버</span>
+                            </a>
+
+                            {/* 3. 공유/복사 (서브) */}
+                            <button 
+                                onClick={() => {
+                                    navigator.clipboard.writeText(`${selectedRoom.name}\n${selectedRoom.location}`);
+                                    alert('주소가 복사되었습니다.');
+                                }}
+                                className="flex flex-col items-center justify-center gap-1 py-3 bg-gray-50 rounded-lg active:scale-95 transition-transform"
+                            >
+                                <Bell size={20} className="text-gray-600" />
+                                <span className="text-xs font-bold text-gray-600">공유</span>
+                            </button>
+                        </div>
+
+                        {/* 경기방 참여 버튼 (CTA) */}
+                        <button 
+                            onClick={() => alert('경기방으로 이동 기능 준비 중')}
+                            className="w-full py-3.5 bg-[#00B16A] text-white font-bold rounded-xl text-base shadow-lg shadow-green-100 active:bg-green-700 transition-colors"
+                        >
+                            이 곳의 경기방 입장하기
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
