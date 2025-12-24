@@ -3310,14 +3310,19 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 }
 
 // [디자인 리뉴얼] 네이버 지도 스타일의 UI + 콕스타 브랜딩 적용
+// [수정 완료] 검색 기능 연결 + 지도 마커 표시 오류 해결 (Markers State 관리)
 function KokMapPage() {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
-    const [rooms, setRooms] = useState([]);
     
-    // UI 상태 관리
-    const [selectedRoom, setSelectedRoom] = useState(null); // 선택된 장소
-    const [activeFilter, setActiveFilter] = useState('전체'); // 필터 상태
+    // 데이터 및 지도 상태
+    const [rooms, setRooms] = useState([]);
+    const [isMapReady, setIsMapReady] = useState(false); // [핵심] 지도가 준비되었는지 확인하는 상태
+    const [markers, setMarkers] = useState([]); // [핵심] 마커들을 관리하는 배열 (삭제/생성 용이)
+
+    // UI 상태
+    const [selectedRoom, setSelectedRoom] = useState(null);
+    const [activeFilter, setActiveFilter] = useState('전체');
     const [searchText, setSearchText] = useState('');
 
     // 1. Firestore 데이터 구독
@@ -3330,12 +3335,12 @@ function KokMapPage() {
         return () => unsubscribe();
     }, []);
 
-    // 2. 지도 초기화 (최적화 버전)
+    // 2. 지도 초기화
     useEffect(() => {
         const container = mapRef.current;
         if (!container) return;
 
-        // 지도 스타일 강제 주입 (이미지 깨짐 방지)
+        // 지도 스타일 강제 주입
         if (!document.getElementById('kakao-map-style')) {
             const style = document.createElement('style');
             style.id = 'kakao-map-style';
@@ -3348,23 +3353,27 @@ function KokMapPage() {
         }
 
         const initMap = () => {
-            if (mapInstance.current) return true;
+            if (mapInstance.current) {
+                setIsMapReady(true); // 이미 있으면 준비 완료 처리
+                return true; 
+            }
+
             if (window.kakao && window.kakao.maps && window.kakao.maps.load) {
                 window.kakao.maps.load(() => {
                     const options = {
                         center: new window.kakao.maps.LatLng(37.5665, 126.9780),
-                        level: 5 // 네이버 지도와 유사한 줌 레벨
+                        level: 5
                     };
                     const map = new window.kakao.maps.Map(container, options);
                     mapInstance.current = map;
                     
-                    // (줌 컨트롤은 커스텀 버튼으로 대체하기 위해 기본 컨트롤 제거)
-                    // map.addControl(zoomControl, ...); 
-                    
-                    // 지도 클릭 시 선택 해제
+                    // 클릭 시 선택 해제
                     window.kakao.maps.event.addListener(map, 'click', () => {
                         setSelectedRoom(null);
                     });
+
+                    console.log("✅ 카카오맵 로드 및 초기화 완료");
+                    setIsMapReady(true); // [핵심] 지도 준비 완료 신호 보냄
                 });
                 return true;
             }
@@ -3377,41 +3386,62 @@ function KokMapPage() {
         }
     }, []);
 
-    // 3. 마커 렌더링 (필터링 적용)
+    // 3. 마커 렌더링 (지도 준비됨 + 데이터 변경 + 필터/검색 변경 시 실행)
     useEffect(() => {
-        if (!mapInstance.current || !window.kakao) return;
+        // 지도가 없거나 카카오 객체가 없으면 중단
+        if (!isMapReady || !mapInstance.current || !window.kakao) return;
+        
         const map = mapInstance.current;
 
-        // 기존 마커 제거 (클러스터러 미사용 시 단순 구현)
-        // (실제 프로덕션에선 마커 객체 배열을 관리해서 setMap(null) 해야 함. 여기선 간소화)
+        // [중요] 기존 마커 싹 지우기 (초기화)
+        markers.forEach(marker => marker.setMap(null));
+        const newMarkers = [];
 
-        const filteredRooms = activeFilter === '전체' 
-            ? rooms 
-            : rooms.filter(r => r.name.includes(activeFilter) || (r.description && r.description.includes(activeFilter)));
+        // 4. 필터링 로직 (검색어 + 카테고리 칩)
+        const filteredRooms = rooms.filter(r => {
+            // A. 카테고리 필터
+            const passCategory = activeFilter === '전체' 
+                ? true 
+                : (r.name?.includes(activeFilter) || r.description?.includes(activeFilter));
 
+            // B. 검색어 필터 (이름, 장소명, 주소 검색)
+            const cleanSearchText = searchText.trim();
+            const passSearch = cleanSearchText === '' 
+                ? true 
+                : (r.name?.includes(cleanSearchText) || 
+                   r.location?.includes(cleanSearchText) || 
+                   r.address?.includes(cleanSearchText));
+
+            return passCategory && passSearch;
+        });
+
+        // 5. 새 마커 생성
         filteredRooms.forEach(room => {
             if (room.coords?.lat && room.coords?.lng) {
                 const markerPosition = new window.kakao.maps.LatLng(room.coords.lat, room.coords.lng);
                 
-                // [디자인] 기본 마커 대신 커스텀 이미지를 쓸 수도 있지만, 일단 기본 마커 사용
                 const marker = new window.kakao.maps.Marker({
                     position: markerPosition,
-                    map: map,
+                    map: map, // 지도에 표시
                     clickable: true
                 });
 
-                // 마커 클릭 이벤트
+                // 클릭 이벤트
                 window.kakao.maps.event.addListener(marker, 'click', () => {
-                    // 1. 카메라 이동 (부드럽게)
-                    map.panTo(markerPosition);
-                    // 2. 하단 시트 활성화
-                    setSelectedRoom(room);
+                    map.panTo(markerPosition); // 부드럽게 이동
+                    setSelectedRoom(room);     // 하단 시트 띄우기
                 });
+
+                newMarkers.push(marker);
             }
         });
-    }, [rooms, activeFilter]);
 
-    // 내 위치 찾기 핸들러
+        // 새 마커 리스트 저장 (다음 렌더링 때 지우기 위해)
+        setMarkers(newMarkers);
+
+    }, [rooms, isMapReady, activeFilter, searchText]); // [중요] 의존성 배열에 모든 조건 포함
+
+    // 내 위치 찾기
     const handleMyLoc = () => {
         if (!mapInstance.current) return;
         if (navigator.geolocation) {
@@ -3426,7 +3456,6 @@ function KokMapPage() {
         }
     };
 
-    // 줌 인/아웃 핸들러
     const zoomIn = () => mapInstance.current && mapInstance.current.setLevel(mapInstance.current.getLevel() - 1, {animate: true});
     const zoomOut = () => mapInstance.current && mapInstance.current.setLevel(mapInstance.current.getLevel() + 1, {animate: true});
 
@@ -3434,37 +3463,34 @@ function KokMapPage() {
     return (
         <div className="relative h-full w-full flex flex-col bg-white overflow-hidden">
             
-            {/* ------------------------------------------------------------------
-               1. 상단 플로팅 검색바 (네이버 지도 스타일)
-               - 콕스타 가이드: 그림자(Shadow), 라운드(Rounded), 흰색 배경
-            ------------------------------------------------------------------ */}
+            {/* 상단 플로팅 검색바 */}
             <div className="absolute top-0 left-0 right-0 z-20 px-4 pt-4 pb-2 bg-gradient-to-b from-white/10 to-transparent pointer-events-none">
                 <div className="pointer-events-auto bg-white rounded-lg shadow-md flex items-center p-3 border border-gray-100 transition-all active:scale-[0.99]">
-                    {/* 햄버거 메뉴 아이콘 */}
                     <button className="p-1 mr-2 text-[#1E1E1E]">
                         <GripVertical size={22} />
                     </button>
                     
-                    {/* 입력 필드 */}
                     <input 
                         type="text" 
                         value={searchText}
                         onChange={(e) => setSearchText(e.target.value)}
-                        placeholder="장소, 주소, 버스 검색" 
+                        placeholder="장소, 주소, 모임명 검색" 
                         className="flex-1 bg-transparent outline-none text-base font-medium text-[#1E1E1E] placeholder-gray-400"
                     />
                     
-                    {/* 검색 아이콘 */}
-                    <button className="p-1 text-[#00B16A]">
-                        <Search size={24} />
-                    </button>
+                    {searchText ? (
+                        <button onClick={() => setSearchText('')} className="p-1 text-gray-400 hover:text-gray-600">
+                            <X size={20} />
+                        </button>
+                    ) : (
+                        <button className="p-1 text-[#00B16A]">
+                            <Search size={24} />
+                        </button>
+                    )}
                 </div>
             </div>
 
-            {/* ------------------------------------------------------------------
-               2. 가로 스크롤 필터 칩 (네이버 지도 스타일)
-               - 위치: 검색바 바로 아래
-            ------------------------------------------------------------------ */}
+            {/* 가로 스크롤 필터 칩 */}
             <div className="absolute top-[72px] left-0 right-0 z-20 overflow-x-auto hide-scrollbar px-4 pb-2 flex gap-2 pointer-events-auto">
                 {['전체', '배드민턴장', '모임', '레슨', '샵'].map((filter) => {
                     const isActive = activeFilter === filter;
@@ -3474,8 +3500,8 @@ function KokMapPage() {
                             onClick={() => setActiveFilter(filter)}
                             className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-sm font-bold border shadow-sm transition-all whitespace-nowrap ${
                                 isActive 
-                                ? 'bg-[#00B16A] text-white border-[#00B16A]'  // [콕스타 컬러] Active
-                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50' // Inactive
+                                ? 'bg-[#00B16A] text-white border-[#00B16A]'
+                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                             }`}
                         >
                             {filter}
@@ -3484,32 +3510,23 @@ function KokMapPage() {
                 })}
             </div>
 
-            {/* ------------------------------------------------------------------
-               3. 지도 영역
-            ------------------------------------------------------------------ */}
+            {/* 지도 영역 */}
             <div 
                 id="kakao-map" 
                 ref={mapRef} 
                 className="flex-grow w-full h-full bg-[#e5e3df] z-0"
-                // 네이버 지도처럼 하단 시트가 올라오면 지도 중심이 살짝 위로 가도록 패딩 조정 가능
             />
 
-            {/* ------------------------------------------------------------------
-               4. 우측 유틸리티 버튼 (플로팅)
-               - 내 위치, 새로고침, 줌 컨트롤
-            ------------------------------------------------------------------ */}
+            {/* 우측 유틸리티 버튼 */}
             <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2.5 z-20">
-                {/* 줌 컨트롤 */}
                 <div className="bg-white rounded shadow-md border border-gray-100 flex flex-col overflow-hidden">
                     <button onClick={zoomIn} className="p-2.5 text-gray-500 hover:text-[#1E1E1E] hover:bg-gray-50 active:bg-gray-100 border-b border-gray-100">
                         <Plus size={20} />
                     </button>
                     <button onClick={zoomOut} className="p-2.5 text-gray-500 hover:text-[#1E1E1E] hover:bg-gray-50 active:bg-gray-100">
-                        <span className="block w-5 h-[2px] bg-current my-[9px]"></span> {/* Minus Icon Custom */}
+                        <span className="block w-5 h-[2px] bg-current my-[9px]"></span>
                     </button>
                 </div>
-
-                {/* 내 위치 버튼 */}
                 <button 
                     onClick={handleMyLoc}
                     className="bg-white p-2.5 rounded-full shadow-md border border-gray-100 text-[#1E1E1E] hover:text-[#00B16A] active:scale-95 transition-all"
@@ -3518,46 +3535,38 @@ function KokMapPage() {
                 </button>
             </div>
 
-            {/* ------------------------------------------------------------------
-               5. 하단 정보 시트 (Bottom Sheet) - 네이버 플레이스 스타일
-               - 선택된 장소가 있을 때만 표시 (조건부 렌더링)
-            ------------------------------------------------------------------ */}
+            {/* 하단 정보 시트 */}
             {selectedRoom && (
                 <div className="absolute bottom-0 left-0 right-0 z-30 bg-white rounded-t-2xl shadow-[0_-5px_20px_rgba(0,0,0,0.1)] animate-slide-up pb-safe">
-                    {/* 드래그 핸들 (Visual Only) */}
                     <div className="w-full h-6 flex items-center justify-center" onClick={() => setSelectedRoom(null)}>
                         <div className="w-10 h-1.5 bg-gray-200 rounded-full cursor-pointer hover:bg-gray-300 transition-colors"></div>
                     </div>
 
                     <div className="px-5 pb-6">
-                        {/* 타이틀 및 카테고리 */}
                         <div className="flex justify-between items-start mb-1">
                             <div>
                                 <h3 className="text-xl font-bold text-[#1E1E1E] leading-tight mb-1">
                                     {selectedRoom.name}
                                 </h3>
                                 <div className="text-sm text-gray-500 flex items-center gap-1">
-                                    <span className="text-gray-400">스포츠시설</span>
+                                    <span className="text-gray-400">장소</span>
                                     <span className="w-0.5 h-2.5 bg-gray-200"></span>
-                                    <span>{selectedRoom.location}</span>
+                                    {/* 상세주소가 있으면 상세주소, 없으면 장소명 표시 */}
+                                    <span className="truncate max-w-[200px]">{selectedRoom.address || selectedRoom.location}</span>
                                 </div>
                             </div>
-                            {/* 닫기 버튼 */}
                             <button onClick={() => setSelectedRoom(null)} className="p-1 text-gray-300 hover:text-gray-500">
                                 <X size={20} />
                             </button>
                         </div>
 
-                        {/* 상태 및 리뷰 요약 */}
                         <div className="flex items-center gap-2 mb-4 text-sm">
                             <span className="font-bold text-[#00B16A]">영업 중</span>
                             <span className="text-gray-300">|</span>
-                            <span className="text-gray-600">22:00에 영업 종료</span>
+                            <span className="text-gray-600">현재 {selectedRoom.playerCount || 0}명 참여 중</span>
                         </div>
 
-                        {/* 액션 버튼 그룹 (핵심 기능) */}
                         <div className="grid grid-cols-3 gap-3 mb-4">
-                             {/* 1. 길찾기 (콕스타 그린 강조) */}
                              <a 
                                 href={`https://map.kakao.com/link/to/${selectedRoom.name},${selectedRoom.coords.lat},${selectedRoom.coords.lng}`}
                                 target="_blank"
@@ -3568,7 +3577,6 @@ function KokMapPage() {
                                 <span className="text-xs font-bold text-[#00B16A]">길찾기</span>
                             </a>
                             
-                            {/* 2. 네이버 지도 (서브) */}
                             <a 
                                 href={`https://map.naver.com/v5/?c=${selectedRoom.coords.lat},${selectedRoom.coords.lng},15,0,0,0,dh`} 
                                 target="_blank"
@@ -3579,10 +3587,9 @@ function KokMapPage() {
                                 <span className="text-xs font-bold text-gray-600">네이버</span>
                             </a>
 
-                            {/* 3. 공유/복사 (서브) */}
                             <button 
                                 onClick={() => {
-                                    navigator.clipboard.writeText(`${selectedRoom.name}\n${selectedRoom.location}`);
+                                    navigator.clipboard.writeText(`${selectedRoom.name}\n${selectedRoom.address || selectedRoom.location}`);
                                     alert('주소가 복사되었습니다.');
                                 }}
                                 className="flex flex-col items-center justify-center gap-1 py-3 bg-gray-50 rounded-lg active:scale-95 transition-transform"
@@ -3592,12 +3599,11 @@ function KokMapPage() {
                             </button>
                         </div>
 
-                        {/* 경기방 참여 버튼 (CTA) */}
                         <button 
-                            onClick={() => alert('경기방으로 이동 기능 준비 중')}
+                            onClick={() => alert('경기방 입장 기능은 경기 탭에서 이용해주세요.')}
                             className="w-full py-3.5 bg-[#00B16A] text-white font-bold rounded-xl text-base shadow-lg shadow-green-100 active:bg-green-700 transition-colors"
                         >
-                            이 곳의 경기방 입장하기
+                            이 곳의 경기방 확인하기
                         </button>
                     </div>
                 </div>
