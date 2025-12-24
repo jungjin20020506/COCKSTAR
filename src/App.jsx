@@ -3187,12 +3187,12 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     );
 }
 
+// [카카오맵 전환 완료] KokMapPage 컴포넌트
 function KokMapPage() {
     const mapRef = useRef(null);
-    const mapInstance = useRef(null); // [수정] 지도 인스턴스를 저장할 ref 추가
     const [rooms, setRooms] = useState([]);
 
-    // 1. Firestore에서 경기방 목록 가져오기
+    // 1. Firestore에서 경기방 목록 가져오기 (기존 로직 유지)
     useEffect(() => {
         const q = query(collection(db, "rooms"));
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -3201,69 +3201,54 @@ function KokMapPage() {
         return () => unsubscribe();
     }, []);
 
-    // 2. [핵심 수정] 지도 초기화 (스크립트 로딩 대기 로직 추가)
+    // 2. 카카오맵 초기화 및 마커 표시
     useEffect(() => {
-        const initMap = () => {
-            // 이미 지도가 생성되었다면 중단
-            if (mapInstance.current) return;
-            if (!mapRef.current) return;
+        // window.kakao 객체 유무 확인
+        if (!window.kakao || !window.kakao.maps) {
+            console.error("카카오맵 스크립트가 로드되지 않았습니다.");
+            return;
+        }
 
-            // 네이버 객체가 있는지 확인
-            if (!window.naver || !window.naver.maps) {
-                return;
-            }
+        // 지도가 들어갈 컨테이너
+        const container = mapRef.current;
+        if (!container) return;
 
-            const mapOptions = {
-                center: new window.naver.maps.LatLng(37.5665, 126.9780), // 서울 시청 중심
-                zoom: 13,
-                scaleControl: false,
-                logoControl: false,
-                mapDataControl: false,
-                zoomControl: true,
-                minZoom: 6
+        // 카카오맵 로드 대기 (안전한 실행을 위해)
+        window.kakao.maps.load(() => {
+            const options = {
+                center: new window.kakao.maps.LatLng(37.5665, 126.9780), // 초기 중심 좌표 (서울 시청)
+                level: 7 // 확대 레벨 (숫자가 클수록 멀리 보임)
             };
-            
-            // 지도 생성 및 인스턴스 저장
-            const map = new window.naver.maps.Map(mapRef.current, mapOptions);
-            mapInstance.current = map;
-            console.log("네이버 지도가 성공적으로 로드되었습니다.");
-        };
 
-        // 즉시 시도
-        initMap();
+            // 지도 생성
+            const map = new window.kakao.maps.Map(container, options);
 
-        // 스크립트가 늦게 로드될 경우를 대비해 0.1초마다 체크 (최대 3초)
-        const intervalId = setInterval(() => {
-            if (window.naver && window.naver.maps) {
-                initMap();
-                clearInterval(intervalId);
-            }
-        }, 100);
+            // 줌 컨트롤 추가 (우측 줌 버튼)
+            const zoomControl = new window.kakao.maps.ZoomControl();
+            map.addControl(zoomControl, window.kakao.maps.ControlPosition.RIGHT);
 
-        // 컴포넌트 언마운트 시 인터벌 정리
-        return () => clearInterval(intervalId);
-    }, []);
+            // 마커 생성 로직
+            rooms.forEach(room => {
+                if (room.coords && room.coords.lat && room.coords.lng) {
+                    // 마커 위치
+                    const markerPosition = new window.kakao.maps.LatLng(room.coords.lat, room.coords.lng);
 
-    // 3. [핵심 수정] 마커 표시 (지도와 데이터가 모두 준비되었을 때 실행)
-    useEffect(() => {
-        if (!mapInstance.current || rooms.length === 0 || !window.naver) return;
+                    // 마커 생성
+                    const marker = new window.kakao.maps.Marker({
+                        position: markerPosition,
+                        title: room.name // 마우스 오버 시 나오는 타이틀
+                    });
 
-        // 기존 마커들이 있다면 초기화하는 로직이 필요할 수 있으나, 
-        // 여기서는 간단하게 새 마커를 추가하는 방식 유지 (실제로는 마커 배열 관리 권장)
-        rooms.forEach(room => {
-            if (room.coords && room.coords.lat && room.coords.lng) {
-                new window.naver.maps.Marker({
-                    position: new window.naver.maps.LatLng(room.coords.lat, room.coords.lng),
-                    map: mapInstance.current,
-                    title: room.name
-                });
-            }
+                    // 마커 지도에 표시
+                    marker.setMap(map);
+                }
+            });
         });
-    }, [rooms]); // rooms가 변경되거나 지도가 준비되면 실행
+    }, [rooms]); // 데이터(rooms)가 로드되면 지도 다시 그림
 
     return (
         <div className="relative h-full w-full flex flex-col">
-            {/* 상단 검색 및 필터 바 */}
+            {/* 상단 검색 및 필터 바 (기존 UI 유지) */}
             <div className="absolute top-4 left-4 right-4 z-20 space-y-2">
                 <div className="bg-white rounded-xl shadow-lg flex items-center p-3 border border-gray-100">
                     <Search size={20} className="text-gray-400 mr-2" />
@@ -3282,14 +3267,13 @@ function KokMapPage() {
                 </div>
             </div>
 
-            {/* 지도 영역 (ID 추가 및 스타일 보강) */}
+            {/* 지도 영역 */}
             <div 
-                id="map" 
                 ref={mapRef} 
-                className="flex-grow w-full h-full bg-[#e5e3df] min-h-[400px]" // min-h 추가로 높이 보장
+                className="flex-grow w-full h-full bg-[#e5e3df] min-h-[400px]" 
             />
 
-            {/* 하단 장소 정보 카드 */}
+            {/* 하단 장소 정보 카드 (기존 UI 유지) */}
             <div className="bg-white rounded-t-3xl shadow-[0_-10px_20px_rgba(0,0,0,0.05)] p-5 z-20">
                 <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-4"></div>
                 <div className="flex justify-between items-start">
