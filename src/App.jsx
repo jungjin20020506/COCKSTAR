@@ -3318,16 +3318,22 @@ function KokMapPage() {
     // 데이터 및 지도 상태
     const [rooms, setRooms] = useState([]);
     const [isMapReady, setIsMapReady] = useState(false); // [핵심] 지도가 준비되었는지 확인하는 상태
-    const [markers, setMarkers] = useState([]); // [핵심] 마커들을 관리하는 배열 (삭제/생성 용이)
+    // [수정] 마커와 라벨(오버레이)을 함께 관리하기 위해 상태 구조 변경
+    const [mapObjects, setMapObjects] = useState([]); // { marker, overlay } 객체 배열
 
     // UI 상태
     const [selectedRoom, setSelectedRoom] = useState(null);
     const [activeFilter, setActiveFilter] = useState('전체');
     const [searchText, setSearchText] = useState('');
 
-    // 1. Firestore 데이터 구독
+    // [신규] 카카오 서비스 객체 (검색용)
+    const ps = useRef(null); // 장소 검색 객체
+    const geocoder = useRef(null); // 주소 검색 객체
+
+    // 1. Firestore 데이터 구독 (기존 동일)
     useEffect(() => {
         const q = query(collection(db, "rooms"));
+        // ... (기존 코드 유지)
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setRooms(data);
@@ -3335,12 +3341,12 @@ function KokMapPage() {
         return () => unsubscribe();
     }, []);
 
-    // 2. 지도 초기화
+    // 2. 지도 초기화 및 서비스 객체 생성
     useEffect(() => {
         const container = mapRef.current;
         if (!container) return;
 
-        // 지도 스타일 강제 주입
+        // 지도 스타일 강제 주입 (라벨용 CSS 추가)
         if (!document.getElementById('kakao-map-style')) {
             const style = document.createElement('style');
             style.id = 'kakao-map-style';
@@ -3348,13 +3354,37 @@ function KokMapPage() {
                 #kakao-map img { max-width: none !important; height: auto !important; border: 0 !important; }
                 #kakao-map div { border: 0 !important; }
                 .custom-overlay { pointer-events: none; } 
+                /* [신규] 모임방 이름표 스타일 */
+                .room-label {
+                    padding: 4px 8px;
+                    background-color: white;
+                    border: 1px solid #00B16A;
+                    border-radius: 12px;
+                    font-size: 11px;
+                    font-weight: bold;
+                    color: #1E1E1E;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    transform: translateY(-45px); /* 마커 위로 올림 */
+                    white-space: nowrap;
+                    position: relative;
+                }
+                .room-label::after {
+                    content: '';
+                    position: absolute;
+                    bottom: -4px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    border-width: 4px 4px 0;
+                    border-style: solid;
+                    border-color: #00B16A transparent transparent transparent;
+                }
             `;
             document.head.appendChild(style);
         }
 
         const initMap = () => {
             if (mapInstance.current) {
-                setIsMapReady(true); // 이미 있으면 준비 완료 처리
+                setIsMapReady(true);
                 return true; 
             }
 
@@ -3367,13 +3397,17 @@ function KokMapPage() {
                     const map = new window.kakao.maps.Map(container, options);
                     mapInstance.current = map;
                     
+                    // [신규] 검색 객체 초기화
+                    ps.current = new window.kakao.maps.services.Places();
+                    geocoder.current = new window.kakao.maps.services.Geocoder();
+
                     // 클릭 시 선택 해제
                     window.kakao.maps.event.addListener(map, 'click', () => {
                         setSelectedRoom(null);
                     });
 
                     console.log("✅ 카카오맵 로드 및 초기화 완료");
-                    setIsMapReady(true); // [핵심] 지도 준비 완료 신호 보냄
+                    setIsMapReady(true);
                 });
                 return true;
             }
@@ -3386,60 +3420,92 @@ function KokMapPage() {
         }
     }, []);
 
-    // 3. 마커 렌더링 (지도 준비됨 + 데이터 변경 + 필터/검색 변경 시 실행)
-    useEffect(() => {
-        // 지도가 없거나 카카오 객체가 없으면 중단
-        if (!isMapReady || !mapInstance.current || !window.kakao) return;
-        
+    // [신규] 실제 지도 검색 및 이동 함수 (네이버 지도 스타일)
+    const handleMapSearch = () => {
+        if (!searchText.trim() || !mapInstance.current || !window.kakao) return;
         const map = mapInstance.current;
 
-        // [중요] 기존 마커 싹 지우기 (초기화)
-        markers.forEach(marker => marker.setMap(null));
-        const newMarkers = [];
+        // 1. 주소로 검색 시도
+        geocoder.current.addressSearch(searchText, (result, status) => {
+            if (status === window.kakao.maps.services.Status.OK) {
+                const coords = new window.kakao.maps.LatLng(result[0].y, result[0].x);
+                map.panTo(coords); // 해당 위치로 지도 이동
+                // map.setLevel(3); // 줌 레벨 조정 (선택 사항)
+            } else {
+                // 2. 주소 검색 실패 시 -> 키워드(장소명) 검색 시도
+                ps.current.keywordSearch(searchText, (data, status) => {
+                    if (status === window.kakao.maps.services.Status.OK) {
+                        const coords = new window.kakao.maps.LatLng(data[0].y, data[0].x);
+                        map.panTo(coords); // 첫 번째 검색 결과로 이동
+                    } else {
+                        alert('검색 결과가 없습니다. 정확한 주소나 장소명을 입력해주세요.');
+                    }
+                });
+            }
+        });
+    };
 
-        // 4. 필터링 로직 (검색어 + 카테고리 칩)
+    // [신규] 엔터키 처리
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            handleMapSearch();
+        }
+    };
+
+    // 3. 마커 및 라벨 렌더링 (방 목록 변경 시)
+    useEffect(() => {
+        if (!isMapReady || !mapInstance.current || !window.kakao) return;
+        const map = mapInstance.current;
+
+        // 기존 마커와 오버레이 모두 제거
+        mapObjects.forEach(obj => {
+            obj.marker.setMap(null);
+            obj.overlay.setMap(null);
+        });
+        const newMapObjects = [];
+
+        // 필터링: 여기서는 '카테고리'만 필터링하고, 검색어는 '지도 이동' 용도로 사용
+        // (즉, 검색어가 있어도 방은 사라지지 않고 지도만 이동함 -> 네이버 지도 방식)
         const filteredRooms = rooms.filter(r => {
-            // A. 카테고리 필터
-            const passCategory = activeFilter === '전체' 
+            return activeFilter === '전체' 
                 ? true 
                 : (r.name?.includes(activeFilter) || r.description?.includes(activeFilter));
-
-            // B. 검색어 필터 (이름, 장소명, 주소 검색)
-            const cleanSearchText = searchText.trim();
-            const passSearch = cleanSearchText === '' 
-                ? true 
-                : (r.name?.includes(cleanSearchText) || 
-                   r.location?.includes(cleanSearchText) || 
-                   r.address?.includes(cleanSearchText));
-
-            return passCategory && passSearch;
         });
 
-        // 5. 새 마커 생성
         filteredRooms.forEach(room => {
             if (room.coords?.lat && room.coords?.lng) {
                 const markerPosition = new window.kakao.maps.LatLng(room.coords.lat, room.coords.lng);
                 
+                // 1. 마커 생성
                 const marker = new window.kakao.maps.Marker({
                     position: markerPosition,
-                    map: map, // 지도에 표시
+                    map: map,
                     clickable: true
+                });
+
+                // 2. [신규] 커스텀 오버레이(이름표) 생성
+                const content = `<div class="room-label">${room.name}</div>`;
+                const overlay = new window.kakao.maps.CustomOverlay({
+                    position: markerPosition,
+                    content: content,
+                    map: map, // 지도에 표시
+                    yAnchor: 1 // 위치 조정은 CSS로 처리함
                 });
 
                 // 클릭 이벤트
                 window.kakao.maps.event.addListener(marker, 'click', () => {
-                    map.panTo(markerPosition); // 부드럽게 이동
-                    setSelectedRoom(room);     // 하단 시트 띄우기
+                    map.panTo(markerPosition);
+                    setSelectedRoom(room);
                 });
 
-                newMarkers.push(marker);
+                newMapObjects.push({ marker, overlay });
             }
         });
 
-        // 새 마커 리스트 저장 (다음 렌더링 때 지우기 위해)
-        setMarkers(newMarkers);
+        setMapObjects(newMapObjects);
 
-    }, [rooms, isMapReady, activeFilter, searchText]); // [중요] 의존성 배열에 모든 조건 포함
+    // [중요] searchText는 의존성에서 제거하여, 타이핑 할 때마다 핀이 사라지지 않게 함
+    }, [rooms, isMapReady, activeFilter]);
 
     // 내 위치 찾기
     const handleMyLoc = () => {
@@ -3470,10 +3536,11 @@ function KokMapPage() {
                         <GripVertical size={22} />
                     </button>
                     
-                    <input 
+                   <input 
                         type="text" 
                         value={searchText}
                         onChange={(e) => setSearchText(e.target.value)}
+                        onKeyDown={handleKeyDown} // [추가] 엔터키 이벤트 연결
                         placeholder="장소, 주소, 모임명 검색" 
                         className="flex-1 bg-transparent outline-none text-base font-medium text-[#1E1E1E] placeholder-gray-400"
                     />
@@ -3482,11 +3549,12 @@ function KokMapPage() {
                         <button onClick={() => setSearchText('')} className="p-1 text-gray-400 hover:text-gray-600">
                             <X size={20} />
                         </button>
-                    ) : (
-                        <button className="p-1 text-[#00B16A]">
-                            <Search size={24} />
-                        </button>
-                    )}
+                    ) : null}
+                    
+                    {/* [수정] 돋보기 버튼 클릭 시 검색 함수 실행 */}
+                    <button onClick={handleMapSearch} className="p-1 text-[#00B16A] ml-1">
+                        <Search size={24} />
+                    </button>
                 </div>
             </div>
 
