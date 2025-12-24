@@ -859,35 +859,47 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
                         />
                     </div>
 
-                    {/* [수정] 주소 검색 필드 */}
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1">장소 (주소 검색) <span className="text-red-500">*</span></label>
-                        <div className="flex gap-2 mb-2">
-                            <input
-                                type="text"
-                                placeholder="터치해서 주소 검색..."
-                                value={address}
-                                readOnly // 직접 입력 불가, 검색만 가능
-                                onClick={handleAddressSearch}
-                                className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 focus:border-[#00B16A] focus:outline-none cursor-pointer text-sm truncate"
-                            />
-                            <button 
-                                type="button"
-                                onClick={handleAddressSearch}
-                                className="bg-[#1E1E1E] text-white px-4 rounded-xl font-bold text-sm hover:bg-black transition-colors shrink-0"
-                            >
-                                검색
-                            </button>
+                    {/* [UI 개선] 주소 설정 섹션 */}
+                    <div className="space-y-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                        <label className="block text-sm font-bold text-gray-700">📍 모임 장소 설정</label>
+                        
+                        {/* 1. 주소 검색 버튼 */}
+                        <button 
+                            type="button"
+                            onClick={handleAddressSearch}
+                            className="w-full py-3 bg-white border border-gray-300 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-50 hover:border-[#00B16A] hover:text-[#00B16A] transition-all flex items-center justify-center gap-2 shadow-sm"
+                        >
+                            <Search size={16} />
+                            주소 검색하기
+                        </button>
+
+                        {/* 2. 현재 설정된 주소 표시 (읽기 전용) */}
+                        <div>
+                            <span className="text-xs text-gray-400 font-medium ml-1 mb-1 block">현재 설정된 주소</span>
+                            <div className={`w-full p-3 rounded-lg border text-sm font-medium ${formData.address ? 'bg-green-50 border-green-200 text-[#1E1E1E]' : 'bg-gray-100 border-gray-200 text-gray-400'}`}>
+                                {formData.address ? (
+                                    <div className="flex items-center gap-2">
+                                        <span>{formData.address}</span>
+                                        {formData.coords && <span className="text-[10px] bg-[#00B16A] text-white px-1.5 py-0.5 rounded-full">좌표O</span>}
+                                    </div>
+                                ) : (
+                                    "주소가 설정되지 않았습니다."
+                                )}
+                            </div>
                         </div>
-                        {/* 장소 별칭 (건물명 등) */}
-                        <input
-                            type="text"
-                            placeholder="장소명 (예: 콕스타 체육관)"
-                            value={locationName}
-                            onChange={(e) => setLocationName(e.target.value)}
-                            className="w-full p-3 bg-white rounded-xl border border-gray-200 focus:border-[#00B16A] focus:outline-none text-sm"
-                        />
-                        {coords && <p className="text-xs text-[#00B16A] mt-1 ml-1">✅ 위치 좌표 확인됨</p>}
+
+                        {/* 3. 장소명/상세주소 입력 */}
+                        <div>
+                            <span className="text-xs text-gray-400 font-medium ml-1 mb-1 block">장소명 / 상세주소</span>
+                            <input 
+                                type="text" 
+                                name="location" 
+                                placeholder="예: 콕스타 체육관 2층"
+                                value={formData.location} 
+                                onChange={handleChange} 
+                                className="w-full p-3 bg-white rounded-lg border border-gray-200 focus:border-[#00B16A] focus:outline-none text-sm font-medium"
+                            />
+                        </div>
                     </div>
 
                     {/* 소개 */}
@@ -1531,6 +1543,8 @@ function GamePage({ user, userData, onLoginClick }) {
             await updateDoc(roomRef, {
                 name: updatedData.name,
                 location: updatedData.location,
+                address: updatedData.address, // [필수 추가] 주소 필드 누락 수정
+                coords: updatedData.coords,   // [필수 추가] 좌표 필드 누락 수정
                 description: updatedData.description,
                 password: updatedData.password,
                 admins: updatedData.admins
