@@ -3501,56 +3501,9 @@ export default function App() {
     // 1. 상태 관리
     const [page, setPage] = useState('home'); 
 
-    // App.jsx 내부 loadScripts 함수
+ 
 
-const loadScripts = () => {
-    // 1. 카카오 SDK (기존 유지)
-    if (!document.getElementById('kakao-sdk')) {
-        const kakaoScript = document.createElement('script');
-        kakaoScript.id = 'kakao-sdk';
-        kakaoScript.src = 'https://t1.kakaocdn.net/kakao_js_sdk/v1/kakao.min.js';
-        kakaoScript.async = true;
-        kakaoScript.onload = () => {
-            if (window.Kakao && !window.Kakao.isInitialized()) {
-                window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e');
-            }
-        };
-        document.head.appendChild(kakaoScript);
-    }
 
-    // 2. 네이버 지도
-    // [중요] 새로 발급받은 ID를 여기에 넣으세요 (기존 ID 삭제 후 재발급 추천)
-    const NAVER_CLIENT_ID = 'kttkb37n60'; 
-    
-    if (!document.getElementById('naver-map-script')) {
-        const naverScript = document.createElement('script');
-        naverScript.id = 'naver-map-script';
-        // [필수] 반드시 'oapi'로 시작해야 합니다.
-        naverScript.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${NAVER_CLIENT_ID}`;
-        naverScript.async = true;
-        document.head.appendChild(naverScript);
-    }
-
-    // 3. 다음 주소 검색 (기존 유지)
-    if (!document.getElementById('daum-postcode')) {
-        const daumScript = document.createElement('script');
-        daumScript.id = 'daum-postcode';
-        daumScript.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
-        daumScript.async = true;
-        document.head.appendChild(daumScript);
-    }
-};
-
-loadScripts();
-            // 3. 다음 주소 검색
-            const daumScript = document.createElement('script');
-            daumScript.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
-            daumScript.async = true;
-            document.head.appendChild(daumScript);
-        };
-
-        loadScripts();
-    }, []); // 깔끔하게 한 번만 닫음
 
     const [user, setUser] = useState(null); // 로그인한 유저 객체
     const [userData, setUserData] = useState(null); // Firestore 유저 추가 정보
