@@ -3516,12 +3516,45 @@ export default function App() {
             document.head.appendChild(kakaoScript);
 
          // 2. 네이버 지도 (확인된 신규 Client ID 적용)
-            const naverScript = document.createElement('script');
-            // 로그에서 확인된 kttkb37n60 번호를 적용합니다.
-           // ncpClientId 뒤에 공백이나 오타가 없는지 확인하세요.
-naverScript.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=kttkb37n60`;
-            naverScript.async = true;
-            document.head.appendChild(naverScript);
+           const loadScripts = () => {
+            // 1. 카카오 SDK (기존 유지)
+            if (!document.getElementById('kakao-sdk')) {
+                const kakaoScript = document.createElement('script');
+                kakaoScript.id = 'kakao-sdk';
+                kakaoScript.src = 'https://t1.kakaocdn.net/kakao_js_sdk/v1/kakao.min.js';
+                kakaoScript.async = true;
+                kakaoScript.onload = () => {
+                    if (window.Kakao && !window.Kakao.isInitialized()) {
+                        window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e');
+                    }
+                };
+                document.head.appendChild(kakaoScript);
+            }
+
+            // 2. 네이버 지도 (ID 오타 및 공백 방지)
+            // [중요] ID 양옆에 공백이 없는지 확인하세요.
+            const NAVER_CLIENT_ID = 'kttkb37n60'; 
+            
+            if (!document.getElementById('naver-map-script')) {
+                const naverScript = document.createElement('script');
+                naverScript.id = 'naver-map-script';
+                // ncpClientId 파라미터를 사용해야 합니다 (NCP용)
+                naverScript.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${NAVER_CLIENT_ID}`;
+                naverScript.async = true;
+                document.head.appendChild(naverScript);
+            }
+
+            // 3. 다음 주소 검색 (기존 유지)
+            if (!document.getElementById('daum-postcode')) {
+                const daumScript = document.createElement('script');
+                daumScript.id = 'daum-postcode';
+                daumScript.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+                daumScript.async = true;
+                document.head.appendChild(daumScript);
+            }
+        };
+
+        loadScripts();
             // 3. 다음 주소 검색
             const daumScript = document.createElement('script');
             daumScript.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
