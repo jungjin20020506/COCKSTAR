@@ -17,12 +17,27 @@
 
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     
-    <style>
+   <style>
       body {
         font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
       }
+      
+      /* [핵심 해결] 카카오맵 이미지 깨짐/백지 현상 방지 */
+      #kakao-map img {
+          max-width: none !important;
+          height: auto !important;
+          border: 0;
+      }
+      
       /* 스크롤바 숨기기 */
       .hide-scrollbar::-webkit-scrollbar {
+          display: none;
+      }
+      .hide-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+      }
+    </style>
           display: none;
       }
       .hide-scrollbar {
