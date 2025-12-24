@@ -1896,10 +1896,19 @@ const EmptySlot = ({ onSlotClick, onDragOver, onDrop, isDragOver }) => (
  * [신규] 방 정보 수정 모달 (관리자용)
  * 이전 앱의 RoomModal 기능을 현재 디자인에 맞춰 이식
  */
+// [수정] 방 수정 모달 (주소 검색 및 좌표 변환 기능 추가)
 function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete }) {
+    // 폼 데이터 상태
     const [formData, setFormData] = useState({
-        name: '', location: '', description: '', password: '', admins: []
+        name: '', 
+        location: '',   // 장소명 (예: 콕스타 체육관)
+        address: '',    // [신규] 실제 주소 (예: 서울 강남구...)
+        coords: null,   // [신규] 좌표 {lat, lng}
+        description: '', 
+        password: '', 
+        admins: []
     });
+    
     const [usePassword, setUsePassword] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
@@ -1909,6 +1918,8 @@ function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete }) {
             setFormData({
                 name: roomData.name || '',
                 location: roomData.location || '',
+                address: roomData.address || '', // 기존에 저장된 주소가 있다면 불러옴
+                coords: roomData.coords || null, // 기존 좌표
                 description: roomData.description || '',
                 password: roomData.password || '',
                 admins: roomData.admins || []
@@ -1922,6 +1933,43 @@ function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete }) {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    // [핵심] 주소 검색 및 좌표 변환 핸들러 (CreateRoomModal과 동일 로직)
+    const handleAddressSearch = () => {
+        if (!window.daum || !window.daum.Postcode) {
+            alert("주소 검색 서비스를 불러오는데 실패했습니다.");
+            return;
+        }
+
+        new window.daum.Postcode({
+            oncomplete: function(data) {
+                const addr = data.roadAddress || data.jibunAddress;
+                const buildingName = data.buildingName || '';
+                
+                // 주소와 장소명 업데이트
+                setFormData(prev => ({
+                    ...prev,
+                    address: addr,
+                    location: (!prev.location && buildingName) ? buildingName : prev.location // 장소명이 비어있으면 건물명 자동 입력
+                }));
+
+                // 좌표 변환 (Geocoder)
+                if (window.kakao && window.kakao.maps && window.kakao.maps.services) {
+                    const geocoder = new window.kakao.maps.services.Geocoder();
+                    geocoder.addressSearch(addr, (result, status) => {
+                        if (status === window.kakao.maps.services.Status.OK) {
+                            const lat = parseFloat(result[0].y);
+                            const lng = parseFloat(result[0].x);
+                            setFormData(prev => ({ ...prev, coords: { lat, lng } }));
+                            console.log("좌표 수정 완료:", lat, lng);
+                        } else {
+                            alert("주소는 찾았으나 좌표를 가져올 수 없습니다.");
+                        }
+                    });
+                }
+            }
+        }).open();
+    };
+
     // 관리자 배열 관리
     const handleAdminChange = (index, value) => {
         const newAdmins = [...formData.admins];
@@ -1932,8 +1980,14 @@ function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete }) {
     const removeAdminSlot = (index) => setFormData(prev => ({ ...prev, admins: prev.admins.filter((_, i) => i !== index) }));
 
     const handleSubmit = () => {
-        // 빈 관리자 슬롯 제거 및 저장 데이터 정리
+        // 유효성 검사
+        if (!formData.address || !formData.coords) {
+            alert("장소를 검색하여 유효한 주소를 입력해주세요.");
+            return;
+        }
+
         const cleanAdmins = formData.admins.map(a => a.trim()).filter(Boolean);
+        
         onSave({
             ...formData,
             admins: cleanAdmins,
@@ -1946,21 +2000,51 @@ function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete }) {
 
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto animate-fade-in-up">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xl font-bold text-[#1E1E1E]">방 정보 수정</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={24}/></button>
                 </div>
 
                 <div className="space-y-4">
+                    {/* 방 제목 */}
                     <div>
                         <label className="block text-sm font-bold text-gray-700 mb-1">방 제목</label>
                         <input type="text" name="name" value={formData.name} onChange={handleChange} className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 focus:border-[#00B16A] focus:outline-none"/>
                     </div>
+
+                    {/* [수정] 주소 검색 필드 */}
                     <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1">장소</label>
-                        <input type="text" name="location" value={formData.location} onChange={handleChange} className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 focus:border-[#00B16A] focus:outline-none"/>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">장소 (주소 검색)</label>
+                        <div className="flex gap-2 mb-2">
+                            <input
+                                type="text"
+                                placeholder="터치해서 주소 수정..."
+                                value={formData.address}
+                                readOnly
+                                onClick={handleAddressSearch}
+                                className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 focus:border-[#00B16A] focus:outline-none cursor-pointer text-sm truncate"
+                            />
+                            <button 
+                                type="button"
+                                onClick={handleAddressSearch}
+                                className="bg-[#1E1E1E] text-white px-4 rounded-lg font-bold text-sm hover:bg-black transition-colors shrink-0"
+                            >
+                                검색
+                            </button>
+                        </div>
+                        <input 
+                            type="text" 
+                            name="location" 
+                            placeholder="장소명 (예: 콕스타 체육관)"
+                            value={formData.location} 
+                            onChange={handleChange} 
+                            className="w-full p-3 bg-white rounded-lg border border-gray-200 focus:border-[#00B16A] focus:outline-none text-sm"
+                        />
+                        {formData.coords && <p className="text-xs text-[#00B16A] mt-1 ml-1">✅ 위치 좌표 확인됨</p>}
                     </div>
+
+                    {/* 소개 */}
                     <div>
                         <label className="block text-sm font-bold text-gray-700 mb-1">모임 소개</label>
                         <textarea name="description" value={formData.description} onChange={handleChange} rows={3} className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 focus:border-[#00B16A] focus:outline-none"/>
@@ -1968,7 +2052,7 @@ function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete }) {
 
                     {/* 관리자 관리 */}
                     <div className="bg-gray-50 p-3 rounded-lg">
-                        <label className="block text-sm font-bold text-gray-700 mb-2">공동 관리자 (이메일 입력)</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">공동 관리자 (이메일)</label>
                         {formData.admins.map((adminEmail, idx) => (
                             <div key={idx} className="flex gap-2 mb-2">
                                 <input 
@@ -2003,7 +2087,7 @@ function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete }) {
                     </button>
                     
                     {/* 슈퍼 관리자 전용 삭제 버튼 */}
-                    {isSuperAdmin({ email: 'domain' }) && ( 
+                    {onDelete && ( 
                          <button onClick={onDelete} className="w-full py-3 mt-2 bg-red-100 text-red-500 font-bold rounded-xl hover:bg-red-200 transition-colors">
                             방 삭제 (관리자 전용)
                         </button>
@@ -2831,6 +2915,8 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
             await updateDoc(roomDocRef, {
                 name: updatedData.name,
                 location: updatedData.location,
+                address: updatedData.address, // [추가] 상세 주소 저장
+                coords: updatedData.coords,   // [추가] 좌표 저장
                 description: updatedData.description,
                 password: updatedData.password,
                 admins: updatedData.admins
