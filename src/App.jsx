@@ -712,45 +712,30 @@ function AuthModal({ onClose, setUserData }) {
 }
 
 
-// ===================================================================================
-// [신규] 모임 생성 모달 (GamePage용)
-// ===================================================================================
+// [수정] 실제 주소 검색 및 좌표 변환 기능이 추가된 모임 생성 모달
 function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
     // 폼 상태
-   const [roomName, setRoomName] = useState('');
-    const [location, setLocation] = useState(''); // 주소 명칭
-    const [address, setAddress] = useState('');   // 상세 주소
-    const [coords, setCoords] = useState({ lat: 37.5665, lng: 126.9780 }); // 좌표 정보
+    const [roomName, setRoomName] = useState('');
+    const [locationName, setLocationName] = useState(''); // 장소 이름 (예: 콕스타 배드민턴장)
+    const [address, setAddress] = useState('');   // 실제 주소 (예: 서울 강남구...)
+    const [coords, setCoords] = useState(null);   // 좌표 {lat, lng}
+    
     const [description, setDescription] = useState('');
-
-    // [신규] 다음 주소 검색 팝업 실행
-    const handleAddressSearch = () => {
-        new window.daum.Postcode({
-            oncomplete: function(data) {
-                // 주소 선택 시 처리
-                const fullAddr = data.address;
-                setAddress(fullAddr);
-                setLocation(data.buildingName || data.address);
-                
-                // 네이버 지오코딩을 사용하여 좌표를 가져올 수 있습니다. (생략 시 기본좌표 저장)
-                // 여기에 좌표 변환 로직 추가 가능
-            }
-        }).open();
-    };
-    const [levelLimit, setLevelLimit] = useState('N조'); // 급수 제한
-    const [maxPlayers, setMaxPlayers] = useState(20); // 인원 제한
+    const [levelLimit, setLevelLimit] = useState('N조');
+    const [maxPlayers, setMaxPlayers] = useState(20);
     const [usePassword, setUsePassword] = useState(false);
     const [password, setPassword] = useState('');
     
-    // 유효성 검사 및 로딩
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
-    // 모달이 열릴 때 상태 초기화
+    // 초기화
     useEffect(() => {
         if (isOpen) {
             setRoomName('');
-            setLocation('');
+            setLocationName('');
+            setAddress('');
+            setCoords(null);
             setDescription('');
             setLevelLimit('N조');
             setMaxPlayers(20);
@@ -761,60 +746,96 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
         }
     }, [isOpen]);
 
+    // [핵심] 주소 검색 및 좌표 변환 핸들러
+    const handleAddressSearch = () => {
+        if (!window.daum || !window.daum.Postcode) {
+            alert("주소 검색 서비스를 불러오는데 실패했습니다.");
+            return;
+        }
+
+        new window.daum.Postcode({
+            oncomplete: function(data) {
+                // 1. 주소 선택 결과 받기
+                const addr = data.roadAddress || data.jibunAddress; // 도로명 또는 지번
+                const buildingName = data.buildingName || '';       // 건물명
+                
+                setAddress(addr);
+                // 장소명에 건물명이 있으면 자동 입력 (사용자가 수정 가능)
+                if (!locationName && buildingName) {
+                    setLocationName(buildingName);
+                }
+
+                // 2. 주소를 좌표로 변환 (Geocoding)
+                if (window.kakao && window.kakao.maps && window.kakao.maps.services) {
+                    const geocoder = new window.kakao.maps.services.Geocoder();
+                    
+                    geocoder.addressSearch(addr, (result, status) => {
+                        if (status === window.kakao.maps.services.Status.OK) {
+                            const lat = result[0].y;
+                            const lng = result[0].x;
+                            setCoords({ lat: parseFloat(lat), lng: parseFloat(lng) });
+                            console.log("좌표 변환 성공:", lat, lng);
+                        } else {
+                            console.error("좌표 변환 실패");
+                            setError("주소는 찾았으나 위치 좌표를 가져올 수 없습니다.");
+                        }
+                    });
+                } else {
+                    console.error("카카오맵 Geocoder 서비스를 사용할 수 없습니다.");
+                }
+            }
+        }).open();
+    };
+
     if (!isOpen) return null;
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
 
-        if (!roomName.trim()) {
-            setError('모임방 제목을 입력해주세요.');
-            return;
-        }
-
-        if (usePassword && !password) {
-            setError('비밀번호를 입력해주세요.');
-            return;
-        }
+        if (!roomName.trim()) return setError('모임방 제목을 입력해주세요.');
+        if (!address) return setError('장소를 검색해서 입력해주세요.');
+        if (!coords) return setError('유효한 주소가 아닙니다. 다시 검색해주세요.');
+        if (usePassword && !password) return setError('비밀번호를 입력해주세요.');
 
         setLoading(true);
 
         const newRoomData = {
             name: roomName,
-            location: location || '장소 미정',
+            location: locationName || address, // 장소명이 없으면 주소로 대체
+            address: address, // [신규] 상세 주소 저장
+            coords: coords,   // [신규] 좌표 저장 (콕맵 연동용)
             description: description || '모임 소개가 없습니다.',
             levelLimit: levelLimit,
             maxPlayers: maxPlayers,
             password: usePassword ? password : '',
             adminUid: user.uid,
             adminName: userData?.name || '방장',
-            // Firestore 서버 시간 기준 생성
             createdAt: serverTimestamp(),
-            // [수정] 경기 시스템 초기 데이터 추가
             playerCount: 0,
-            numScheduledMatches: 4, // 기본 4 경기 예정
-            numInProgressCourts: 2, // 기본 2 코트
-            scheduledMatches: {},   // { 0: [p1, p2, p3, p4], 1: [...] }
-            inProgressCourts: [],   // [ { players: [...], startTime: ... }, null ]
+            numScheduledMatches: 4,
+            numInProgressCourts: 2,
+            scheduledMatches: {},
+            inProgressCourts: [],
         };
 
         try {
-            await onSubmit(newRoomData); // 부모 컴포넌트(GamePage)에서 addDoc 처리
-            onClose(); // 성공 시 모달 닫기
+            await onSubmit(newRoomData);
+            onClose();
         } catch (err) {
             console.error("Error creating room:", err);
-            setError("모임방 생성에 실패했습니다. 다시 시도해주세요.");
+            setError("모임방 생성 실패: " + err.message);
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl p-6 w-full max-w-lg relative text-[#1E1E1E] shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-lg relative text-[#1E1E1E] shadow-2xl max-h-[90vh] overflow-y-auto animate-fade-in-up">
                 <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                    className="absolute top-4 right-4 text-gray-400 hover:text-black transition-colors"
                     disabled={loading}
                 >
                     <X size={24} />
@@ -822,7 +843,7 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
                 
                 <h2 className="text-xl font-bold text-center mb-6">새 모임방 만들기</h2>
 
-                {error && <p className="text-red-500 text-center mb-4 bg-red-100 p-3 rounded-lg text-sm">{error}</p>}
+                {error && <p className="text-red-500 text-center mb-4 bg-red-50 p-3 rounded-lg text-sm font-medium">{error}</p>}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {/* 방 제목 */}
@@ -834,20 +855,39 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
                             value={roomName}
                             onChange={(e) => setRoomName(e.target.value)}
                             required
-                            className="w-full p-3 bg-gray-100 rounded-lg text-base border border-gray-200 focus:border-[#00B16A] focus:ring-1 focus:ring-[#00B16A] focus:outline-none"
+                            className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 focus:border-[#00B16A] focus:outline-none font-medium"
                         />
                     </div>
 
-                    {/* 장소 */}
+                    {/* [수정] 주소 검색 필드 */}
                     <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1">장소</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">장소 (주소 검색) <span className="text-red-500">*</span></label>
+                        <div className="flex gap-2 mb-2">
+                            <input
+                                type="text"
+                                placeholder="터치해서 주소 검색..."
+                                value={address}
+                                readOnly // 직접 입력 불가, 검색만 가능
+                                onClick={handleAddressSearch}
+                                className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 focus:border-[#00B16A] focus:outline-none cursor-pointer text-sm truncate"
+                            />
+                            <button 
+                                type="button"
+                                onClick={handleAddressSearch}
+                                className="bg-[#1E1E1E] text-white px-4 rounded-xl font-bold text-sm hover:bg-black transition-colors shrink-0"
+                            >
+                                검색
+                            </button>
+                        </div>
+                        {/* 장소 별칭 (건물명 등) */}
                         <input
                             type="text"
-                            placeholder="예: 콕스타 전용 체육관"
-                            value={location}
-                            onChange={(e) => setLocation(e.target.value)}
-                            className="w-full p-3 bg-gray-100 rounded-lg text-base border border-gray-200 focus:border-[#00B16A] focus:ring-1 focus:ring-[#00B16A] focus:outline-none"
+                            placeholder="장소명 (예: 콕스타 체육관)"
+                            value={locationName}
+                            onChange={(e) => setLocationName(e.target.value)}
+                            className="w-full p-3 bg-white rounded-xl border border-gray-200 focus:border-[#00B16A] focus:outline-none text-sm"
                         />
+                        {coords && <p className="text-xs text-[#00B16A] mt-1 ml-1">✅ 위치 좌표 확인됨</p>}
                     </div>
 
                     {/* 소개 */}
@@ -858,7 +898,7 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             rows={3}
-                            className="w-full p-3 bg-gray-100 rounded-lg text-base border border-gray-200 focus:border-[#00B16A] focus:ring-1 focus:ring-[#00B16A] focus:outline-none"
+                            className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 focus:border-[#00B16A] focus:outline-none resize-none"
                         />
                     </div>
 
@@ -869,15 +909,11 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
                             <select
                                 value={levelLimit}
                                 onChange={(e) => setLevelLimit(e.target.value)}
-                                className="w-full p-3 bg-gray-100 rounded-lg text-base border border-gray-200 focus:border-[#00B16A] focus:ring-1 focus:ring-[#00B16A] focus:outline-none"
+                                className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 focus:border-[#00B16A] focus:outline-none"
                             >
-                                <option value="N조">전체 급수</option>
-                                <option value="S조">S조 이상</option>
-                                <option value="A조">A조 이상</option>
-                                <option value="B조">B조 이상</option>
-                                <option value="C조">C조 이상</option>
-                                <option value="D조">D조 이상</option>
-                                <option value="E조">E조 이상</option>
+                                {['N조','S조','A조','B조','C조','D조','E조'].map(l => (
+                                    <option key={l} value={l}>{l === 'N조' ? '전체 급수' : `${l} 이상`}</option>
+                                ))}
                             </select>
                         </div>
                         <div className="flex-1">
@@ -888,13 +924,13 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
                                 onChange={(e) => setMaxPlayers(Math.max(4, parseInt(e.target.value) || 4))}
                                 min="4"
                                 step="1"
-                                className="w-full p-3 bg-gray-100 rounded-lg text-base border border-gray-200 focus:border-[#00B16A] focus:ring-1 focus:ring-[#00B16A] focus:outline-none"
+                                className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 focus:border-[#00B16A] focus:outline-none"
                             />
                         </div>
                     </div>
 
                     {/* 비밀번호 */}
-                    <div>
+                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
                         <label className="flex items-center gap-2">
                             <input
                                 type="checkbox"
@@ -910,7 +946,7 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
                                 placeholder="비밀번호 입력"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="w-full p-3 mt-2 bg-gray-100 rounded-lg text-base border border-gray-200 focus:border-[#00B16A] focus:ring-1 focus:ring-[#00B16A] focus:outline-none"
+                                className="w-full p-3 mt-2 bg-white rounded-lg border border-gray-200 focus:border-[#00B16A] focus:outline-none text-sm"
                             />
                         )}
                     </div>
@@ -919,7 +955,7 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full py-3 bg-[#00B16A] text-white font-bold rounded-lg text-base hover:bg-green-700 transition-colors disabled:bg-gray-400 flex items-center justify-center"
+                            className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl text-base hover:bg-green-700 transition-colors disabled:bg-gray-400 flex items-center justify-center shadow-lg shadow-green-200"
                         >
                             {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : '모임방 만들기'}
                         </button>
