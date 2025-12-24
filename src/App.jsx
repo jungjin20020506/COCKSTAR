@@ -3501,59 +3501,47 @@ export default function App() {
     // 1. 상태 관리
     const [page, setPage] = useState('home'); 
 
-    // [수정] 스크립트 로드 로직 통합 및 중복 코드 제거
-    useEffect(() => {
-        const loadScripts = () => {
-            // 1. 카카오 SDK
-            const kakaoScript = document.createElement('script');
-            kakaoScript.src = 'https://t1.kakaocdn.net/kakao_js_sdk/v1/kakao.min.js';
-            kakaoScript.async = true;
-            kakaoScript.onload = () => {
-                if (window.Kakao && !window.Kakao.isInitialized()) {
-                    window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e');
-                }
-            };
-            document.head.appendChild(kakaoScript);
+    // App.jsx 내부 loadScripts 함수
 
-         // 2. 네이버 지도 (확인된 신규 Client ID 적용)
-           const loadScripts = () => {
-            // 1. 카카오 SDK (기존 유지)
-            if (!document.getElementById('kakao-sdk')) {
-                const kakaoScript = document.createElement('script');
-                kakaoScript.id = 'kakao-sdk';
-                kakaoScript.src = 'https://t1.kakaocdn.net/kakao_js_sdk/v1/kakao.min.js';
-                kakaoScript.async = true;
-                kakaoScript.onload = () => {
-                    if (window.Kakao && !window.Kakao.isInitialized()) {
-                        window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e');
-                    }
-                };
-                document.head.appendChild(kakaoScript);
-            }
-
-           // 2. 네이버 지도
-            const NAVER_CLIENT_ID = 'kttkb37n60'; 
-            
-            if (!document.getElementById('naver-map-script')) {
-                const naverScript = document.createElement('script');
-                naverScript.id = 'naver-map-script';
-                // [수정] openapi -> oapi 로 변경 (네이버 클라우드 공식 도메인)
-                naverScript.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${NAVER_CLIENT_ID}`;
-                naverScript.async = true;
-                document.head.appendChild(naverScript);
-            }
-
-            // 3. 다음 주소 검색 (기존 유지)
-            if (!document.getElementById('daum-postcode')) {
-                const daumScript = document.createElement('script');
-                daumScript.id = 'daum-postcode';
-                daumScript.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
-                daumScript.async = true;
-                document.head.appendChild(daumScript);
+const loadScripts = () => {
+    // 1. 카카오 SDK (기존 유지)
+    if (!document.getElementById('kakao-sdk')) {
+        const kakaoScript = document.createElement('script');
+        kakaoScript.id = 'kakao-sdk';
+        kakaoScript.src = 'https://t1.kakaocdn.net/kakao_js_sdk/v1/kakao.min.js';
+        kakaoScript.async = true;
+        kakaoScript.onload = () => {
+            if (window.Kakao && !window.Kakao.isInitialized()) {
+                window.Kakao.init('4bebedd2921e9ecf2412417b5b35762e');
             }
         };
+        document.head.appendChild(kakaoScript);
+    }
 
-        loadScripts();
+    // 2. 네이버 지도
+    // [중요] 새로 발급받은 ID를 여기에 넣으세요 (기존 ID 삭제 후 재발급 추천)
+    const NAVER_CLIENT_ID = 'kttkb37n60'; 
+    
+    if (!document.getElementById('naver-map-script')) {
+        const naverScript = document.createElement('script');
+        naverScript.id = 'naver-map-script';
+        // [필수] 반드시 'oapi'로 시작해야 합니다.
+        naverScript.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${NAVER_CLIENT_ID}`;
+        naverScript.async = true;
+        document.head.appendChild(naverScript);
+    }
+
+    // 3. 다음 주소 검색 (기존 유지)
+    if (!document.getElementById('daum-postcode')) {
+        const daumScript = document.createElement('script');
+        daumScript.id = 'daum-postcode';
+        daumScript.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+        daumScript.async = true;
+        document.head.appendChild(daumScript);
+    }
+};
+
+loadScripts();
             // 3. 다음 주소 검색
             const daumScript = document.createElement('script');
             daumScript.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
