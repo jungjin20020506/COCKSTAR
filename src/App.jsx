@@ -3531,15 +3531,14 @@ export default function App() {
                 document.head.appendChild(kakaoScript);
             }
 
-            // 2. 네이버 지도 (ID 오타 및 공백 방지)
-            // [중요] ID 양옆에 공백이 없는지 확인하세요.
+           // 2. 네이버 지도
             const NAVER_CLIENT_ID = 'kttkb37n60'; 
             
             if (!document.getElementById('naver-map-script')) {
                 const naverScript = document.createElement('script');
                 naverScript.id = 'naver-map-script';
-                // ncpClientId 파라미터를 사용해야 합니다 (NCP용)
-                naverScript.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${NAVER_CLIENT_ID}`;
+                // [수정] openapi -> oapi 로 변경 (네이버 클라우드 공식 도메인)
+                naverScript.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${NAVER_CLIENT_ID}`;
                 naverScript.async = true;
                 document.head.appendChild(naverScript);
             }
