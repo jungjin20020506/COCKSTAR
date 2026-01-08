@@ -1017,11 +1017,6 @@ function ShareModal({ isOpen, onClose, roomId }) {
     );
 }
 
-// 2. GameRoomView 리턴문 하단에 모달 배치 (라인 약 1655 부근)
-<ShareModal 
-    isOpen={showShareModal} 
-    onClose={() => setShowShareModal(false)} 
-    roomId={roomId} 
 />
 // ===================================================================================
 // 페이지 컴포넌트들 (UI 원칙 적용)
@@ -2602,7 +2597,6 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     
     // [추가] 공유 모달의 열림/닫힘 상태를 관리하는 변수 추가
     const [showShareModal, setShowShareModal] = useState(false);
-    const [showShareModal, setShowShareModal] = useState(false);
 
     // 다중 선택 및 모달 상태
     const [selectedPlayerIds, setSelectedPlayerIds] = useState([]); 
@@ -2617,9 +2611,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     const roomDocRef = useMemo(() => doc(db, "rooms", roomId), [roomId]);
     const playersCollectionRef = useMemo(() => collection(db, "rooms", roomId, "players"), [roomId]);
 
-    // 공유 기능
-    // navigator.canShare 체크와 에러 핸들링을 추가하여 안정성을 높입니다.
-// 로직을 좀 더 안정적으로 보완합니다.
+   // 중복된 주석 등을 정리한 최종본
 const handleShare = async () => {
     const shareUrl = `${window.location.origin}?roomId=${roomId}`;
     const shareData = {
@@ -2628,16 +2620,13 @@ const handleShare = async () => {
         url: shareUrl,
     };
 
-    // 모바일 등 시스템 공유 기능을 지원하는 경우
     if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
         try {
             await navigator.share(shareData);
         } catch (e) {
-            // 사용자가 취소하거나 오류 발생 시 모달창 띄우기
             setShowShareModal(true);
         }
     } else {
-        // PC 브라우저 등 기능을 지원하지 않는 경우 직접 만든 모달창 띄우기
         setShowShareModal(true);
     }
 };
