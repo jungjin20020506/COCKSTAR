@@ -2736,11 +2736,6 @@ useEffect(() => {
         );
     }
 
-  // [수정] 불필요한 중간 return 블록과 닫는 중괄호 제거 (함수를 계속 이어감)
-
-    // [해결] 중복 선언된 Helper Lists 변수들을 삭제했습니다. (함수 최상단 선언문 사용)
-
-    // --- Actions ---
 
 // --- Actions ---
 
@@ -4115,6 +4110,7 @@ useEffect(() => {
                         user={user} 
                         userData={userData} 
                         onLoginClick={() => setIsAuthModalOpen(true)} 
+                        sharedRoomId={sharedRoomId} // [추가] 공유받은 방 ID를 전달해야 정상 입장됩니다.
                     />
                 )}
                 
