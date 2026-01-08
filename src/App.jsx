@@ -325,61 +325,70 @@ function AuthModal({ onClose, setUserData }) {
     }, [step]);
 
     const handleKakaoLogin = () => {
-        // 1. SDK 및 초기화 상태 확인
-        if (!window.Kakao || !window.Kakao.isInitialized()) {
-            alert("카카오 SDK가 로드되지 않았거나 초기화되지 않았습니다.");
+        // 1. [체크] SDK가 있는지 확인
+        if (!window.Kakao) {
+            alert("카카오 SDK를 찾을 수 없습니다. 페이지를 새로고침 해주세요.");
             return;
         }
 
-        // 2. Auth 모듈 확인 (도메인 설정 미비 시 여기서 걸러짐)
-        if (!window.Kakao.Auth) {
-            alert("카카오 로그인 기능을 사용할 수 없습니다. 개발자 센터의 도메인 설정을 확인하세요.");
+        // 2. [체크] 초기화가 되었는지 확인
+        if (!window.Kakao.isInitialized()) {
+            alert("카카오 SDK 초기화에 실패했습니다. 관리자 설정(App Key)을 확인하세요.");
+            return;
+        }
+
+        // 3. [체크] Auth 모듈이 로드되었는지 최종 확인
+        // "is not a function" 에러를 방지하기 위한 핵심 검사입니다.
+        if (!window.Kakao.Auth || typeof window.Kakao.Auth.login !== 'function') {
+            console.error("카카오 Auth 모듈 로드 실패. 현재 도메인이 카카오 콘솔에 등록되어 있는지 확인하세요.");
+            alert("카카오 로그인 기능을 현재 사용할 수 없습니다. (도메인 설정 미비)");
             return;
         }
 
         setLoading(true);
 
-        // 3. 카카오 로그인 실행
+        // 4. [실행] 카카오 로그인 팝업 호출
         window.Kakao.Auth.login({
             success: function (authObj) {
-                // 로그인 성공 시 사용자 정보 가져오기
+                console.log("카카오 로그인 성공:", authObj);
+                
+                // 사용자 정보 가져오기
                 window.Kakao.API.request({
                     url: '/v2/user/me',
                     success: async function (res) {
-                        const kakaoId = res.id;
-                        const nickname = res.properties?.nickname || '카카오 사용자';
-
-                        // Firestore에서 이미 가입된 유저인지 확인
                         try {
+                            const kakaoId = res.id;
+                            const nickname = res.properties?.nickname || '카카오 사용자';
+
+                            // Firestore 유저 확인 및 가입 처리
                             const userDocRef = doc(db, "users", `kakao_${kakaoId}`);
                             const userSnap = await getDoc(userDocRef);
 
                             if (userSnap.exists()) {
-                                // 이미 가입된 경우 바로 로그인 처리
                                 setUserData(userSnap.data());
                                 onClose();
                             } else {
-                                // 처음 가입하는 경우 정보 입력 단계로 이동
+                                // 신규 가입 시 정보 입력 단계로 이동
                                 setName(nickname);
                                 setStep('info');
                             }
                         } catch (err) {
-                            console.error("Firestore 조회 에러:", err);
-                            setError("유저 정보 확인 중 오류가 발생했습니다.");
+                            console.error("데이터 저장 오류:", err);
+                            setError("가입 정보 처리 중 오류가 발생했습니다.");
                         } finally {
                             setLoading(false);
                         }
                     },
                     fail: function (error) {
-                        console.error("사용자 정보 요청 실패", error);
+                        console.error("사용자 정보 요청 실패:", error);
                         setError("사용자 정보를 가져오지 못했습니다.");
                         setLoading(false);
                     }
                 });
             },
             fail: function (err) {
-                console.error("카카오 로그인 취소/실패", err);
-                setError("카카오 로그인이 취소되었습니다.");
+                console.error("카카오 로그인 실패:", err);
+                setError("로그인이 취소되거나 실패했습니다.");
                 setLoading(false);
             },
         });
