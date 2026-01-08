@@ -2595,7 +2595,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [inputPassword, setInputPassword] = useState('');
     
-    // [추가] 공유 모달의 열림/닫힘 상태를 관리하는 변수 추가
+    // [수정] 중복 선언 제거하고 하나만 유지
     const [showShareModal, setShowShareModal] = useState(false);
 
     // 다중 선택 및 모달 상태
@@ -2605,7 +2605,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     const [editGamePlayer, setEditGamePlayer] = useState(null);
     const [courtModalOpen, setCourtModalOpen] = useState(false);
     const [pendingMatchIndex, setPendingMatchIndex] = useState(null); 
-    const [availableCourts, setAvailableCourts] = useState([]); 
+    const [availableCourts, setAvailableCourts] = useState([]);
 
     // Firestore 참조
     const roomDocRef = useMemo(() => doc(db, "rooms", roomId), [roomId]);
