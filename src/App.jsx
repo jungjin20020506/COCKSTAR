@@ -340,11 +340,12 @@ function AuthModal({ onClose, setUserData }) {
         // 3. [체크] Auth 모듈이 로드되었는지 최종 확인
         // "is not a function" 에러를 방지하기 위한 핵심 검사입니다.
         if (!window.Kakao.Auth || typeof window.Kakao.Auth.login !== 'function') {
-            console.error("카카오 Auth 모듈 로드 실패. 현재 도메인이 카카오 콘솔에 등록되어 있는지 확인하세요.");
-            alert("카카오 로그인 기능을 현재 사용할 수 없습니다. (도메인 설정 미비)");
+            // 현재 접속 중인 주소를 콘솔에 출력하여 카카오 설정과 비교할 수 있게 합니다.
+            console.error("현재 접속 주소:", window.location.origin); 
+            console.error("카카오 Auth 모듈 로드 실패. 위 주소가 카카오 콘솔 '사이트 도메인'에 등록되어 있나요?");
+            alert("카카오 로그인 기능을 사용할 수 없습니다. 관리자 설정에서 사이트 도메인을 확인하세요.");
             return;
         }
-
         setLoading(true);
 
         // 4. [실행] 카카오 로그인 팝업 호출
