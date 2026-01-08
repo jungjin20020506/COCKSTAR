@@ -2612,11 +2612,29 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     // [중요] 기존의 모든 핸들러 함수들(handleSwapPlayers, handleStartClick 등)이 이 자리에 위치해야 합니다.
     // (분량상 생략되었으나 제공해주신 로직들을 모두 이 안으로 포함시키세요.)
 
+    // [수정] 모든 useMemo(Hook)는 조건부 리턴(if loading)보다 위에 있어야 합니다.
     const isAdmin = useMemo(() => {
         if (!roomData || !user) return false;
         return isSuperAdmin(user) || user.uid === roomData.adminUid || roomData.admins?.includes(user.email);
     }, [user, roomData]);
 
+    // 하단에 있던 Helper Lists를 위로 끌어올림
+    const inProgressPlayerIds = useMemo(() => 
+        new Set((roomData?.inProgressCourts || []).flatMap(c => c?.players || []).filter(Boolean)), 
+    [roomData]);
+
+    const scheduledPlayerIds = useMemo(() => 
+        new Set(Object.values(roomData?.scheduledMatches || {}).flatMap(m => m || []).filter(Boolean)), 
+    [roomData]);
+
+    const waitingPlayers = useMemo(() => 
+        Object.values(players).filter(p => !p.isResting && !inProgressPlayerIds.has(p.id) && !scheduledPlayerIds.has(p.id)), 
+    [players, inProgressPlayerIds, scheduledPlayerIds]);
+    
+    const maleWaiting = useMemo(() => waitingPlayers.filter(p => p.gender === '남'), [waitingPlayers]);
+    const femaleWaiting = useMemo(() => waitingPlayers.filter(p => p.gender !== '남'), [waitingPlayers]);
+
+    // 모든 Hook 선언이 끝난 후 조건부 리턴 수행
     if (loading) return <LoadingSpinner text="입장 중..." />;
    if (roomData?.password && !isAuthorized) {
         return (
@@ -2632,7 +2650,6 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     // [수정] 불필요한 중간 return 블록과 닫는 중괄호 제거 (함수를 계속 이어감)
 
     // --- Helper Lists ---
-    const inProgressPlayerIds = useMemo(() => new Set((roomData?.inProgressCourts || []).flatMap(c => c?.players || []).filter(Boolean)), [roomData]);
     const scheduledPlayerIds = useMemo(() => new Set(Object.values(roomData?.scheduledMatches || {}).flatMap(m => m || []).filter(Boolean)), [roomData]);
 
     const waitingPlayers = useMemo(() => Object.values(players).filter(p => !p.isResting && !inProgressPlayerIds.has(p.id) && !scheduledPlayerIds.has(p.id)), [players, inProgressPlayerIds, scheduledPlayerIds]);
