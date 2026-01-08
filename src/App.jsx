@@ -4008,15 +4008,17 @@ const TabButton = ({ icon: Icon, label, isActive, onClick }) => {
     );
 };
 
-// ===================================================================================
+
 // [필수] 메인 App 컴포넌트
-// 이 부분이 없으면 "default is not exported" 오류가 발생합니다.
 export default function App() {
     // 1. 상태 관리
     const [page, setPage] = useState('home'); 
+    
     // [추가] 카카오 SDK 초기화
     useEffect(() => {
-        const kakaoKey = import.meta.env.VITE_KAKAO_JS_KEY; // .env 파일에 등록된 키 사용
+        // 제공해주신 실제 자바스크립트 키를 적용했습니다.
+        const kakaoKey = "4bebedd2921e9ecf2412417b5b35762e"; 
+        
         if (window.Kakao && !window.Kakao.isInitialized()) {
             try {
                 window.Kakao.init(kakaoKey);
