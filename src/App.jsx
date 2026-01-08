@@ -68,12 +68,11 @@ import {
     Copy as CopyIcon      // 복사 아이콘 추가
 } from 'lucide-react';
 
-// [추가] Lucide 아이콘의 선 굵기를 일괄 조절하는 헬퍼 함수 (정의를 위로 이동)
+// [추가] Lucide 아이콘의 선 굵기를 일괄 조절하는 헬퍼 함수
 const createThinIcon = (Icon) => (props) => <Icon {...props} strokeWidth={1.5} />;
 
 const Share2 = createThinIcon(Share2Icon);
 const Copy = createThinIcon(CopyIcon);
-
 const Home = createThinIcon(HomeIcon);
 const Trophy = createThinIcon(TrophyIcon);
 const KokMap = createThinIcon(MapIcon); // Store -> KokMap으로 명칭 변경
