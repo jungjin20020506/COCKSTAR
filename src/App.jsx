@@ -981,7 +981,48 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
         </div>
     );
 }
+// 1. ShareModal 컴포넌트 정의 (GameRoomView 함수 외부 혹은 파일 상단)
+function ShareModal({ isOpen, onClose, roomId }) {
+    if (!isOpen) return null;
+    const shareUrl = `${window.location.origin}?roomId=${roomId}`;
 
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-xs shadow-2xl animate-fade-in-up">
+                <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Share2 size={32} className="text-[#00B16A]" />
+                    </div>
+                    <h3 className="text-lg font-bold text-[#1E1E1E]">경기방 초대</h3>
+                    <p className="text-xs text-gray-500 mt-1">링크를 복사해 동호인들에게 전달하세요!</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-xl mb-6 break-all border border-gray-100">
+                    <p className="text-xs font-medium text-gray-600 leading-relaxed">{shareUrl}</p>
+                </div>
+                <div className="space-y-2">
+                    <button 
+                        onClick={() => {
+                            navigator.clipboard.writeText(shareUrl);
+                            alert("초대 링크가 복사되었습니다!");
+                            onClose();
+                        }}
+                        className="w-full py-3 bg-[#00B16A] text-white font-bold rounded-xl flex items-center justify-center gap-2"
+                    >
+                        <Copy size={18} /> 링크 복사하기
+                    </button>
+                    <button onClick={onClose} className="w-full py-3 text-gray-400 text-sm font-bold">닫기</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// 2. GameRoomView 리턴문 하단에 모달 배치 (라인 약 1655 부근)
+<ShareModal 
+    isOpen={showShareModal} 
+    onClose={() => setShowShareModal(false)} 
+    roomId={roomId} 
+/>
 // ===================================================================================
 // 페이지 컴포넌트들 (UI 원칙 적용)
 // ===================================================================================
@@ -2574,16 +2615,26 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     const playersCollectionRef = useMemo(() => collection(db, "rooms", roomId, "players"), [roomId]);
 
     // 공유 기능
-    const handleShare = async () => {
-        const shareUrl = `${window.location.origin}?roomId=${roomId}`;
-        const shareData = {
-            title: `[콕스타] ${roomData?.name} 초대`,
-            text: `${roomData?.location} 경기 초대장`,
-            url: shareUrl,
-        };
-        if (navigator.share) try { await navigator.share(shareData); } catch (e) {}
-        else setShowShareModal(true);
+    // navigator.canShare 체크와 에러 핸들링을 추가하여 안정성을 높입니다.
+const handleShare = async () => {
+    const shareUrl = `${window.location.origin}?roomId=${roomId}`;
+    const shareData = {
+        title: `[콕스타] 경기 초대`,
+        text: `'${roomData?.name}' 경기방에 초대합니다!`,
+        url: shareUrl,
     };
+
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        try {
+            await navigator.share(shareData);
+        } catch (e) {
+            console.warn("공유 중단됨:", e);
+            setShowShareModal(true); // 취소되거나 에러 시 모달 표시
+        }
+    } else {
+        setShowShareModal(true); // PC 환경 등 미지원 시 모달 표시
+    }
+};
 
     // 권한 체크 및 데이터 구독 (기존 로직 통합)
     useEffect(() => {
@@ -3080,18 +3131,27 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                     </div>
                 </div>
 
-                {/* 우측: 액션 버튼 */}
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <button 
-                        onClick={handleToggleRest}
-                        className={`h-8 px-3 rounded-full text-xs font-bold transition-all flex items-center justify-center border ${
-                            players[user.uid]?.isResting
-                            ? 'bg-gray-50 text-gray-400 border-gray-200' 
-                            : 'bg-white text-[#00B16A] border-[#00B16A] shadow-sm' 
-                        }`}
-                    >
-                        {players[user.uid]?.isResting ? '휴식' : '대기'}
-                    </button>
+               // Share2 아이콘 버튼을 대기/휴식 버튼 왼쪽에 추가합니다.
+<div className="flex items-center gap-1.5 flex-shrink-0">
+    {/* 공유 버튼 추가 */}
+    <button 
+        onClick={handleShare}
+        className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-[#00B16A] hover:bg-green-50 transition-all"
+        title="경기방 공유"
+    >
+        <Share2 size={20} />
+    </button>
+
+    <button 
+        onClick={handleToggleRest}
+        className={`h-8 px-3 rounded-full text-xs font-bold transition-all flex items-center justify-center border ${
+            players[user.uid]?.isResting
+            ? 'bg-gray-50 text-gray-400 border-gray-200' 
+            : 'bg-white text-[#00B16A] border-[#00B16A] shadow-sm' 
+        }`}
+    >
+        {players[user.uid]?.isResting ? '휴식' : '대기'}
+    </button>
 
                     {isAdmin && (
                         <button 
