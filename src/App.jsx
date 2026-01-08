@@ -2669,9 +2669,8 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         }
     };
 
-// =================================================================
-    // [수정 완료] 클릭 투 무브 & 충돌 방지 & 스왑 기능 통합
-// =================================================================
+// 1. 선수 교체/이동 로직 (충돌 방지 로직 강화)
+    const handleSwapPlayers = async (sourcePlayerIds, targetPlayerId, targetMatchIndex, targetSlotIndex) => {
         try {
             await runTransaction(db, async (t) => {
                 // 1. 가장 최신 데이터 가져오기 (이 시점부터 DB 잠금 효과)
@@ -2785,7 +2784,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         setSelectedPlayerIds(prev => [...prev, player.id]);
     };
 
-    // 3. 빈 슬롯 클릭 (이동 트리거 & 충돌 방지)
+// 3. 빈 슬롯 클릭 (이동 트리거 & 충돌 방지)
     const handleSlotClick = async (matchIndex, slotIndex) => {
         if (!isAdmin) return;
         if (selectedPlayerIds.length === 0) return;
