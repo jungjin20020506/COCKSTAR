@@ -2653,12 +2653,25 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 
     // --- Actions ---
 
+// --- Actions ---
+
+    // [신규] 휴식 상태 전환 핸들러 추가
+    const handleToggleRest = async () => {
+        if (!user || !players[user.uid]) return;
+        try {
+            const playerRef = doc(playersCollectionRef, user.uid);
+            await updateDoc(playerRef, {
+                isResting: !players[user.uid].isResting
+            });
+        } catch (e) {
+            console.error("휴식 상태 변경 실패:", e);
+            alert("상태 변경에 실패했습니다.");
+        }
+    };
+
 // =================================================================
     // [수정 완료] 클릭 투 무브 & 충돌 방지 & 스왑 기능 통합
-    // =================================================================
-
-    // 1. 선수 교체/이동 로직 (충돌 방지 로직 강화)
-    const handleSwapPlayers = async (sourcePlayerIds, targetPlayerId, targetMatchIndex, targetSlotIndex) => {
+// =================================================================
         try {
             await runTransaction(db, async (t) => {
                 // 1. 가장 최신 데이터 가져오기 (이 시점부터 DB 잠금 효과)
@@ -2936,10 +2949,24 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         Object.keys(players).forEach(pid => {
             batch.delete(doc(playersCollectionRef, pid));
         });
-        await batch.commit();
-        onExitRoom(); // 나도 나감
+        await batch.commit(); // 게임수 업데이트
+        await updateDoc(roomDocRef, { inProgressCourts: newCourts }); // 코트 상태 업데이트
     };
 
+    // [신규] 수동 게임 수 저장 핸들러 추가
+    const handleSaveGames = async (playerId, newCount) => {
+        try {
+            const playerRef = doc(playersCollectionRef, playerId);
+            await updateDoc(playerRef, { todayGames: newCount });
+            setEditGamePlayer(null);
+        } catch (e) {
+            console.error("게임 수 수정 실패:", e);
+            alert("수정 실패");
+        }
+    };
+
+
+    // --- Render ---
     // 경기 시작 로직
     const handleStartClick = (matchIndex) => {
         if (!isAdmin) return alert("관리자만 가능합니다.");
