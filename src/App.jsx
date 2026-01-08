@@ -4014,6 +4014,18 @@ const TabButton = ({ icon: Icon, label, isActive, onClick }) => {
 export default function App() {
     // 1. 상태 관리
     const [page, setPage] = useState('home'); 
+    // [추가] 카카오 SDK 초기화
+    useEffect(() => {
+        const kakaoKey = import.meta.env.VITE_KAKAO_JS_KEY; // .env 파일에 등록된 키 사용
+        if (window.Kakao && !window.Kakao.isInitialized()) {
+            try {
+                window.Kakao.init(kakaoKey);
+                console.log("카카오 SDK 초기화 성공");
+            } catch (e) {
+                console.error("카카오 SDK 초기화 실패:", e);
+            }
+        }
+    }, []);
     // [신규] 공유 받은 방 ID를 관리하는 상태
     const [sharedRoomId, setSharedRoomId] = useState(null);
 
