@@ -2618,7 +2618,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     }, [user, roomData]);
 
     if (loading) return <LoadingSpinner text="입장 중..." />;
-    if (roomData?.password && !isAuthorized) {
+   if (roomData?.password && !isAuthorized) {
         return (
             <div className="flex flex-col items-center justify-center h-full bg-white p-8 text-center">
                 <Lock size={48} className="text-[#00B16A] mb-4" />
@@ -2629,75 +2629,8 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         );
     }
 
-    return (
-        <div className="flex flex-col h-full bg-slate-100 relative">
-            <header className="flex-shrink-0 h-14 px-3 flex items-center justify-between bg-white/95 sticky top-0 z-30 border-b">
-                <div className="flex items-center gap-2 overflow-hidden flex-1">
-                    <button onClick={() => onExitRoom()} className="p-2 -ml-2 text-gray-400"><ArrowLeft size={22}/></button>
-                    <div className="flex flex-col truncate">
-                        <div className="flex items-center gap-1">
-                            <h1 className="text-base font-bold truncate">{roomData?.name}</h1>
-                            {isAdmin && <button onClick={() => setIsEditInfoOpen(true)}><Edit3 size={14}/></button>}
-                        </div>
-                    </div>
-                </div>
-                <div className="flex items-center gap-1">
-                    <button onClick={handleShare} className="p-2 text-gray-400"><Share2 size={22}/></button>
-                    {isAdmin && <button onClick={() => setIsSettingsOpen(true)}><GripVertical size={20}/></button>}
-                </div>
-            </header>
+    // [수정] 불필요한 중간 return 블록과 닫는 중괄호 제거 (함수를 계속 이어감)
 
-            <div className={`flex flex-col flex-grow overflow-hidden ${!user ? 'blur-md pointer-events-none' : ''}`}>
-                <GameBanner />
-                <div className="flex bg-white border-b">
-                    <button onClick={() => setActiveTab('matching')} className={`flex-1 py-3 text-sm font-bold ${activeTab === 'matching' ? 'text-[#00B16A] border-b-2 border-[#00B16A]' : 'text-gray-400'}`}>매칭 대기</button>
-                    <button onClick={() => setActiveTab('inProgress')} className={`flex-1 py-3 text-sm font-bold ${activeTab === 'inProgress' ? 'text-[#00B16A] border-b-2 border-[#00B16A]' : 'text-gray-400'}`}>경기 진행</button>
-                </div>
-                <main className="flex-grow overflow-y-auto p-4 pb-24">
-                    {/* 매칭 대기 / 진행 중 UI 로직 */}
-                    {activeTab === 'matching' ? (
-                        <div className="space-y-6">
-                            {/* 대기 명단 및 예정 경기 렌더링 */}
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {/* 진행 중인 코트 렌더링 */}
-                        </div>
-                    )}
-                </main>
-            </div>
-
-            {/* 비로그인 유도 오버레이 */}
-            {!user && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/10 backdrop-blur-[2px]">
-                    <div className="bg-white p-8 rounded-2xl shadow-2xl text-center animate-fade-in-up">
-                        <ShieldCheck size={48} className="text-[#00B16A] mx-auto mb-4" />
-                        <h2 className="text-lg font-bold mb-2">로그인이 필요합니다</h2>
-                        <button onClick={onLoginClick} className="w-full py-3 bg-[#00B16A] text-white font-bold rounded-xl mt-4">로그인 하러 가기</button>
-                    </div>
-                </div>
-            )}
-
-            {/* 공유 Fallback 모달 */}
-            {showShareModal && (
-                <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-xs text-center">
-                        <h3 className="font-bold mb-4 text-sm">경기방 링크 복사</h3>
-                        <div className="flex items-center gap-2 bg-gray-50 p-2 border rounded-lg mb-4">
-                            <input readOnly value={`${window.location.origin}?roomId=${roomId}`} className="text-xs flex-1 truncate bg-transparent outline-none" />
-                            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}?roomId=${roomId}`); alert('복사되었습니다!'); }}><Copy size={16}/></button>
-                        </div>
-                        <button onClick={() => setShowShareModal(false)} className="text-gray-500 font-bold text-sm">닫기</button>
-                    </div>
-                </div>
-            )}
-
-            {/* 기타 설정 및 수정 모달들 */}
-            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} roomData={roomData} onSave={handleSettingsSave} onReset={handleSystemReset} onKickAll={handleKickAll} />
-            <EditRoomInfoModal isOpen={isEditInfoOpen} onClose={() => setIsEditInfoOpen(false)} roomData={roomData} onSave={handleRoomInfoSave} onDelete={handleRoomDelete} />
-        </div>
-    );
-}
     // --- Helper Lists ---
     const inProgressPlayerIds = useMemo(() => new Set((roomData?.inProgressCourts || []).flatMap(c => c?.players || []).filter(Boolean)), [roomData]);
     const scheduledPlayerIds = useMemo(() => new Set(Object.values(roomData?.scheduledMatches || {}).flatMap(m => m || []).filter(Boolean)), [roomData]);
