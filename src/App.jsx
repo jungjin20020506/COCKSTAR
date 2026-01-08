@@ -1503,26 +1503,17 @@ return (
 }
 
 
-/**
- * 3. 경기 시스템 페이지 (수정됨: 무한 로딩 해결 + 로비 설정 기능)
- */
+// ✅ GamePage.jsx 수정: 공유 링크 접속 시 로그인 유도 및 배경 블러
 function GamePage({ user, userData, onLoginClick, sharedRoomId }) {
-    // [수정] 공유 링크가 있으면 바로 'room' 뷰로 시작
     const [currentView, setCurrentView] = useState(sharedRoomId ? 'room' : 'lobby');
     const [selectedRoomId, setSelectedRoomId] = useState(sharedRoomId || null);
-    // [신규] 로비 상태
     const [rooms, setRooms] = useState([]);
     const [loadingRooms, setLoadingRooms] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    
-    // [신규] 모임 생성 모달 상태
     const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
-
-    // [신규] 방 정보 수정 모달 상태 (로비용)
     const [editRoomData, setEditRoomData] = useState(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-    // [중요] Firestore 참조를 useMemo로 감싸서 재생성 방지 (무한 로딩 해결의 핵심!)
     const roomsCollectionRef = useMemo(() => collection(db, "rooms"), []);
 
     // [신규] 모임방 목록 실시간 구독
@@ -1625,14 +1616,40 @@ function GamePage({ user, userData, onLoginClick, sharedRoomId }) {
         setCurrentView('lobby');
     };
 
-    // [수정] 공유 링크 접속자가 아닐 때만 기존 '로그인 필요' 전체화면을 보여줌
-    if ((!user || !userData) && !selectedRoomId) {
-        return <LoginRequiredPage icon={ShieldCheck} title="로그인 필요" description="경기/모임 시스템은 로그인 후 이용 가능합니다." onLoginClick={onLoginClick} />;
+   // 💡 핵심 변경 부분: 로그인이 안 되어 있는데 공유 링크로 온 경우
+    if (!user && selectedRoomId) {
+        return (
+            <div className="relative h-full overflow-hidden">
+                {/* 배경: 경기방 화면 (블러 처리) */}
+                <div className="filter blur-md pointer-events-none h-full">
+                    <GameRoomView roomId={selectedRoomId} user={null} userData={null} preview={true} />
+                </div>
+                {/* 중앙: 로그인 유도 레이어 */}
+                <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/20 backdrop-blur-[2px]">
+                    <div className="bg-white p-8 rounded-3xl shadow-2xl text-center max-w-[80%] animate-fade-in-up">
+                        <Lock size={48} className="mx-auto text-[#00B16A] mb-4" />
+                        <h2 className="text-xl font-bold mb-2">경기방 입장 안내</h2>
+                        <p className="text-sm text-gray-500 mb-6">이 경기방에 참여하시려면<br/>로그인이 필요합니다.</p>
+                        <button 
+                            onClick={onLoginClick}
+                            className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl shadow-lg shadow-green-200"
+                        >
+                            로그인하고 입장하기
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
     }
-    
-    // 2-1. 경기방 뷰
+
+    // 일반적인 로그인 필요 화면
+    if (!user && !selectedRoomId) {
+        return <LoginRequiredPage icon={ShieldCheck} title="로그인 필요" description="경기 시스템은 로그인 후 이용 가능합니다." onLoginClick={onLoginClick} />;
+    }
+
+    // 경기방 내부 접속
     if (currentView === 'room') {
-        return <GameRoomView roomId={selectedRoomId} user={user} userData={userData} onExitRoom={handleExitRoom} roomsCollectionRef={roomsCollectionRef} />;
+        return <GameRoomView roomId={selectedRoomId} user={user} userData={userData} onExitRoom={() => { setSelectedRoomId(null); setCurrentView('lobby'); }} roomsCollectionRef={roomsCollectionRef} />;
     }
 
     // 2-2. 로비 뷰
@@ -2643,6 +2660,33 @@ const handleShare = async () => {
         });
         return () => unsubRoom();
     }, [roomDocRef]);
+
+    // ✅ GameRoomView.jsx 내부: 자동 참여 로직 추가
+useEffect(() => {
+    // 💡 로그인 정보와 유저 데이터, 방 정보가 모두 로드되었을 때만 실행
+    if (user && userData && roomData && !loading) {
+        const playerRef = doc(playersCollectionRef, user.uid);
+        
+        // 1. 내가 이 방의 플레이어 목록에 있는지 확인
+        getDoc(playerRef).then((snap) => {
+            if (!snap.exists()) {
+                // 2. 없다면 선수 카드 즉시 생성 (입장)
+                setDoc(playerRef, {
+                    name: userData.name,
+                    level: userData.level,
+                    gender: userData.gender,
+                    birthYear: userData.birthYear,
+                    entryTime: serverTimestamp(),
+                    todayGames: 0,
+                    isResting: false,
+                    role: 'player'
+                }).then(() => {
+                    console.log("선수 등록 완료!");
+                });
+            }
+        });
+    }
+}, [user, userData, roomData, loading]); // 의존성 배열에 로딩 상태 포함
 
     useEffect(() => {
         const unsubPlayers = onSnapshot(playersCollectionRef, (snapshot) => {
@@ -3994,37 +4038,41 @@ export default function App() {
     const [loading, setLoading] = useState(true); // 초기 로딩 상태
 
     // 2. 인증 상태 감지 & 유저 정보 실시간 동기화
-    useEffect(() => {
-        let unsubscribeUserDoc = null;
+  // ✅ App.jsx 내의 인증 상태 감지 로직 수정
+useEffect(() => {
+    let unsubscribeUserDoc = null;
 
-        const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-            // 1. 로그인 상태 변경 시 처리
-            if (currentUser) {
-                setUser(currentUser);
-                
-                // 2. 로그인 했다면 -> Firestore 내 정보 실시간 구독(onSnapshot) 시작
-                // (이 부분이 추가되어 수정 즉시 화면이 바뀝니다)
-                const userDocRef = doc(db, "users", currentUser.uid);
-                unsubscribeUserDoc = onSnapshot(userDocRef, (docSnap) => {
-                    if (docSnap.exists()) {
-                        setUserData(docSnap.data());
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+        if (currentUser) {
+            setUser(currentUser);
+            const userDocRef = doc(db, "users", currentUser.uid);
+            
+            unsubscribeUserDoc = onSnapshot(userDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    setUserData(docSnap.data());
+                    // 💡 데이터는 있는데 필수 정보(이름 등)가 없으면 설정창 오픈
+                    if (!docSnap.data().name) {
+                        setIsAuthModalOpen(true);
                     }
-                });
-            } else {
-                // 로그아웃 했다면 -> 상태 초기화
-                setUser(null);
-                setUserData(null);
-                if (unsubscribeUserDoc) unsubscribeUserDoc(); // 구독 해제
-            }
-            setLoading(false);
-        });
-
-        // 컴포넌트 종료 시 정리
-        return () => {
-            unsubscribeAuth();
+                } else {
+                    // 💡 로그인은 됐는데 Firestore에 문서가 아예 없으면 설정창 오픈
+                    setUserData(null);
+                    setIsAuthModalOpen(true);
+                }
+            });
+        } else {
+            setUser(null);
+            setUserData(null);
             if (unsubscribeUserDoc) unsubscribeUserDoc();
-        };
-    }, []);
+        }
+        setLoading(false);
+    });
+
+    return () => {
+        unsubscribeAuth();
+        if (unsubscribeUserDoc) unsubscribeUserDoc();
+    };
+}, []);
 
     // 3. 로그아웃 핸들러
     const handleLogout = async () => {
