@@ -336,16 +336,25 @@ function AuthModal({ onClose, setUserData }) {
             return;
         }
 
-        // 2. Auth 모듈 및 login 함수 존재 확인 (핵심 방어 코드)
-        if (!window.Kakao.Auth || typeof window.Kakao.Auth.login !== 'function') {
-            console.error("Kakao.Auth.login을 찾을 수 없습니다. SDK 스크립트가 올바른지 확인하세요.");
-            alert("로그인 기능을 불러올 수 없습니다. 잠시 후 다시 시도해주세요.");
+        // 2. [수정] Kakao 객체 및 Auth 모듈 상태 재검토
+        if (!window.Kakao) {
+            alert("카카오 SDK가 로드되지 않았습니다. 인터넷 연결을 확인해주세요.");
+            return;
+        }
+
+        // Auth 모듈이 없을 경우, 도메인 등록 문제일 확률이 높습니다.
+        if (!window.Kakao.Auth) {
+            console.error("Kakao.Auth 모듈이 비활성화 상태입니다. 카카오 개발자 콘솔의 '사이트 도메인' 설정을 확인하세요.");
+            alert("카카오 로그인 모듈을 불러올 수 없습니다. 관리자 설정(도메인 등록)을 확인해주세요.");
             return;
         }
 
         setLoading(true);
 
+        // v2에서는 Kakao.Auth.login을 직접 호출하는 방식이 가장 일반적입니다.
         window.Kakao.Auth.login({
+            success: function (authObj) {
+                // 로그인 성공 시 사용자 정보 요청
             // v2에서는 throughTalk: false 대신 다른 옵션이나 기본 설정을 사용하지만, 
             // 현재 오류 해결을 위해 함수 호출 구조를 유지합니다.
             success: function (authObj) {
@@ -3981,27 +3990,25 @@ export default function App() {
     // 1. 상태 관리
     const [page, setPage] = useState('home'); 
     
-    // [추가] 카카오 SDK 초기화
+  
+   // [수정] 카카오 SDK 초기화 로직 강화
     useEffect(() => {
-    const kakaoKey = "4bebedd2921e9ecf2412417b5b35762e"; 
-    
-    if (window.Kakao) {
-        // 현재 로드된 Kakao 객체의 상태를 상세히 출력합니다.
-        console.log("현재 Kakao 객체 구조:", window.Kakao);
-        console.log("Auth 모듈 존재 여부:", !!window.Kakao.Auth);
-
-        if (!window.Kakao.isInitialized()) {
-            try {
-                window.Kakao.init(kakaoKey);
-                console.log("카카오 SDK 초기화 성공");
-            } catch (e) {
-                console.error("카카오 SDK 초기화 실패:", e);
+        const kakaoKey = "4bebedd2921e9ecf2412417b5b35762e"; 
+        
+        const initKakao = () => {
+            if (window.Kakao) {
+                if (!window.Kakao.isInitialized()) {
+                    window.Kakao.init(kakaoKey);
+                    console.log("✅ 카카오 SDK 초기화 완료");
+                }
+            } else {
+                // 아직 SDK가 로드되지 않았다면 0.1초 뒤에 다시 시도
+                setTimeout(initKakao, 100);
             }
-        }
-    } else {
-        console.error("window.Kakao 객체가 정의되지 않았습니다. 스크립트 로드 실패.");
-    }
-}, []);
+        };
+
+        initKakao();
+    }, []);
     // [신규] 공유 받은 방 ID를 관리하는 상태
     const [sharedRoomId, setSharedRoomId] = useState(null);
 
