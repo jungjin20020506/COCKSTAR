@@ -3983,10 +3983,14 @@ export default function App() {
     
     // [추가] 카카오 SDK 초기화
     useEffect(() => {
-        // 제공해주신 실제 자바스크립트 키를 적용했습니다.
-        const kakaoKey = "4bebedd2921e9ecf2412417b5b35762e"; 
-        
-        if (window.Kakao && !window.Kakao.isInitialized()) {
+    const kakaoKey = "4bebedd2921e9ecf2412417b5b35762e"; 
+    
+    if (window.Kakao) {
+        // 현재 로드된 Kakao 객체의 상태를 상세히 출력합니다.
+        console.log("현재 Kakao 객체 구조:", window.Kakao);
+        console.log("Auth 모듈 존재 여부:", !!window.Kakao.Auth);
+
+        if (!window.Kakao.isInitialized()) {
             try {
                 window.Kakao.init(kakaoKey);
                 console.log("카카오 SDK 초기화 성공");
@@ -3994,7 +3998,10 @@ export default function App() {
                 console.error("카카오 SDK 초기화 실패:", e);
             }
         }
-    }, []);
+    } else {
+        console.error("window.Kakao 객체가 정의되지 않았습니다. 스크립트 로드 실패.");
+    }
+}, []);
     // [신규] 공유 받은 방 ID를 관리하는 상태
     const [sharedRoomId, setSharedRoomId] = useState(null);
 
