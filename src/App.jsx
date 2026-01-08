@@ -2647,16 +2647,9 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         );
     }
 
-    // [수정] 불필요한 중간 return 블록과 닫는 중괄호 제거 (함수를 계속 이어감)
+  // [수정] 불필요한 중간 return 블록과 닫는 중괄호 제거 (함수를 계속 이어감)
 
-    // --- Helper Lists ---
-    const scheduledPlayerIds = useMemo(() => new Set(Object.values(roomData?.scheduledMatches || {}).flatMap(m => m || []).filter(Boolean)), [roomData]);
-
-    const waitingPlayers = useMemo(() => Object.values(players).filter(p => !p.isResting && !inProgressPlayerIds.has(p.id) && !scheduledPlayerIds.has(p.id)), [players, inProgressPlayerIds, scheduledPlayerIds]);
-    
-    // [신규] 남녀 구분
-    const maleWaiting = waitingPlayers.filter(p => p.gender === '남');
-    const femaleWaiting = waitingPlayers.filter(p => p.gender !== '남'); // 여 또는 미설정
+    // [해결] 중복 선언된 Helper Lists 변수들을 삭제했습니다. (함수 최상단 선언문 사용)
 
     // --- Actions ---
 
