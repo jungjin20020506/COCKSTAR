@@ -63,8 +63,15 @@ import {
     BarChart2 as BarChart2Icon,
     CheckCircle as CheckCircleIcon,
     UserCheck as UserCheckIcon,
-    GripVertical as GripVerticalIcon
+    GripVertical as GripVerticalIcon,
+    Share2 as Share2Icon, // 공유 아이콘 추가
+    Copy as CopyIcon      // 복사 아이콘 추가
 } from 'lucide-react';
+
+const Share2 = createThinIcon(Share2Icon);
+const Copy = createThinIcon(CopyIcon);
+
+// [추가] Lucide 아이콘의 선 굵기를 일괄 조절하는 헬퍼 함수
 
 // [추가] Lucide 아이콘의 선 굵기를 일괄 조절하는 헬퍼 함수
 const createThinIcon = (Icon) => (props) => <Icon {...props} strokeWidth={1.5} />;
@@ -1467,11 +1474,10 @@ return (
 /**
  * 3. 경기 시스템 페이지 (수정됨: 무한 로딩 해결 + 로비 설정 기능)
  */
-function GamePage({ user, userData, onLoginClick }) {
-    // [신규] '로비' / '경기방' 뷰 전환
-    const [currentView, setCurrentView] = useState('lobby'); // 'lobby', 'room'
-    const [selectedRoomId, setSelectedRoomId] = useState(null);
-
+function GamePage({ user, userData, onLoginClick, sharedRoomId }) {
+    // [수정] 공유 링크가 있으면 바로 'room' 뷰로 시작
+    const [currentView, setCurrentView] = useState(sharedRoomId ? 'room' : 'lobby');
+    const [selectedRoomId, setSelectedRoomId] = useState(sharedRoomId || null);
     // [신규] 로비 상태
     const [rooms, setRooms] = useState([]);
     const [loadingRooms, setLoadingRooms] = useState(true);
@@ -1587,8 +1593,8 @@ function GamePage({ user, userData, onLoginClick }) {
         setCurrentView('lobby');
     };
 
-    // 1. 로그인 필요 뷰
-    if (!user || !userData) {
+    // [수정] 공유 링크 접속자가 아닐 때만 기존 '로그인 필요' 전체화면을 보여줌
+    if ((!user || !userData) && !selectedRoomId) {
         return <LoginRequiredPage icon={ShieldCheck} title="로그인 필요" description="경기/모임 시스템은 로그인 후 이용 가능합니다." onLoginClick={onLoginClick} />;
     }
     
@@ -2550,6 +2556,117 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     const [roomData, setRoomData] = useState(null);
     const [players, setPlayers] = useState({});
     const [loading, setLoading] = useState(true);
+
+    // [신규] 공유 및 보안 관련 상태
+    const [isAuthorized, setIsAuthorized] = useState(false); // 비밀번호 인증 여부
+    const [inputPassword, setInputPassword] = useState('');
+    const [showShareModal, setShowShareModal] = useState(false);
+
+    // [신규] 공유 기능 (Web Share API 활용)
+    const handleShare = async () => {
+        const shareUrl = `${window.location.origin}?roomId=${roomId}`;
+        const shareData = {
+            title: `[콕스타] ${roomData?.name} 경기 초대`,
+            text: `${roomData?.location}에서 열리는 배드민턴 경기에 초대합니다!`,
+            url: shareUrl,
+        };
+
+        if (navigator.share) {
+            try { await navigator.share(shareData); } catch (e) { console.log('Share failed', e); }
+        } else {
+            setShowShareModal(true); // 지원하지 않는 브라우저일 경우 커스텀 모달 표시
+        }
+    };
+
+    // [신규] 비밀번호 체크 로직
+    useEffect(() => {
+        if (roomData) {
+            // 방장이거나 비밀번호가 없으면 바로 인증 완료
+            if (!roomData.password || user?.uid === roomData.adminUid) {
+                setIsAuthorized(true);
+            }
+        }
+    }, [roomData, user]);
+
+    // ... (기존 useEffect 로직 유지)
+
+    // [신규] 1. 비밀번호 입력 화면 (잠금)
+    if (roomData?.password && !isAuthorized) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full bg-white p-8">
+                <Lock size={48} className="text-[#00B16A] mb-4" />
+                <h2 className="text-xl font-bold mb-2">비밀번호가 있는 방입니다</h2>
+                <input 
+                    type="password" 
+                    placeholder="비밀번호 입력"
+                    value={inputPassword}
+                    onChange={(e) => setInputPassword(e.target.value)}
+                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl mb-4 text-center"
+                />
+                <button 
+                    onClick={() => inputPassword === roomData.password ? setIsAuthorized(true) : alert('틀렸습니다.')}
+                    className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl"
+                >입장하기</button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-col h-full bg-slate-100 relative">
+            {/* [수정] 헤더에 공유 버튼 추가 */}
+            <header className="flex-shrink-0 h-14 px-3 flex items-center justify-between bg-white shadow-sm z-30">
+                {/* ... (기존 왼쪽 영역) ... */}
+                <div className="flex items-center gap-2">
+                    <button onClick={handleShare} className="p-2 text-gray-400 hover:text-[#00B16A]">
+                        <Share2 size={22} />
+                    </button>
+                    {/* ... (기존 관리자 버튼) ... */}
+                </div>
+            </header>
+
+            {/* [수정] 메인 컨텐츠 - 비로그인 시 블러 처리 */}
+            <div className={`flex flex-col flex-grow overflow-hidden ${!user ? 'blur-md pointer-events-none select-none' : ''}`}>
+                <GameBanner />
+                <div className="flex bg-white border-b border-gray-200">
+                    {/* ... (기존 탭/본문 코드) ... */}
+                </div>
+            </div>
+
+            {/* [신규] 로그인 유도 오버레이 (페이지 이탈 없음) */}
+            {!user && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/10 backdrop-blur-[2px]">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-[280px] animate-fade-in-up">
+                        <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <ShieldCheck size={32} className="text-[#00B16A]" />
+                        </div>
+                        <h2 className="text-lg font-bold mb-2">로그인이 필요합니다</h2>
+                        <p className="text-sm text-gray-500 mb-6">경기 정보를 확인하고 참여하려면<br/>로그인해주세요.</p>
+                        <button 
+                            onClick={onLoginClick}
+                            className="w-full py-3 bg-[#00B16A] text-white font-bold rounded-xl shadow-lg shadow-green-100"
+                        >로그인 / 회원가입</button>
+                    </div>
+                </div>
+            )}
+
+            {/* [신규] 공유 모달 (Fallback) */}
+            {showShareModal && (
+                <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-xs text-center">
+                        <h3 className="font-bold mb-4">경기방 링크 공유</h3>
+                        <div className="flex items-center gap-2 bg-gray-50 p-3 rounded-lg border mb-6">
+                            <input readOnly value={`${window.location.origin}?roomId=${roomId}`} className="bg-transparent text-xs flex-1 outline-none truncate" />
+                            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}?roomId=${roomId}`); alert('복사되었습니다!'); }} className="text-[#00B16A]">
+                                <Copy size={18} />
+                            </button>
+                        </div>
+                        <button onClick={() => setShowShareModal(false)} className="w-full py-2 text-gray-500 font-bold">닫기</button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('matching'); 
 
@@ -3923,12 +4040,20 @@ const TabButton = ({ icon: Icon, label, isActive, onClick }) => {
 export default function App() {
     // 1. 상태 관리
     const [page, setPage] = useState('home'); 
+    // [신규] 공유 받은 방 ID를 관리하는 상태
+    const [sharedRoomId, setSharedRoomId] = useState(null);
 
- 
+    // [신규] 앱 로드 시 URL 파라미터(?roomId=...) 확인
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const roomId = params.get('roomId');
+        if (roomId) {
+            setSharedRoomId(roomId);
+            setPage('game'); // 경기 탭으로 즉시 이동
+        }
+    }, []);
 
-
-
-    const [user, setUser] = useState(null); // 로그인한 유저 객체
+    const [user, setUser] = useState(null);
     const [userData, setUserData] = useState(null); // Firestore 유저 추가 정보
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false); // 로그인 모달 상태
     const [loading, setLoading] = useState(true); // 초기 로딩 상태
