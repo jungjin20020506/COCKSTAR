@@ -3161,12 +3161,12 @@ useEffect(() => {
                                 {isAdmin ? '관리자' : '개인'}
                             </span>
                         </div>
-                    </div>
+                   </div>
                 </div>
 
-               // Share2 아이콘 버튼을 대기/휴식 버튼 왼쪽에 추가합니다.
-<div className="flex items-center gap-1.5 flex-shrink-0">
-    {/* 공유 버튼 추가 */}
+                {/* Share2 아이콘 버튼을 대기/휴식 버튼 왼쪽에 추가합니다. */}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {/* 공유 버튼 추가 */}
     <button 
         onClick={handleShare}
         className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-[#00B16A] hover:bg-green-50 transition-all"
