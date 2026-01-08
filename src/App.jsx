@@ -324,57 +324,61 @@ function AuthModal({ onClose, setUserData }) {
         }
     }, [step]);
 
-    // [2] 카카오 로그인 핸들러 (수정됨: 앱 실행 방지 옵션 추가)
-   const handleKakaoLogin = () => {
-        // 1. SDK 존재 및 초기화 확인
-        if (!window.Kakao) {
-            alert("카카오 SDK가 로드되지 않았습니다. index.html을 확인해주세요.");
-            return;
-        }
-        if (!window.Kakao.isInitialized()) {
-            alert("카카오 SDK가 초기화되지 않았습니다.");
+    const handleKakaoLogin = () => {
+        // 1. SDK 및 초기화 상태 확인
+        if (!window.Kakao || !window.Kakao.isInitialized()) {
+            alert("카카오 SDK가 로드되지 않았거나 초기화되지 않았습니다.");
             return;
         }
 
-        // 2. [수정] Kakao 객체 및 Auth 모듈 상태 재검토
-        if (!window.Kakao) {
-            alert("카카오 SDK가 로드되지 않았습니다. 인터넷 연결을 확인해주세요.");
-            return;
-        }
-
-        // Auth 모듈이 없을 경우, 도메인 등록 문제일 확률이 높습니다.
+        // 2. Auth 모듈 확인 (도메인 설정 미비 시 여기서 걸러짐)
         if (!window.Kakao.Auth) {
-            console.error("Kakao.Auth 모듈이 비활성화 상태입니다. 카카오 개발자 콘솔의 '사이트 도메인' 설정을 확인하세요.");
-            alert("카카오 로그인 모듈을 불러올 수 없습니다. 관리자 설정(도메인 등록)을 확인해주세요.");
+            alert("카카오 로그인 기능을 사용할 수 없습니다. 개발자 센터의 도메인 설정을 확인하세요.");
             return;
         }
 
         setLoading(true);
 
-        // v2에서는 Kakao.Auth.login을 직접 호출하는 방식이 가장 일반적입니다.
+        // 3. 카카오 로그인 실행
         window.Kakao.Auth.login({
             success: function (authObj) {
-                // 로그인 성공 시 사용자 정보 요청
-            // v2에서는 throughTalk: false 대신 다른 옵션이나 기본 설정을 사용하지만, 
-            // 현재 오류 해결을 위해 함수 호출 구조를 유지합니다.
-            success: function (authObj) {
+                // 로그인 성공 시 사용자 정보 가져오기
                 window.Kakao.API.request({
                     url: '/v2/user/me',
                     success: async function (res) {
-                        // ... 기존 성공 로직 유지
                         const kakaoId = res.id;
                         const nickname = res.properties?.nickname || '카카오 사용자';
-                        // (이하 코드 동일)
+
+                        // Firestore에서 이미 가입된 유저인지 확인
+                        try {
+                            const userDocRef = doc(db, "users", `kakao_${kakaoId}`);
+                            const userSnap = await getDoc(userDocRef);
+
+                            if (userSnap.exists()) {
+                                // 이미 가입된 경우 바로 로그인 처리
+                                setUserData(userSnap.data());
+                                onClose();
+                            } else {
+                                // 처음 가입하는 경우 정보 입력 단계로 이동
+                                setName(nickname);
+                                setStep('info');
+                            }
+                        } catch (err) {
+                            console.error("Firestore 조회 에러:", err);
+                            setError("유저 정보 확인 중 오류가 발생했습니다.");
+                        } finally {
+                            setLoading(false);
+                        }
                     },
                     fail: function (error) {
-                        console.error(error);
-                        setError("사용자 정보 요청 실패");
+                        console.error("사용자 정보 요청 실패", error);
+                        setError("사용자 정보를 가져오지 못했습니다.");
                         setLoading(false);
                     }
                 });
             },
             fail: function (err) {
-                console.error("로그인 취소 또는 실패", err);
+                console.error("카카오 로그인 취소/실패", err);
                 setError("카카오 로그인이 취소되었습니다.");
                 setLoading(false);
             },
