@@ -522,14 +522,14 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
                             주소 검색하기
                         </button>
 
-                        {/* 2. 현재 설정된 주소 표시 (읽기 전용) */}
+                       {/* 2. 현재 설정된 주소 표시 (읽기 전용) */}
                         <div>
                             <span className="text-xs text-gray-400 font-medium ml-1 mb-1 block">현재 설정된 주소</span>
-                            <div className={`w-full p-3 rounded-lg border text-sm font-medium ${formData.address ? 'bg-green-50 border-green-200 text-[#1E1E1E]' : 'bg-gray-100 border-gray-200 text-gray-400'}`}>
-                                {formData.address ? (
+                            <div className={`w-full p-3 rounded-lg border text-sm font-medium ${address ? 'bg-green-50 border-green-200 text-[#1E1E1E]' : 'bg-gray-100 border-gray-200 text-gray-400'}`}>
+                                {address ? (
                                     <div className="flex items-center gap-2">
-                                        <span>{formData.address}</span>
-                                        {formData.coords && <span className="text-[10px] bg-[#00B16A] text-white px-1.5 py-0.5 rounded-full">좌표O</span>}
+                                        <span>{address}</span>
+                                        {coords && <span className="text-[10px] bg-[#00B16A] text-white px-1.5 py-0.5 rounded-full">좌표O</span>}
                                     </div>
                                 ) : (
                                     "주소가 설정되지 않았습니다."
@@ -544,8 +544,8 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
                                 type="text" 
                                 name="location" 
                                 placeholder="예: 콕스타 체육관 2층"
-                                value={formData.location} 
-                                onChange={handleChange} 
+                                value={locationName} 
+                                onChange={(e) => setLocationName(e.target.value)} 
                                 className="w-full p-3 bg-white rounded-lg border border-gray-200 focus:border-[#00B16A] focus:outline-none text-sm font-medium"
                             />
                         </div>
@@ -2757,16 +2757,23 @@ setDoc(playerRef, {
         });
     };
 
-    // [신규] 모든 선수 내보내기
+   // [신규] 모든 선수 내보내기
     const handleKickAll = async () => {
         if(!window.confirm("방에 있는 모든 선수를 내보내시겠습니까?")) return;
-        // Batch delete
+        
         const batch = writeBatch(db);
         Object.keys(players).forEach(pid => {
             batch.delete(doc(playersCollectionRef, pid));
         });
-        await batch.commit(); // 게임수 업데이트
-        await updateDoc(roomDocRef, { inProgressCourts: newCourts }); // 코트 상태 업데이트
+        
+        // 코트도 모두 비움
+        const emptyCourts = Array(roomData.numInProgressCourts).fill(null);
+        
+        await batch.commit();
+        await updateDoc(roomDocRef, { 
+            inProgressCourts: emptyCourts,
+            scheduledMatches: {} // 배정된 경기도 함께 초기화 권장
+        });
     };
 
     // [신규] 수동 게임 수 저장 핸들러 추가
@@ -3842,3 +3849,4 @@ export default function App() {
             <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
         </div>
     );
+}
