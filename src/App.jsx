@@ -2274,23 +2274,31 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 
    // 중복된 주석 등을 정리한 최종본
 const handleShare = async () => {
+    // URL 생성 시 중복 방지를 위해 단순화
     const shareUrl = `${window.location.origin}?roomId=${roomId}`;
+    
     const shareData = {
-        title: `[콕스타] 경기 초대`,
-        text: `'${roomData?.name}' 경기방에 초대합니다!`,
+        title: `[COCKSTAR] 경기 초대`,
+        // text에 링크를 직접 넣지 않음 (navigator.share가 url 필드를 별도로 처리하도록 함)
+        text: `🏸 '${roomData?.name}' 경기방에 초대합니다! 지금 접속해서 팀을 확인하세요.`,
         url: shareUrl,
     };
 
-    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+    if (navigator.share) {
         try {
             await navigator.share(shareData);
         } catch (e) {
-            setShowShareModal(true);
+            // 공유 취소 또는 실패 시에만 모달 띄우기
+            if (e.name !== 'AbortError') {
+                setShowShareModal(true);
+            }
         }
     } else {
+        // navigator.share 미지원 브라우저 (PC 등)
         setShowShareModal(true);
     }
 };
+    
 
     // 권한 체크 및 데이터 구독 (기존 로직 통합)
     useEffect(() => {
@@ -3655,11 +3663,22 @@ const TabButton = ({ icon: Icon, label, isActive, onClick }) => {
 
 
 export default function App() {
-    const [page, setPage] = useState('home'); // 로그인을 안해도 홈부터 입장 가능
+    const [page, setPage] = useState('home'); 
     const [user, setUser] = useState(null);
     const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [isAuthModalOpen, setIsAuthModalOpen] = useState(false); // 로그인 모달 제어 상태
+    const [isAuthModalOpen, setIsAuthModalOpen] = useState(false); 
+    const [sharedRoomId, setSharedRoomId] = useState(null); // 공유받은 방 ID 상태 추가
+
+    // [신규] URL 파라미터 체크 로직
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const roomId = params.get('roomId');
+        if (roomId) {
+            setSharedRoomId(roomId);
+            setPage('game'); // URL에 roomId가 있으면 즉시 경기 탭으로 이동
+        }
+    }, []);
 
     useEffect(() => {
         let unsubscribeUserDoc = null;
@@ -3700,9 +3719,16 @@ export default function App() {
         <div className="flex flex-col h-screen bg-white max-w-md mx-auto shadow-2xl overflow-hidden relative font-sans text-[#1E1E1E]">
             {/* ... 헤더 섹션은 기존 유지 (page 상태에 따라 노출) ... */}
 
-            <main className="flex-grow overflow-y-auto hide-scrollbar bg-white">
+           <main className="flex-grow overflow-y-auto hide-scrollbar bg-white">
                 {page === 'home' && <HomePage user={user} setPage={handleTabClick} />}
-                {page === 'game' && <GamePage user={user} userData={userData} onLoginClick={() => setIsAuthModalOpen(true)} />}
+                {page === 'game' && (
+                    <GamePage 
+                        user={user} 
+                        userData={userData} 
+                        sharedRoomId={sharedRoomId} // 공유 ID 전달
+                        onLoginClick={() => setIsAuthModalOpen(true)} 
+                    />
+                )}
                 {page === 'kokMap' && <KokMapPage />}
                 {page === 'community' && <CommunityPage />}
                 {page === 'myInfo' && <MyInfoPage user={user} userData={userData} onLoginClick={() => setIsAuthModalOpen(true)} onLogout={() => signOut(auth)} setPage={handleTabClick} />}
