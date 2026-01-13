@@ -7,7 +7,9 @@ import {
     signInWithPhoneNumber, updatePassword, PhoneAuthProvider,
     signInWithCredential, OAuthProvider, signInWithPopup,
     EmailAuthProvider, reauthenticateWithCredential,
-    RecaptchaVerifier, updateProfile // updateProfile 추가
+    RecaptchaVerifier,
+    GoogleAuthProvider, // 추가: GoogleAuthProvider를 불러와야 에러가 발생하지 않습니다.
+    updateProfile       // 추가: 프로필 업데이트 기능을 위해 필요합니다.
 } from 'firebase/auth';
 import { 
     getFirestore, 
@@ -24,7 +26,8 @@ import {
     updateDoc,
     deleteDoc,
     runTransaction,
-    writeBatch
+    writeBatch,
+    getDocs // 추가: 아이디 중복 확인 등에서 사용되는 필수 함수입니다.
 } from 'firebase/firestore';
 // StoreIcon 대신 Map 아이콘을 가져옵니다.
 import {
@@ -111,6 +114,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+// 현재 badminton-app 로그인 방식은 Kakao(OAuthProvider)를 사용하므로 
+// 아래 googleProvider 선언은 에러 방지를 위해 주석 처리하거나 삭제해도 무방합니다.
 const googleProvider = new GoogleAuthProvider();
 
 // [신규] 앱 ID (Firestore 경로에 사용)
