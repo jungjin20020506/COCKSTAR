@@ -33,6 +33,7 @@ import {
     Search as SearchIcon, 
     Bell as BellIcon, 
     MapPin as MapPinIcon, 
+    Phone as PhoneIcon, // 추가: Phone 아이콘 소스 가져오기
     Heart as HeartIcon, 
     ChevronRight as ChevronRightIcon, 
     Plus as PlusIcon, 
@@ -83,6 +84,7 @@ const Users2 = createThinIcon(Users2Icon);
 const BarChart2 = createThinIcon(BarChart2Icon);
 const CheckCircle = createThinIcon(CheckCircleIcon);
 const UserCheck = createThinIcon(UserCheckIcon);
+const Phone = createThinIcon(PhoneIcon); // 추가: Phone 아이콘 정의
 const GripVertical = createThinIcon(GripVerticalIcon);
 // ===================================================================================
 // Firebase 설정 (Vercel 환경 변수 사용)
