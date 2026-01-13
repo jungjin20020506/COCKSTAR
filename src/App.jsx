@@ -1970,6 +1970,7 @@ function EditProfileModal({ isOpen, onClose, userData, user }) {
         level: 'N조',
         gender: '남',
         birthYear: '2000',
+        region: '서울', // 추가
         currentPassword: '',
         newPassword: '',
         confirmPassword: ''
@@ -2159,7 +2160,85 @@ function EditProfileModal({ isOpen, onClose, userData, user }) {
         </div>
     );
 }
+// [신규] 최초 회원가입 시 프로필 설정 모달
+function InitialProfileModal({ isOpen, user }) {
+    const [formData, setFormData] = useState({
+        name: '',
+        level: 'N조',
+        gender: '남',
+        birthYear: '2000',
+        region: '서울'
+    });
+    const [loading, setLoading] = useState(false);
 
+    const handleSave = async (e) => {
+        e.preventDefault();
+        if (!formData.name.trim()) return alert("이름(실명)을 입력해주세요.");
+        setLoading(true);
+        try {
+            // users 컬렉션에 새 문서 생성
+            await setDoc(doc(db, "users", user.uid), {
+                ...formData,
+                email: user.email,
+                createdAt: serverTimestamp()
+            });
+            // Firebase Auth 프로필 업데이트
+            await updateProfile(user, { displayName: formData.name });
+            alert("환영합니다! 프로필 설정이 완료되었습니다.");
+        } catch (err) {
+            console.error(err);
+            alert("저장 중 오류가 발생했습니다.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    const regions = ['서울', '경기', '인천', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주'];
+
+    return (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl animate-fade-in-up">
+                <div className="text-center mb-8">
+                    <h2 className="text-3xl font-black text-[#00B16A] mb-2">필수 정보 입력</h2>
+                    <p className="text-gray-500 font-medium">콕스타 시작 전, 프로필을 완성해주세요!</p>
+                </div>
+                <form onSubmit={handleSave} className="space-y-5">
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">이름(실명) <span className="text-red-500">*</span></label>
+                        <input type="text" placeholder="본명을 입력해주세요" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:border-[#00B16A] outline-none font-bold" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">급수</label>
+                            <select value={formData.level} onChange={e => setFormData({...formData, level: e.target.value})} className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none">
+                                {['S조', 'A조', 'B조', 'C조', 'D조', 'E조', 'N조'].map(l => <option key={l} value={l}>{l}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">지역</label>
+                            <select value={formData.region} onChange={e => setFormData({...formData, region: e.target.value})} className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none">
+                                {regions.map(r => <option key={r} value={r}>{r}</option>)}
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">성별</label>
+                        <div className="flex bg-gray-100 p-1 rounded-2xl">
+                            {['남', '여'].map(g => (
+                                <button key={g} type="button" onClick={() => setFormData({...formData, gender: g})} className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${formData.gender === g ? 'bg-white text-[#00B16A] shadow-sm' : 'text-gray-400'}`}>{g}</button>
+                            ))}
+                        </div>
+                    </div>
+                    <button type="submit" disabled={loading} className="w-full py-5 bg-[#00B16A] text-white font-black rounded-2xl shadow-lg shadow-green-200 text-lg">
+                        {loading ? "저장 중..." : "콕스타 시작하기"}
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+}
 /**
  * [신규] 오류 해결을 위한 코트 선택 모달 정의
  */
@@ -2324,11 +2403,12 @@ useEffect(() => {
         getDoc(playerRef).then((snap) => {
             if (!snap.exists()) {
                 // 2. 없다면 선수 카드 즉시 생성 (입장)
-                setDoc(playerRef, {
+setDoc(playerRef, {
                     name: userData.name,
                     level: userData.level,
                     gender: userData.gender,
                     birthYear: userData.birthYear,
+                    region: userData.region || '미설정', // 프로필 기반 지역 추가
                     entryTime: serverTimestamp(),
                     todayGames: 0,
                     isResting: false,
@@ -3483,10 +3563,10 @@ function MyInfoPage({ user, userData, onLoginClick, onLogout, setPage }) {
         );
     }
 
+   // 데이터가 없고 로딩 중도 아니라면 프로필 설정 모달이 뜰 것이므로 빈 화면 반환
     if (!userData) {
-        return <LoadingSpinner text="내 정보 불러오는 중..." />;
+        return <div className="p-10 text-center text-gray-400">프로필 정보를 설정해주세요.</div>;
     }
-
     return (
         <div className="p-5 text-[#1E1E1E] space-y-6">
             <h1 className="text-2xl font-bold mb-2">내 정보</h1>
@@ -3680,17 +3760,21 @@ export default function App() {
         }
     }, []);
 
-    useEffect(() => {
+   useEffect(() => {
         let unsubscribeUserDoc = null;
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
             if (currentUser) {
                 setUser(currentUser);
                 const userDocRef = doc(db, "users", currentUser.uid);
+                // 유저 정보 실시간 감시
                 unsubscribeUserDoc = onSnapshot(userDocRef, (docSnap) => {
                     if (docSnap.exists()) {
                         setUserData(docSnap.data());
+                    } else {
+                        // 문서가 없으면 null로 명시 (최초 가입자)
+                        setUserData(null);
                     }
-                    setLoading(false);
+                    setLoading(false); // 데이터 확인 완료 후 로딩 해제
                 });
             } else {
                 setUser(null);
@@ -3704,6 +3788,12 @@ export default function App() {
         };
     }, []);
 
+    // [신규] URL 파라미터 체크 로직 (공유 링크 접속 시 바로 경기 탭으로)
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const roomId = params.get('roomId');
+        if (roomId) setPage('game'); 
+    }, []);
     // 탭 클릭 시 로그인 여부 체크 핸들러
     const handleTabClick = (targetPage) => {
         if ((targetPage === 'game' || targetPage === 'myInfo') && !user) {
@@ -3743,8 +3833,12 @@ export default function App() {
                 <TabButton icon={User} label="정보" isActive={page === 'myInfo'} onClick={() => handleTabClick('myInfo')} />
             </nav>
 
+            {/* [신규] 로그인 상태인데 정보가 없는 최초 가입자에게만 강제로 띄움 */}
+            {user && !userData && !loading && (
+                <InitialProfileModal isOpen={true} user={user} />
+            )}
+
             {/* 통합 로그인 모달 */}
             <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
         </div>
     );
-}
