@@ -2,20 +2,12 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 // [수정] 중복된 import를 하나로 합쳤습니다.
 import {
-    getAuth,
-    onAuthStateChanged,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
-    signInWithPopup,
-    GoogleAuthProvider,
-    signOut,
-    RecaptchaVerifier,
-    signInWithPhoneNumber,
-    updateProfile,
-    // [추가] 프로필 수정 및 비밀번호 변경용
-    EmailAuthProvider,
-    reauthenticateWithCredential,
-    updatePassword
+    getAuth, onAuthStateChanged, signOut,
+    createUserWithEmailAndPassword, signInWithEmailAndPassword,
+    signInWithPhoneNumber, updatePassword, PhoneAuthProvider,
+    signInWithCredential, OAuthProvider, signInWithPopup,
+    EmailAuthProvider, reauthenticateWithCredential,
+    RecaptchaVerifier
 } from 'firebase/auth';
 import { 
     getFirestore, 
@@ -281,119 +273,118 @@ function LoginRequiredPage({ icon: Icon, title, description, onLoginClick }) {
     );
 }
 
-// [신규] 로그인/회원가입 모달 (카카오 + 휴대폰 + 관리자 이메일 로그인 추가)
-function AuthModal({ onClose, setUserData }) {
-    // 단계: 'method'(선택) -> 'phone'(번호입력) -> 'otp'(인증번호) -> 'info'(정보입력) -> 'email_login'(관리자용)
-    const [step, setStep] = useState('method'); 
-    
-    // 상태 관리
-    const [phoneNumber, setPhoneNumber] = useState('');
-    const [otp, setOtp] = useState('');
-    const [confirmationResult, setConfirmationResult] = useState(null);
-    const [loading, setLoading] = useState(false);
+// [새 인증 페이지 컴포넌트]
+function AuthPage({ setPage, setTempUserData }) {
+    const [mode, setMode] = useState('login');
     const [error, setError] = useState('');
 
-    // 상태 관리 (관리자 이메일 로그인용)
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-
-    // 추가 정보 입력 상태
-    const [name, setName] = useState('');
-    const [gender, setGender] = useState('남');
-    const [level, setLevel] = useState('N조');
-
-    // 리캡차 설정을 위한 Ref
-    const recaptchaVerifier = useRef(null);
-
-    // [1] 리캡차 초기화 (휴대폰 인증 필수)
     useEffect(() => {
-        if (step === 'phone' && !recaptchaVerifier.current) {
-            try {
-                recaptchaVerifier.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
-                    'size': 'invisible', // 보이지 않게 처리
-                    'callback': (response) => {
-                        // 리캡차 성공 시 자동 실행될 로직
-                    },
-                    'expired-callback': () => {
-                        setError('인증 시간이 만료되었습니다. 다시 시도해주세요.');
-                    }
-                });
-            } catch (e) {
-                console.error("Recaptcha Init Error:", e);
+        const recaptchaContainer = document.getElementById('recaptcha-container');
+        if (recaptchaContainer && !window.recaptchaVerifier) {
+            window.recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainer, { 'size': 'invisible' });
+        }
+    }, []);
+
+    const ensureRecaptcha = () => {
+        if (!window.recaptchaVerifier) {
+            const recaptchaContainer = document.getElementById('recaptcha-container');
+            if(recaptchaContainer) window.recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainer, { 'size': 'invisible' });
+        }
+        return window.recaptchaVerifier;
+    }
+
+    // 카카오 간편 회원가입 (Firebase OAuth 사용)
+    const handleKakaoSignUp = async () => {
+        setError('');
+        try {
+            const provider = new OAuthProvider('oidc.kakao');
+            const result = await signInWithPopup(auth, provider);
+            const user = result.user;
+            const userDoc = await getDoc(doc(db, 'users', user.uid));
+
+            if (userDoc.exists()) {
+                setError("이미 가입된 이용자입니다. '카카오 로그인'을 이용해주세요.");
+                signOut(auth);
+                return;
             }
-        }
-    }, [step]);
-
-    const handleKakaoLogin = () => {
-        // 1. [체크] SDK가 있는지 확인
-        if (!window.Kakao) {
-            alert("카카오 SDK를 찾을 수 없습니다. 페이지를 새로고침 해주세요.");
-            return;
-        }
-
-        // 2. [체크] 초기화가 되었는지 확인
-        if (!window.Kakao.isInitialized()) {
-            alert("카카오 SDK 초기화에 실패했습니다. 관리자 설정(App Key)을 확인하세요.");
-            return;
-        }
-
-        // 3. [체크] Auth 모듈이 로드되었는지 최종 확인
-        // "is not a function" 에러를 방지하기 위한 핵심 검사입니다.
-        if (!window.Kakao.Auth || typeof window.Kakao.Auth.login !== 'function') {
-            // 현재 접속 중인 주소를 콘솔에 출력하여 카카오 설정과 비교할 수 있게 합니다.
-            console.error("현재 접속 주소:", window.location.origin); 
-            console.error("카카오 Auth 모듈 로드 실패. 위 주소가 카카오 콘솔 '사이트 도메인'에 등록되어 있나요?");
-            alert("카카오 로그인 기능을 사용할 수 없습니다. 관리자 설정에서 사이트 도메인을 확인하세요.");
-            return;
-        }
-        setLoading(true);
-
-        // 4. [실행] 카카오 로그인 팝업 호출
-        window.Kakao.Auth.login({
-            success: function (authObj) {
-                console.log("카카오 로그인 성공:", authObj);
-                
-                // 사용자 정보 가져오기
-                window.Kakao.API.request({
-                    url: '/v2/user/me',
-                    success: async function (res) {
-                        try {
-                            const kakaoId = res.id;
-                            const nickname = res.properties?.nickname || '카카오 사용자';
-
-                            // Firestore 유저 확인 및 가입 처리
-                            const userDocRef = doc(db, "users", `kakao_${kakaoId}`);
-                            const userSnap = await getDoc(userDocRef);
-
-                            if (userSnap.exists()) {
-                                setUserData(userSnap.data());
-                                onClose();
-                            } else {
-                                // 신규 가입 시 정보 입력 단계로 이동
-                                setName(nickname);
-                                setStep('info');
-                            }
-                        } catch (err) {
-                            console.error("데이터 저장 오류:", err);
-                            setError("가입 정보 처리 중 오류가 발생했습니다.");
-                        } finally {
-                            setLoading(false);
-                        }
-                    },
-                    fail: function (error) {
-                        console.error("사용자 정보 요청 실패:", error);
-                        setError("사용자 정보를 가져오지 못했습니다.");
-                        setLoading(false);
-                    }
-                });
-            },
-            fail: function (err) {
-                console.error("카카오 로그인 실패:", err);
-                setError("로그인이 취소되거나 실패했습니다.");
-                setLoading(false);
-            },
-        });
+            setTempUserData({ uid: user.uid, name: user.displayName || '이름없음', username: `kakao:${user.uid}`, isKakaoUser: true });
+            setPage('kakaoProfileSetup');
+        } catch (err) { setError(`카카오 회원가입 실패: ${err.message}`); }
     };
+
+    const handleKakaoLogin = async () => {
+        setError('');
+        try {
+            const provider = new OAuthProvider('oidc.kakao');
+            const result = await signInWithPopup(auth, provider);
+            const userDoc = await getDoc(doc(db, 'users', result.user.uid));
+            if (!userDoc.exists()) {
+                setError("가입 정보가 없습니다. 회원가입을 먼저 진행해주세요.");
+                signOut(auth);
+            }
+        } catch (err) { setError(`카카오 로그인 실패: ${err.message}`); }
+    };
+
+    return (
+        <div className="bg-[#1E1E1E] text-white min-h-screen flex items-center justify-center p-4">
+            <div id="recaptcha-container"></div>
+            <div className="bg-white/10 backdrop-blur-md p-8 rounded-2xl shadow-xl w-full max-w-sm">
+                <h1 className="text-3xl font-black text-[#00B16A] mb-6 text-center">COCKSTAR</h1>
+                {error && <p className="text-red-400 text-center mb-4 text-sm">{error}</p>}
+                {mode === 'signup' ? <SignUpForm setError={setError} setMode={setMode} ensureRecaptcha={ensureRecaptcha} /> :
+                 mode === 'findAccount' ? <FindAccountForm setError={setError} setMode={setMode} ensureRecaptcha={ensureRecaptcha} /> :
+                 <LoginForm setError={setError} setMode={setMode} handleKakaoSignUp={handleKakaoSignUp} handleKakaoLogin={handleKakaoLogin} />}
+            </div>
+        </div>
+    );
+}
+
+// [로그인 폼]
+function LoginForm({ setError, setMode, handleKakaoSignUp, handleKakaoLogin }) {
+    const [formData, setFormData] = useState({ username: '', password: ''});
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        const email = formData.username === 'domain' ? 'domain@special.user' : `${formData.username}@cockstar.app`;
+        try { await signInWithEmailAndPassword(auth, email, formData.password); } 
+        catch (err) { setError('아이디 또는 비밀번호가 잘못되었습니다.'); }
+    };
+    return (
+        <form onSubmit={handleLogin} className="space-y-4 text-black">
+            <input type="text" placeholder="아이디" onChange={e => setFormData({...formData, username: e.target.value})} className="w-full p-3 rounded-xl bg-gray-100" />
+            <input type="password" placeholder="비밀번호" onChange={e => setFormData({...formData, password: e.target.value})} className="w-full p-3 rounded-xl bg-gray-100" />
+            <button type="submit" className="w-full bg-[#00B16A] text-white font-bold py-3 rounded-xl">로그인</button>
+            <button type="button" onClick={handleKakaoLogin} className="w-full bg-[#FEE500] text-[#3c1e1e] font-bold py-3 rounded-xl">카카오 로그인</button>
+            <div className="text-center text-sm text-gray-400">
+                <button type="button" onClick={() => setMode('signup')} className="hover:text-white">회원가입</button>
+            </div>
+        </form>
+    );
+}
+
+// [카카오 신규 가입자 프로필 설정 페이지]
+function KakaoProfileSetupPage({ tempUserData, setPage }) {
+    const [profileData, setProfileData] = useState({ level: 'N조', gender: '남', birthYear: '2000' });
+    const handleSave = async () => {
+        try {
+            await setDoc(doc(db, "users", tempUserData.uid), { ...tempUserData, ...profileData, phone: '', createdAt: serverTimestamp() });
+            alert('가입 완료! 다시 로그인해주세요.');
+            signOut(auth);
+            setPage('auth');
+        } catch (err) { alert('저장 실패: ' + err.message); }
+    };
+    return (
+        <div className="bg-[#1E1E1E] text-white min-h-screen flex items-center justify-center p-4 text-black">
+            <div className="bg-white p-8 rounded-2xl w-full max-w-sm">
+                <h2 className="text-xl font-bold mb-4">추가 정보 입력</h2>
+                <select onChange={e => setProfileData({...profileData, level: e.target.value})} className="w-full p-3 mb-3 bg-gray-100 rounded-xl">
+                    <option>N조</option><option>S조</option><option>A조</option><option>B조</option><option>C조</option><option>D조</option><option>E조</option>
+                </select>
+                <button onClick={handleSave} className="w-full bg-[#00B16A] text-white font-bold py-3 rounded-xl">가입 완료</button>
+            </div>
+        </div>
+    );
+}
+
     // [3] 인증번호 전송
     const sendOtp = async (e) => {
         e.preventDefault();
@@ -3999,46 +3990,56 @@ const TabButton = ({ icon: Icon, label, isActive, onClick }) => {
 };
 
 
-// [필수] 메인 App 컴포넌트
 export default function App() {
-    // 1. 상태 관리
-    const [page, setPage] = useState('home'); 
-    
-  
-   // [수정] 카카오 SDK 초기화 로직 강화
+    const [page, setPage] = useState('auth'); // 초기 페이지를 'auth'로 설정
+    const [user, setUser] = useState(null);
+    const [userData, setUserData] = useState(null);
+    const [tempUserData, setTempUserData] = useState(null); // 카카오 가입용 임시 데이터
+    const [loading, setLoading] = useState(true);
+
     useEffect(() => {
-        const kakaoKey = "4bebedd2921e9ecf2412417b5b35762e"; 
-        
-        const initKakao = () => {
-            if (window.Kakao) {
-                if (!window.Kakao.isInitialized()) {
-                    window.Kakao.init(kakaoKey);
-                    console.log("✅ 카카오 SDK 초기화 완료");
+        const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+            if (currentUser) {
+                setUser(currentUser);
+                const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+                if (userDoc.exists()) {
+                    setUserData(userDoc.data());
+                    if (page === 'auth') setPage('home'); // 로그인 성공 시 홈으로
+                } else {
+                    // 로그인은 됐는데 정보가 없으면 가입 페이지로 (주로 카카오 첫 가입 시)
+                    if (page !== 'kakaoProfileSetup') setPage('auth');
                 }
             } else {
-                // 아직 SDK가 로드되지 않았다면 0.1초 뒤에 다시 시도
-                setTimeout(initKakao, 100);
+                setUser(null);
+                setUserData(null);
+                setPage('auth');
             }
-        };
+            setLoading(false);
+        });
+        return () => unsubscribeAuth();
+    }, [page]);
 
-        initKakao();
-    }, []);
-    // [신규] 공유 받은 방 ID를 관리하는 상태
-    const [sharedRoomId, setSharedRoomId] = useState(null);
+    if (loading) return <LoadingSpinner />;
 
-    // [신규] 앱 로드 시 URL 파라미터(?roomId=...) 확인
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const roomId = params.get('roomId');
-        if (roomId) {
-            setSharedRoomId(roomId);
-            setPage('game'); // 경기 탭으로 즉시 이동
-        }
-    }, []);
-
-    const [user, setUser] = useState(null);
-    const [userData, setUserData] = useState(null); // Firestore 유저 추가 정보
-    const [isAuthModalOpen, setIsAuthModalOpen] = useState(false); // 로그인 모달 상태
+    return (
+        <div className="flex flex-col h-screen bg-white max-w-md mx-auto shadow-2xl overflow-hidden relative font-sans text-[#1E1E1E]">
+            <main className="flex-grow overflow-y-auto hide-scrollbar bg-white">
+                {page === 'auth' ? <AuthPage setPage={setPage} setTempUserData={setTempUserData} /> :
+                 page === 'kakaoProfileSetup' ? <KakaoProfileSetupPage tempUserData={tempUserData} setPage={setPage} /> :
+                 <>
+                    {/* 기존 콘텐츠 렌더링 (HomePage, GamePage 등) */}
+                    {page === 'home' && <HomePage user={user} setPage={setPage} />}
+                    {/* ... 생략 ... */}
+                 </>
+                }
+            </main>
+            {/* 하단 네비게이션은 page가 'auth'나 'kakaoProfileSetup'이 아닐 때만 노출 */}
+            {page !== 'auth' && page !== 'kakaoProfileSetup' && (
+                <nav>...</nav> 
+            )}
+        </div>
+    );
+}
     const [loading, setLoading] = useState(true); // 초기 로딩 상태
 
     // 2. 인증 상태 감지 & 유저 정보 실시간 동기화
