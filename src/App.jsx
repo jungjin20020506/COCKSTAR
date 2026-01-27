@@ -3675,34 +3675,49 @@ function MyInfoPage({ user, userData, onLoginClick, onLogout, setPage }) {
                         </h2>
                         <div className="flex flex-col items-start gap-1">
                             <div className="flex items-center gap-2 w-full">
-                                <span className="text-gray-500 text-sm truncate font-medium bg-gray-50 px-2 py-1 rounded border border-gray-100 flex-1">
-                                    {userData?.email || user?.email}
+                                <span className="text-gray-500 text-[11px] truncate font-bold bg-gray-50 px-2 py-1.5 rounded border border-gray-100 flex-1">
+                                    {userData?.email || user?.email || user?.uid}
                                 </span>
                                 <button 
                                     onClick={() => {
-                                        const email = userData?.email || user?.email;
-                                        if (navigator.clipboard) {
-                                            navigator.clipboard.writeText(email)
-                                                .then(() => alert("아이디가 복사되었습니다!"))
-                                                .catch(() => alert("복사 실패: 직접 복사해주세요."));
+                                        // 우선순위: Firestore이메일 > Auth이메일 > Auth UID (모두 없을 경우 빈 문자열)
+                                        const copyId = userData?.email || user?.email || user?.uid || "";
+                                        
+                                        if (!copyId) {
+                                            alert("복사할 아이디 정보가 없습니다.");
+                                            return;
+                                        }
+
+                                        if (navigator.clipboard && window.isSecureContext) {
+                                            navigator.clipboard.writeText(copyId)
+                                                .then(() => alert(`아이디가 복사되었습니다!\n${copyId}`))
+                                                .catch(() => alert("복사 실패: 다시 시도해주세요."));
                                         } else {
+                                            // Fallback: 구형 브라우저 및 모바일 환경
                                             const textArea = document.createElement("textarea");
-                                            textArea.value = email;
+                                            textArea.value = copyId;
                                             document.body.appendChild(textArea);
                                             textArea.select();
-                                            document.execCommand("copy");
+                                            try {
+                                                document.execCommand("copy");
+                                                alert(`아이디가 복사되었습니다!\n${copyId}`);
+                                            } catch (err) {
+                                                alert("복사에 실패했습니다.");
+                                            }
                                             document.body.removeChild(textArea);
-                                            alert("아이디가 복사되었습니다!");
                                         }
                                     }}
-                                    className="p-2 bg-green-50 text-[#00B16A] rounded-lg border border-green-100 active:scale-90 transition-transform flex-shrink-0"
-                                    title="아이디 복사"
+                                    className="p-2 bg-green-50 text-[#00B16A] rounded-lg border border-green-100 active:scale-90 transition-transform flex-shrink-0 flex items-center gap-1"
                                 >
-                                    <Copy size={16} />
+                                    <Copy size={14} />
+                                    <span className="text-[10px] font-bold">복사</span>
                                 </button>
                             </div>
+                            <p className="text-[9px] text-gray-400 font-medium ml-1">
+                                * 관리자 등록 시 위 아이디를 전달해 주세요.
+                            </p>
                             {userData?.kakaoId && (
-                                <span className="text-[10px] bg-[#FEE500] text-black px-2 py-0.5 rounded-full font-bold">Kakao Login</span>
+                                <span className="mt-1 text-[10px] bg-[#FEE500] text-black px-2 py-0.5 rounded-full font-bold">Kakao Login</span>
                             )}
                         </div>
                     </div>
