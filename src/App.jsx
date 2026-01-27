@@ -1480,10 +1480,23 @@ function RoomCard({ room, onEnter, onEdit, user }) {
             </p>
 
             <div className="flex flex-wrap gap-2 items-center text-xs font-bold">
-                <span className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 rounded-lg text-gray-600">
-                    <Users size={14} />
-                    {room.playerCount || 0} / {room.maxPlayers}
-                </span>
+               useEffect(() => {
+    const unsubPlayers = onSnapshot(playersCollectionRef, (snapshot) => {
+        const playersArray = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        playersArray.sort((a, b) => (a.entryTime?.seconds || 0) - (b.entryTime?.seconds || 0));
+        
+        // 상태 업데이트
+        setPlayers(playersArray.reduce((acc, p) => ({ ...acc, [p.id]: p }), {}));
+        
+        // [추가] DB의 잘못된 인원수(39명 등)를 실제 문서 개수로 즉시 보정
+        if (isAdmin && roomDocRef) {
+            updateDoc(roomDocRef, { playerCount: snapshot.size }).catch(() => {});
+        }
+        
+        setLoading(false);
+    });
+    return () => unsubPlayers();
+}, [playersCollectionRef, isAdmin, roomDocRef]);
                 <span className={`flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 rounded-lg ${levelColor}`}>
                     <BarChart2 size={14} />
                     {room.levelLimit === 'N조' ? '전체 급수' : `${room.levelLimit} 이상`}
@@ -2514,43 +2527,44 @@ const handleShare = async () => {
     }, [roomDocRef]);
 
 useEffect(() => {
-    if (user && roomData && !loading) {
-        const playerRef = doc(db, "rooms", roomId, "players", user.uid);
-        let joined = false;
+    if (!user || !userData || !roomData || loading) return;
 
-        const joinRoom = async () => {
-            const snap = await getDoc(playerRef);
-            if (!snap.exists() && userData) {
-                await setDoc(playerRef, {
-                    name: userData.name || '선수',
-                    level: userData.level || 'N조',
-                    gender: userData.gender || '남',
-                    birthYear: userData.birthYear || '',
-                    region: userData.region || '미설정',
-                    entryTime: serverTimestamp(),
-                    todayGames: 0,
-                    isResting: false,
-                    role: 'player'
-                });
-                await updateDoc(roomDocRef, { playerCount: increment(1) });
-                joined = true;
-            } else if (snap.exists()) {
-                joined = true;
-            }
-        };
+    const playerRef = doc(db, "rooms", roomId, "players", user.uid);
+    
+    const syncJoin = async () => {
+        try {
+            await runTransaction(db, async (transaction) => {
+                const playerSnap = await transaction.get(playerRef);
+                
+                // 문서가 없을 때만 생성 (중복 입장 방지)
+                if (!playerSnap.exists()) {
+                    transaction.set(playerRef, {
+                        name: userData.name || '선수',
+                        level: userData.level || 'N조',
+                        gender: userData.gender || '남',
+                        birthYear: userData.birthYear || '',
+                        region: userData.region || '미설정',
+                        entryTime: serverTimestamp(),
+                        todayGames: 0,
+                        isResting: false,
+                        role: 'player'
+                    });
+                }
+            });
+        } catch (e) {
+            console.error("입장 트랜잭션 실패:", e);
+        }
+    };
 
-        joinRoom();
+    syncJoin();
 
-        // 컴포넌트 언마운트(방을 나감, 탭 이동 등) 시 인원수 감소 및 데이터 삭제
-        return () => {
-            if (joined && user?.uid) {
-                deleteDoc(playerRef);
-                updateDoc(roomDocRef, { playerCount: increment(-1) });
-            }
-        };
-    }
-}, [user, userData, roomData, loading, roomId, roomDocRef]);
-
+    // 언마운트 시 인원 삭제 (playerCount increment 대신 실제 문서 삭제만 수행)
+    return () => {
+        if (user?.uid) {
+            deleteDoc(playerRef).catch(console.error);
+        }
+    };
+}, [user?.uid, !!userData, !!roomData, loading, roomId]);
     useEffect(() => {
         const unsubPlayers = onSnapshot(playersCollectionRef, (snapshot) => {
             const playersArray = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -2799,24 +2813,29 @@ useEffect(() => {
         }
     };
     // [신규] 스케줄에서 특정 슬롯 비우기 (나간 선수 제거용)
-    const handleRemoveFromSchedule = async (matchIndex, slotIndex) => {
-        if (!isAdmin) return;
-        try {
-            await runTransaction(db, async (t) => {
-                const rd = await t.get(roomDocRef);
-                const data = rd.data();
-                const schedule = { ...data.scheduledMatches };
+   const handleRemoveFromSchedule = async (matchIndex, slotIndex) => {
+    if (!isAdmin) return;
+    try {
+        await runTransaction(db, async (t) => {
+            const rd = await t.get(roomDocRef);
+            if (!rd.exists()) return;
+            const data = rd.data();
+            const schedule = { ...data.scheduledMatches };
 
-                if (schedule[matchIndex]) {
-                    schedule[matchIndex][slotIndex] = null; // 해당 자리 비우기
-                    t.update(roomDocRef, { scheduledMatches: schedule });
-                }
-            });
-        } catch (e) {
-            console.error(e);
-            alert("삭제 실패: " + e.message);
-        }
-    };
+            if (schedule[matchIndex]) {
+                const newMatch = [...schedule[matchIndex]];
+                // 이미 데이터가 바뀌었는지 확인 (동시 작업 체크)
+                if (newMatch[slotIndex] === null) return; 
+
+                newMatch[slotIndex] = null;
+                schedule[matchIndex] = newMatch;
+                t.update(roomDocRef, { scheduledMatches: schedule });
+            }
+        });
+    } catch (e) {
+        console.error("선수 제거 실패:", e);
+    }
+};
     // [신규] 선수 강퇴
     const handleKickPlayer = async (player) => {
         if (!window.confirm(`'${player.name}'님을 내보내시겠습니까?`)) return;
@@ -2945,30 +2964,53 @@ useEffect(() => {
     };
 
     const processStartMatch = async (matchIdx, courtIdx) => {
-        try {
-            await runTransaction(db, async (t) => {
-                const rd = await t.get(roomDocRef);
-                const data = rd.data();
-                const matchPlayers = data.scheduledMatches[matchIdx];
-                
-                if (!matchPlayers || matchPlayers.includes(null)) throw "인원이 부족합니다.";
-                
-                // 스케줄 제거 & 재정렬
-                const newSched = { ...data.scheduledMatches };
-                delete newSched[matchIdx];
-                // 키 재정렬
-                const reordered = {};
-                Object.values(newSched).forEach((m, i) => reordered[i] = m);
+    try {
+        await runTransaction(db, async (t) => {
+            const rd = await t.get(roomDocRef);
+            if (!rd.exists()) throw "방이 존재하지 않습니다.";
+            const data = rd.data();
+            
+            const schedule = { ...data.scheduledMatches };
+            const matchPlayers = schedule[matchIdx];
+            const currentCourts = [...(data.inProgressCourts || [])];
 
-                // 코트 투입
-                const newCourts = [...(data.inProgressCourts || [])];
-                newCourts[courtIdx] = { players: matchPlayers, startTime: new Date().toISOString() };
+            // 1. 검증: 해당 코트가 그 사이 찼는지 확인
+            if (currentCourts[courtIdx] !== null) {
+                throw "이미 다른 관리자가 해당 코트에서 경기를 시작했습니다.";
+            }
 
-                t.update(roomDocRef, { scheduledMatches: reordered, inProgressCourts: newCourts });
+            // 2. 검증: 해당 매치 순번의 데이터가 여전히 존재하는지 확인
+            if (!matchPlayers || matchPlayers.filter(Boolean).length < 4) {
+                throw "경기 인원이 변경되었거나 이미 시작된 경기입니다.";
+            }
+
+            // 3. 코트 데이터 업데이트
+            currentCourts[courtIdx] = { 
+                players: matchPlayers, 
+                startTime: new Date().toISOString() 
+            };
+
+            // 4. 스케줄에서 해당 매치 삭제 및 인덱스 재정렬 (데이터 유실 방지)
+            const scheduleValues = Object.entries(schedule)
+                .filter(([key]) => parseInt(key) !== matchIdx)
+                .map(([_, value]) => value);
+            
+            const reorderedSchedule = {};
+            scheduleValues.forEach((val, i) => {
+                reorderedSchedule[i] = val;
             });
-            setCourtModalOpen(false);
-        } catch (e) { alert(e); }
-    };
+
+            t.update(roomDocRef, { 
+                scheduledMatches: reorderedSchedule, 
+                inProgressCourts: currentCourts 
+            });
+        });
+        setCourtModalOpen(false);
+    } catch (e) {
+        console.error("경기 시작 실패:", e);
+        alert(typeof e === 'string' ? e : "작업 충돌이 발생했습니다.");
+    }
+};
 
     const handleEndMatch = async (courtIdx) => {
         if (!isAdmin || !confirm("경기 종료?")) return;
@@ -3027,9 +3069,12 @@ useEffect(() => {
                         <div className="flex items-center text-[11px] text-gray-400 font-medium leading-none mt-0.5 space-x-1.5 truncate">
                             <span className="truncate max-w-[100px]">{roomData?.location}</span>
                             <span className="w-0.5 h-2 bg-gray-300 rounded-full"></span>
-                            <span className="flex items-center">
-                                <Users size={10} className="mr-0.5"/> {Object.keys(players).length}명
-                            </span>
+                            // RoomCard 컴포넌트 내부의 인원수 표시 부분
+<span className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 rounded-lg text-gray-600">
+    <Users size={14} />
+    {/* room.playerCount 대신 실제 선수 목록의 길이를 사용하거나, 정확한 실시간 데이터를 사용하도록 유도 */}
+    {room.playerCount || 0} / {room.maxPlayers}
+</span>
                             <span className="w-0.5 h-2 bg-gray-300 rounded-full"></span>
                             <span className={isAdmin ? "text-[#00B16A]" : "text-gray-400"}>
                                 {isAdmin ? '관리자' : '개인'}
