@@ -1437,13 +1437,13 @@ function GamePage({ user, userData, onLoginClick, sharedRoomId }) {
 function RoomCard({ room, onEnter, onEdit, user }) {
     const levelColor = room.levelLimit === 'N조' ? 'text-gray-500' : 'text-[#00B16A]';
     
-    // [신규] 관리자 권한 체크 (슈퍼 관리자, 방장, 공동 관리자)
+  // [신규] 관리자 권한 체크 (슈퍼 관리자, 방장, 공동 관리자)
+    // 이메일 주소뿐만 아니라 복사된 UID로도 관리자 여부를 판별하도록 수정되었습니다.
     const isAdmin = user && (
         isSuperAdmin(user) || 
         user.uid === room.adminUid || 
-        (room.admins && room.admins.includes(user.email))
+        (room.admins && (room.admins.includes(user.email) || room.admins.includes(user.uid)))
     );
-
     return (
         <div 
             className="bg-white rounded-xl shadow-lg p-5 cursor-pointer transition-all hover:shadow-xl hover:scale-[1.01] active:scale-95 border border-gray-50 relative group"
@@ -2519,11 +2519,15 @@ const handleShare = async () => {
     // [중요] 기존의 모든 핸들러 함수들(handleSwapPlayers, handleStartClick 등)이 이 자리에 위치해야 합니다.
     // (분량상 생략되었으나 제공해주신 로직들을 모두 이 안으로 포함시키세요.)
 
-    // [수정] 모든 useMemo(Hook)는 조건부 리턴(if loading)보다 위에 있어야 합니다.
+// [수정] 모든 useMemo(Hook)는 조건부 리턴(if loading)보다 위에 있어야 합니다.
+    // 공동 관리자 배열에 사용자의 이메일 또는 UID가 포함되어 있는지 모두 확인합니다.
     const isAdmin = useMemo(() => {
         if (!roomData || !user) return false;
-        return isSuperAdmin(user) || user.uid === roomData.adminUid || roomData.admins?.includes(user.email);
-    }, [user, roomData]);
+        return isSuperAdmin(user) || 
+               user.uid === roomData.adminUid || 
+               roomData.admins?.includes(user.email) || 
+               roomData.admins?.includes(user.uid);
+    }, [user, roomData]);;
 
     // 하단에 있던 Helper Lists를 위로 끌어올림
     const inProgressPlayerIds = useMemo(() => 
