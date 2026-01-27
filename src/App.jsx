@@ -1702,14 +1702,14 @@ const EmptySlot = ({ onSlotClick, onDragOver, onDrop, isDragOver }) => (
  */
 // [수정] 방 수정 모달 (주소 검색 및 좌표 변환 기능 추가)
 function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete }) {
-    // 폼 데이터 상태에 maxPlayers 추가
     const [formData, setFormData] = useState({
         name: '', 
         location: '',
         address: '', 
         coords: null, 
         description: '', 
-        maxPlayers: 20, // 인원수 추가
+        maxPlayers: 20,
+        levelLimit: 'N조',
         password: '', 
         admins: []
     });
@@ -1725,7 +1725,8 @@ function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete }) {
                 address: roomData.address || '', 
                 coords: roomData.coords || null, 
                 description: roomData.description || '',
-                maxPlayers: roomData.maxPlayers || 20, // 기존 인원수 로드
+                maxPlayers: roomData.maxPlayers || 20,
+                levelLimit: roomData.levelLimit || 'N조',
                 password: roomData.password || '',
                 admins: roomData.admins || []
             });
@@ -1850,10 +1851,38 @@ function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete }) {
                     </div>
 
                     {/* 소개 */}
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1">모임 소개</label>
-                        <textarea name="description" value={formData.description} onChange={handleChange} rows={3} className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 focus:border-[#00B16A] focus:outline-none"/>
-                    </div>
+<div>
+    <label className="block text-sm font-bold text-gray-700 mb-1">모임 소개</label>
+    <textarea name="description" value={formData.description} onChange={handleChange} rows={3} className="w-full p-3 bg-gray-50 rounded-lg border border-gray-200 focus:border-[#00B16A] focus:outline-none"/>
+</div>
+
+{/* 인원 및 급수 제한 수정 */}
+<div className="flex gap-4">
+    <div className="flex-1">
+        <label className="block text-sm font-bold text-gray-700 mb-1">입장 급수</label>
+        <select
+            name="levelLimit"
+            value={formData.levelLimit}
+            onChange={handleChange}
+            className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 focus:border-[#00B16A] focus:outline-none"
+        >
+            {['N조','S조','A조','B조','C조','D조','E조'].map(l => (
+                <option key={l} value={l}>{l === 'N조' ? '전체 급수' : `${l} 이상`}</option>
+            ))}
+        </select>
+    </div>
+    <div className="flex-1">
+        <label className="block text-sm font-bold text-gray-700 mb-1">최대 인원</label>
+        <input
+            type="number"
+            name="maxPlayers"
+            value={formData.maxPlayers}
+            onChange={handleChange}
+            min="4"
+            className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 focus:border-[#00B16A] focus:outline-none"
+        />
+    </div>
+</div>
 
                     {/* 관리자 관리 */}
                     <div className="bg-gray-50 p-3 rounded-lg">
@@ -2485,30 +2514,42 @@ const handleShare = async () => {
     }, [roomDocRef]);
 
 useEffect(() => {
-        if (user && roomData && !loading) {
-            const playerRef = doc(db, "rooms", roomId, "players", user.uid);
-            
-            getDoc(playerRef).then((snap) => {
-                if (!snap.exists() && userData) {
-                    setDoc(playerRef, {
-                        name: userData.name || '선수',
-                        level: userData.level || 'N조',
-                        gender: userData.gender || '남',
-                        birthYear: userData.birthYear || '',
-                        region: userData.region || '미설정',
-                        entryTime: serverTimestamp(),
-                        todayGames: 0,
-                        isResting: false,
-                        role: 'player'
-                    }).then(() => {
-                        // 선수 카드가 새로 생성될 때만 방 전체 인원수 +1
-                        updateDoc(roomDocRef, { playerCount: increment(1) });
-                        console.log("선수 카드가 생성되고 인원수가 반영되었습니다.");
-                    });
-                }
-            });
-        }
-    }, [user, userData, roomData, loading, roomId, roomDocRef]);
+    if (user && roomData && !loading) {
+        const playerRef = doc(db, "rooms", roomId, "players", user.uid);
+        let joined = false;
+
+        const joinRoom = async () => {
+            const snap = await getDoc(playerRef);
+            if (!snap.exists() && userData) {
+                await setDoc(playerRef, {
+                    name: userData.name || '선수',
+                    level: userData.level || 'N조',
+                    gender: userData.gender || '남',
+                    birthYear: userData.birthYear || '',
+                    region: userData.region || '미설정',
+                    entryTime: serverTimestamp(),
+                    todayGames: 0,
+                    isResting: false,
+                    role: 'player'
+                });
+                await updateDoc(roomDocRef, { playerCount: increment(1) });
+                joined = true;
+            } else if (snap.exists()) {
+                joined = true;
+            }
+        };
+
+        joinRoom();
+
+        // 컴포넌트 언마운트(방을 나감, 탭 이동 등) 시 인원수 감소 및 데이터 삭제
+        return () => {
+            if (joined && user?.uid) {
+                deleteDoc(playerRef);
+                updateDoc(roomDocRef, { playerCount: increment(-1) });
+            }
+        };
+    }
+}, [user, userData, roomData, loading, roomId, roomDocRef]);
 
     useEffect(() => {
         const unsubPlayers = onSnapshot(playersCollectionRef, (snapshot) => {
@@ -2812,23 +2853,24 @@ useEffect(() => {
     };
 // [신규] 방 정보 수정 저장 핸들러
     const handleRoomInfoSave = async (updatedData) => {
-        try {
-            await updateDoc(roomDocRef, {
-                name: updatedData.name,
-                location: updatedData.location,
-                address: updatedData.address,
-                coords: updatedData.coords,
-                description: updatedData.description,
-                maxPlayers: parseInt(updatedData.maxPlayers), // 수정된 인원수 반영
-                password: updatedData.password,
-                admins: updatedData.admins
-            });
-            alert("방 정보가 수정되었습니다.");
-        } catch (e) {
-            console.error(e);
-            alert("수정 실패: " + e.message);
-        }
-    };
+    try {
+        await updateDoc(roomDocRef, {
+            name: updatedData.name,
+            location: updatedData.location,
+            address: updatedData.address,
+            coords: updatedData.coords,
+            description: updatedData.description,
+            maxPlayers: parseInt(updatedData.maxPlayers),
+            levelLimit: updatedData.levelLimit,
+            password: updatedData.password,
+            admins: updatedData.admins
+        });
+        alert("방 정보가 수정되었습니다.");
+    } catch (e) {
+        console.error(e);
+        alert("수정 실패: " + e.message);
+    }
+};
 
     // [신규] 방 삭제 핸들러
     const handleRoomDelete = async () => {
@@ -2961,22 +3003,15 @@ useEffect(() => {
                 {/* 좌측: 뒤로가기 + 방 정보 */}
                 <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
                    <button 
-                        onClick={async () => {
-                            if (confirm("방을 나가시겠습니까?")) {
-                                try { 
-                                    // 선수 문서 삭제
-                                    await deleteDoc(doc(playersCollectionRef, user.uid)); 
-                                    // 방 전체 인원수 -1 반영
-                                    await updateDoc(roomDocRef, { playerCount: increment(-1) });
-                                } 
-                                catch (e) { console.error(e); }
-                                onExitRoom(); 
-                            }
-                        }} 
-                        className="p-2 -ml-2 text-gray-400 hover:text-[#1E1E1E] transition-colors"
-                    >
-                        <ArrowLeft size={22}/>
-                    </button>
+    onClick={() => {
+        if (confirm("방을 나가시겠습니까?")) {
+            onExitRoom(); // useEffect cleanup에서 실제 삭제와 인원수 감소가 처리됩니다.
+        }
+    }} 
+    className="p-2 -ml-2 text-gray-400 hover:text-[#1E1E1E] transition-colors"
+>
+    <ArrowLeft size={22}/>
+</button>
                     
                     <div className="flex flex-col overflow-hidden justify-center">
                         <div className="flex items-center gap-1">
