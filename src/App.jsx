@@ -15,7 +15,8 @@ import {
     getFirestore, doc, setDoc, getDoc, onSnapshot,
     collection, query, where, addDoc, serverTimestamp,
     orderBy, updateDoc, deleteDoc, runTransaction, writeBatch,
-    getDocs // 추가: ReferenceError 해결
+    getDocs,
+    increment // 인원수 증감을 위해 추가
 } from 'firebase/firestore';
 // StoreIcon 대신 Map 아이콘을 가져옵니다.
 import {
@@ -525,25 +526,26 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
 
     if (!isOpen) return null;
 
-    const handleSubmit = async (e) => {
+   const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
 
         if (!roomName.trim()) return setError('모임방 제목을 입력해주세요.');
         if (!address) return setError('장소를 검색해서 입력해주세요.');
         if (!coords) return setError('유효한 주소가 아닙니다. 다시 검색해주세요.');
+        if (maxPlayers < 4) return setError('최소 인원은 4명 이상이어야 합니다.'); // 인원수 검증 추가
         if (usePassword && !password) return setError('비밀번호를 입력해주세요.');
 
         setLoading(true);
 
         const newRoomData = {
             name: roomName,
-            location: locationName || address, // 장소명이 없으면 주소로 대체
-            address: address, // [신규] 상세 주소 저장
-            coords: coords,   // [신규] 좌표 저장 (콕맵 연동용)
+            location: locationName || address,
+            address: address,
+            coords: coords,
             description: description || '모임 소개가 없습니다.',
             levelLimit: levelLimit,
-            maxPlayers: maxPlayers,
+            maxPlayers: parseInt(maxPlayers), // 숫자로 저장
             password: usePassword ? password : '',
             adminUid: user.uid,
             adminName: userData?.name || '방장',
@@ -664,12 +666,13 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
                                 ))}
                             </select>
                         </div>
-                        <div className="flex-1">
+                       <div className="flex-1">
                             <label className="block text-sm font-bold text-gray-700 mb-1">인원 제한</label>
                              <input
                                 type="number"
                                 value={maxPlayers}
-                                onChange={(e) => setMaxPlayers(Math.max(4, parseInt(e.target.value) || 4))}
+                                // 실시간 Math.max 제한을 제거하여 숫자를 편하게 입력/삭제할 수 있도록 수정
+                                onChange={(e) => setMaxPlayers(e.target.value)}
                                 min="4"
                                 step="1"
                                 className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 focus:border-[#00B16A] focus:outline-none"
@@ -1699,13 +1702,14 @@ const EmptySlot = ({ onSlotClick, onDragOver, onDrop, isDragOver }) => (
  */
 // [수정] 방 수정 모달 (주소 검색 및 좌표 변환 기능 추가)
 function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete }) {
-    // 폼 데이터 상태
+    // 폼 데이터 상태에 maxPlayers 추가
     const [formData, setFormData] = useState({
         name: '', 
-        location: '',   // 장소명 (예: 콕스타 체육관)
-        address: '',    // [신규] 실제 주소 (예: 서울 강남구...)
-        coords: null,   // [신규] 좌표 {lat, lng}
+        location: '',
+        address: '', 
+        coords: null, 
         description: '', 
+        maxPlayers: 20, // 인원수 추가
         password: '', 
         admins: []
     });
@@ -1713,15 +1717,15 @@ function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete }) {
     const [usePassword, setUsePassword] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
-    // 모달이 열릴 때 기존 데이터 불러오기
     useEffect(() => {
         if (isOpen && roomData) {
             setFormData({
                 name: roomData.name || '',
                 location: roomData.location || '',
-                address: roomData.address || '', // 기존에 저장된 주소가 있다면 불러옴
-                coords: roomData.coords || null, // 기존 좌표
+                address: roomData.address || '', 
+                coords: roomData.coords || null, 
                 description: roomData.description || '',
+                maxPlayers: roomData.maxPlayers || 20, // 기존 인원수 로드
                 password: roomData.password || '',
                 admins: roomData.admins || []
             });
@@ -2480,14 +2484,12 @@ const handleShare = async () => {
         return () => unsubRoom();
     }, [roomDocRef]);
 
- useEffect(() => {
-        // user와 roomData가 확실히 있을 때만 실행 (userData는 최초가입 시 나중에 생길 수 있음)
+useEffect(() => {
         if (user && roomData && !loading) {
             const playerRef = doc(db, "rooms", roomId, "players", user.uid);
             
             getDoc(playerRef).then((snap) => {
                 if (!snap.exists() && userData) {
-                    // 유저 정보(이름 등)가 준비된 상태에서만 생성
                     setDoc(playerRef, {
                         name: userData.name || '선수',
                         level: userData.level || 'N조',
@@ -2499,12 +2501,14 @@ const handleShare = async () => {
                         isResting: false,
                         role: 'player'
                     }).then(() => {
-                        console.log("선수 카드가 자동으로 생성되었습니다.");
+                        // 선수 카드가 새로 생성될 때만 방 전체 인원수 +1
+                        updateDoc(roomDocRef, { playerCount: increment(1) });
+                        console.log("선수 카드가 생성되고 인원수가 반영되었습니다.");
                     });
                 }
             });
         }
-    }, [user, userData, roomData, loading, roomId]);
+    }, [user, userData, roomData, loading, roomId, roomDocRef]);
 
     useEffect(() => {
         const unsubPlayers = onSnapshot(playersCollectionRef, (snapshot) => {
@@ -2812,9 +2816,10 @@ const handleShare = async () => {
             await updateDoc(roomDocRef, {
                 name: updatedData.name,
                 location: updatedData.location,
-                address: updatedData.address, // [추가] 상세 주소 저장
-                coords: updatedData.coords,   // [추가] 좌표 저장
+                address: updatedData.address,
+                coords: updatedData.coords,
                 description: updatedData.description,
+                maxPlayers: parseInt(updatedData.maxPlayers), // 수정된 인원수 반영
                 password: updatedData.password,
                 admins: updatedData.admins
             });
@@ -2955,10 +2960,15 @@ const handleShare = async () => {
             <header className="flex-shrink-0 h-14 px-3 flex items-center justify-between bg-white/95 backdrop-blur-sm shadow-sm sticky top-0 z-30 border-b border-gray-100">
                 {/* 좌측: 뒤로가기 + 방 정보 */}
                 <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
-                    <button 
+                   <button 
                         onClick={async () => {
                             if (confirm("방을 나가시겠습니까?")) {
-                                try { await deleteDoc(doc(playersCollectionRef, user.uid)); } 
+                                try { 
+                                    // 선수 문서 삭제
+                                    await deleteDoc(doc(playersCollectionRef, user.uid)); 
+                                    // 방 전체 인원수 -1 반영
+                                    await updateDoc(roomDocRef, { playerCount: increment(-1) });
+                                } 
                                 catch (e) { console.error(e); }
                                 onExitRoom(); 
                             }
