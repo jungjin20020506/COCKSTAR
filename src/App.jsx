@@ -269,11 +269,58 @@ function LoginRequiredPage({ icon: Icon, title, description, onLoginClick }) {
 }
 
 function AuthModal({ isOpen, onClose }) {
-    const [loginMode, setLoginMode] = useState('select'); // 'select', 'phone', 'admin'
+    const [loginMode, setLoginMode] = useState('select'); // 'select', 'phone', 'admin', 'verify'
     const [error, setError] = useState('');
     const [adminData, setAdminData] = useState({ id: '', pw: '' });
+    
+    // [신규] 전화번호 로그인 상태 관리
+    const [phone, setPhone] = useState('');
+    const [vCode, setVCode] = useState('');
+    const [confirmationResult, setConfirmationResult] = useState(null);
+    const [loading, setLoading] = useState(false);
 
     if (!isOpen) return null;
+
+    // [신규] 인증번호 전송 함수
+    const handleSendCode = async () => {
+        if (!phone.trim()) return setError("전화번호를 입력해주세요.");
+        setError('');
+        setLoading(true);
+
+        try {
+            // invisible 리캡차 설정 (버튼 클릭 시 자동으로 검증)
+            const recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+                'size': 'invisible'
+            });
+            
+            // 한국 국가번호(+82) 추가 및 010의 앞 0 제거
+            const formatPhone = phone.startsWith('+') ? phone : `+82${phone.replace(/^0/, '')}`;
+            
+            const result = await signInWithPhoneNumber(auth, formatPhone, recaptchaVerifier);
+            setConfirmationResult(result);
+            setLoginMode('verify'); // 인증번호 입력 화면으로 전환
+        } catch (err) {
+            console.error(err);
+            setError("인증번호 전송에 실패했습니다. 번호를 확인해주세요.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // [신규] 인증번호 확인 함수
+    const handleVerifyCode = async () => {
+        if (!vCode.trim()) return setError("인증번호를 입력해주세요.");
+        setError('');
+        setLoading(true);
+        try {
+            await confirmationResult.confirm(vCode);
+            onClose(); // 로그인 성공 시 모달 닫기
+        } catch (err) {
+            setError("인증번호가 일치하지 않습니다.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // 카카오 로그인 (OAuthProvider 사용)
     const handleKakaoLogin = async () => {
@@ -324,14 +371,44 @@ function AuthModal({ isOpen, onClose }) {
 
                     {loginMode === 'phone' && (
                         <div className="space-y-4">
+                            {/* 리캡차 컨테이너 (필수) */}
                             <div id="recaptcha-container"></div>
                             <input 
                                 type="tel" 
-                                placeholder="휴대폰 번호 (- 없이 입력)" 
-                                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-xl focus:border-[#00B16A] outline-none"
+                                placeholder="휴대폰 번호 (01012345678)" 
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
+                                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-xl focus:border-[#00B16A] outline-none font-bold"
                             />
-                            <button className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl">인증번호 전송</button>
+                            <button 
+                                onClick={handleSendCode}
+                                disabled={loading}
+                                className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl shadow-lg flex items-center justify-center transition-all active:scale-95"
+                            >
+                                {loading ? <Loader2 className="animate-spin" /> : '인증번호 전송'}
+                            </button>
                             <button onClick={() => setLoginMode('select')} className="w-full text-gray-400 text-sm font-medium">뒤로가기</button>
+                        </div>
+                    )}
+
+                    {loginMode === 'verify' && (
+                        <div className="space-y-4">
+                            <p className="text-center text-sm text-gray-500 font-medium">전송된 인증번호 6자리를 입력해주세요.</p>
+                            <input 
+                                type="number" 
+                                placeholder="000000" 
+                                value={vCode}
+                                onChange={(e) => setVCode(e.target.value)}
+                                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-xl focus:border-[#00B16A] outline-none text-center text-2xl font-black tracking-widest"
+                            />
+                            <button 
+                                onClick={handleVerifyCode}
+                                disabled={loading}
+                                className="w-full py-4 bg-[#1E1E1E] text-white font-bold rounded-xl shadow-lg flex items-center justify-center transition-all active:scale-95"
+                            >
+                                {loading ? <Loader2 className="animate-spin" /> : '인증 완료'}
+                            </button>
+                            <button onClick={() => setLoginMode('phone')} className="w-full text-gray-400 text-sm font-medium">번호 다시 입력하기</button>
                         </div>
                     )}
 
@@ -2403,14 +2480,16 @@ const handleShare = async () => {
         return () => unsubRoom();
     }, [roomDocRef]);
 
-  useEffect(() => {
-        if (user && userData && roomData && !loading) {
+ useEffect(() => {
+        // user와 roomData가 확실히 있을 때만 실행 (userData는 최초가입 시 나중에 생길 수 있음)
+        if (user && roomData && !loading) {
             const playerRef = doc(db, "rooms", roomId, "players", user.uid);
             
             getDoc(playerRef).then((snap) => {
-                if (!snap.exists()) {
+                if (!snap.exists() && userData) {
+                    // 유저 정보(이름 등)가 준비된 상태에서만 생성
                     setDoc(playerRef, {
-                        name: userData.name || '알 수 없음',
+                        name: userData.name || '선수',
                         level: userData.level || 'N조',
                         gender: userData.gender || '남',
                         birthYear: userData.birthYear || '',
@@ -2420,9 +2499,7 @@ const handleShare = async () => {
                         isResting: false,
                         role: 'player'
                     }).then(() => {
-                        console.log("선수 등록 성공");
-                    }).catch((err) => {
-                        console.error("선수 등록 에러:", err);
+                        console.log("선수 카드가 자동으로 생성되었습니다.");
                     });
                 }
             });
