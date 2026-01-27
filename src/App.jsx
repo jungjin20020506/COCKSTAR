@@ -305,22 +305,33 @@ function AuthModal({ isOpen, onClose }) {
 
                     {error && <p className="text-red-500 text-xs text-center mb-4 font-bold">{error}</p>}
 
-                    {loginMode === 'select' && (
+                   {loginMode === 'select' && (
                         <div className="space-y-3">
-                            {/* 1. 카카오톡 로그인 */}
                             <button 
                                 onClick={handleKakaoLogin}
                                 className="w-full py-4 bg-[#FEE500] text-[#3c1e1e] font-bold rounded-2xl flex items-center justify-center gap-2 shadow-sm hover:opacity-90 transition-all"
                             >
                                 <MessageSquare size={18} fill="#3c1e1e" /> 카카오톡으로 시작하기
                             </button>
-                            {/* 2. 전화번호 로그인 */}
                             <button 
                                 onClick={() => setLoginMode('phone')}
                                 className="w-full py-4 bg-white border-2 border-gray-100 text-gray-700 font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-gray-50 transition-all"
                             >
                                 <Phone size={18} /> 휴대폰 번호로 시작하기
                             </button>
+                        </div>
+                    )}
+
+                    {loginMode === 'phone' && (
+                        <div className="space-y-4">
+                            <div id="recaptcha-container"></div>
+                            <input 
+                                type="tel" 
+                                placeholder="휴대폰 번호 (- 없이 입력)" 
+                                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-xl focus:border-[#00B16A] outline-none"
+                            />
+                            <button className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl">인증번호 전송</button>
+                            <button onClick={() => setLoginMode('select')} className="w-full text-gray-400 text-sm font-medium">뒤로가기</button>
                         </div>
                     )}
 
@@ -340,7 +351,6 @@ function AuthModal({ isOpen, onClose }) {
                             <button onClick={() => setLoginMode('select')} className="w-full text-gray-400 text-sm font-medium mt-2">뒤로가기</button>
                         </form>
                     )}
-
                     {/* [디자인 요청] 하단 연하고 작고 얇은 관리자 로그인 */}
                     {loginMode === 'select' && (
                         <div className="mt-10 text-center">
@@ -2393,33 +2403,31 @@ const handleShare = async () => {
         return () => unsubRoom();
     }, [roomDocRef]);
 
-    // ✅ GameRoomView.jsx 내부: 자동 참여 로직 추가
-useEffect(() => {
-    // 💡 로그인 정보와 유저 데이터, 방 정보가 모두 로드되었을 때만 실행
-    if (user && userData && roomData && !loading) {
-        const playerRef = doc(playersCollectionRef, user.uid);
-        
-        // 1. 내가 이 방의 플레이어 목록에 있는지 확인
-        getDoc(playerRef).then((snap) => {
-            if (!snap.exists()) {
-                // 2. 없다면 선수 카드 즉시 생성 (입장)
-setDoc(playerRef, {
-                    name: userData.name,
-                    level: userData.level,
-                    gender: userData.gender,
-                    birthYear: userData.birthYear,
-                    region: userData.region || '미설정', // 프로필 기반 지역 추가
-                    entryTime: serverTimestamp(),
-                    todayGames: 0,
-                    isResting: false,
-                    role: 'player'
-                }).then(() => {
-                    console.log("선수 등록 완료!");
-                });
-            }
-        });
-    }
-}, [user, userData, roomData, loading]); // 의존성 배열에 로딩 상태 포함
+  useEffect(() => {
+        if (user && userData && roomData && !loading) {
+            const playerRef = doc(db, "rooms", roomId, "players", user.uid);
+            
+            getDoc(playerRef).then((snap) => {
+                if (!snap.exists()) {
+                    setDoc(playerRef, {
+                        name: userData.name || '알 수 없음',
+                        level: userData.level || 'N조',
+                        gender: userData.gender || '남',
+                        birthYear: userData.birthYear || '',
+                        region: userData.region || '미설정',
+                        entryTime: serverTimestamp(),
+                        todayGames: 0,
+                        isResting: false,
+                        role: 'player'
+                    }).then(() => {
+                        console.log("선수 등록 성공");
+                    }).catch((err) => {
+                        console.error("선수 등록 에러:", err);
+                    });
+                }
+            });
+        }
+    }, [user, userData, roomData, loading, roomId]);
 
     useEffect(() => {
         const unsubPlayers = onSnapshot(playersCollectionRef, (snapshot) => {
