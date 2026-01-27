@@ -3664,57 +3664,45 @@ function MyInfoPage({ user, userData, onLoginClick, onLogout, setPage }) {
             <h1 className="text-2xl font-bold mb-2">내 정보</h1>
             
             {/* 프로필 요약 카드 (클릭 시 아이디 복사) */}
-            <div 
-                onClick={async () => {
-                    const idToCopy = userData?.email || user?.email;
-                    if (!idToCopy) return;
-
-                    try {
-                        // 기본 클립보드 API 시도
-                        if (navigator.clipboard && window.isSecureContext) {
-                            await navigator.clipboard.writeText(idToCopy);
-                        } else {
-                            // 구형 브라우저 및 일부 모바일 환경 대응 (임시 textarea 사용)
-                            const textArea = document.createElement("textarea");
-                            textArea.value = idToCopy;
-                            textArea.style.position = "fixed";
-                            textArea.style.left = "-999999px";
-                            textArea.style.top = "-999999px";
-                            document.body.appendChild(textArea);
-                            textArea.focus();
-                            textArea.select();
-                            document.execCommand('copy');
-                            textArea.remove();
-                        }
-                        alert(`관리자 등록용 아이디가 복사되었습니다!\n${idToCopy}`);
-                    } catch (err) {
-                        console.error('복사 실패:', err);
-                        alert('복사에 실패했습니다. 아이디를 직접 길게 눌러 복사해주세요.');
-                    }
-                }}
-                className="bg-white rounded-xl shadow-lg p-6 cursor-pointer transition-all hover:bg-gray-50 active:scale-95 group relative border border-transparent hover:border-[#00B16A]/20"
-            >
-                {/* 복사 안내 툴팁 */}
-                <div className="absolute top-4 right-4 flex items-center gap-1">
-                    <span className="bg-green-50 text-[#00B16A] text-[10px] px-2 py-1 rounded-md font-bold shadow-sm border border-green-100">
-                        📋 터치해서 아이디 복사
-                    </span>
-                </div>
-
+           <div className="bg-white rounded-xl shadow-lg p-6 relative border border-gray-50">
                 <div className="flex items-center space-x-5">
-                    <div className="w-20 h-20 bg-[#00B16A] rounded-full flex items-center justify-center shadow-md group-hover:ring-4 ring-green-100 transition-all flex-shrink-0">
+                    <div className="w-20 h-20 bg-[#00B16A] rounded-full flex items-center justify-center shadow-md flex-shrink-0">
                         <User className="w-10 h-10 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                        <h2 className="text-xl font-extrabold truncate text-[#1E1E1E] mb-0.5">
+                        <h2 className="text-xl font-extrabold truncate text-[#1E1E1E] mb-1">
                             {userData?.name || '사용자'}
                         </h2>
-                        <p className="text-gray-500 text-sm truncate font-medium bg-gray-50 px-2 py-0.5 rounded inline-block">
-                            {userData?.email || user?.email}
-                        </p>
-                        <div className="mt-1">
+                        <div className="flex flex-col items-start gap-1">
+                            <div className="flex items-center gap-2 w-full">
+                                <span className="text-gray-500 text-sm truncate font-medium bg-gray-50 px-2 py-1 rounded border border-gray-100 flex-1">
+                                    {userData?.email || user?.email}
+                                </span>
+                                <button 
+                                    onClick={() => {
+                                        const email = userData?.email || user?.email;
+                                        if (navigator.clipboard) {
+                                            navigator.clipboard.writeText(email)
+                                                .then(() => alert("아이디가 복사되었습니다!"))
+                                                .catch(() => alert("복사 실패: 직접 복사해주세요."));
+                                        } else {
+                                            const textArea = document.createElement("textarea");
+                                            textArea.value = email;
+                                            document.body.appendChild(textArea);
+                                            textArea.select();
+                                            document.execCommand("copy");
+                                            document.body.removeChild(textArea);
+                                            alert("아이디가 복사되었습니다!");
+                                        }
+                                    }}
+                                    className="p-2 bg-green-50 text-[#00B16A] rounded-lg border border-green-100 active:scale-90 transition-transform flex-shrink-0"
+                                    title="아이디 복사"
+                                >
+                                    <Copy size={16} />
+                                </button>
+                            </div>
                             {userData?.kakaoId && (
-                                <span className="text-[10px] bg-[#FEE500] text-black px-1.5 py-0.5 rounded font-bold">Kakao</span>
+                                <span className="text-[10px] bg-[#FEE500] text-black px-2 py-0.5 rounded-full font-bold">Kakao Login</span>
                             )}
                         </div>
                     </div>
