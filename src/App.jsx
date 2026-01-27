@@ -1479,24 +1479,7 @@ function RoomCard({ room, onEnter, onEdit, user }) {
                 {room.location}
             </p>
 
-            <div className="flex flex-wrap gap-2 items-center text-xs font-bold">
-               useEffect(() => {
-    const unsubPlayers = onSnapshot(playersCollectionRef, (snapshot) => {
-        const playersArray = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        playersArray.sort((a, b) => (a.entryTime?.seconds || 0) - (b.entryTime?.seconds || 0));
-        
-        // 상태 업데이트
-        setPlayers(playersArray.reduce((acc, p) => ({ ...acc, [p.id]: p }), {}));
-        
-        // [추가] DB의 잘못된 인원수(39명 등)를 실제 문서 개수로 즉시 보정
-        if (isAdmin && roomDocRef) {
-            updateDoc(roomDocRef, { playerCount: snapshot.size }).catch(() => {});
-        }
-        
-        setLoading(false);
-    });
-    return () => unsubPlayers();
-}, [playersCollectionRef, isAdmin, roomDocRef]);
+           <div className="flex flex-wrap gap-2 items-center text-xs font-bold">
                 <span className={`flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 rounded-lg ${levelColor}`}>
                     <BarChart2 size={14} />
                     {room.levelLimit === 'N조' ? '전체 급수' : `${room.levelLimit} 이상`}
@@ -3069,12 +3052,10 @@ useEffect(() => {
                         <div className="flex items-center text-[11px] text-gray-400 font-medium leading-none mt-0.5 space-x-1.5 truncate">
                             <span className="truncate max-w-[100px]">{roomData?.location}</span>
                             <span className="w-0.5 h-2 bg-gray-300 rounded-full"></span>
-                            // RoomCard 컴포넌트 내부의 인원수 표시 부분
-<span className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 rounded-lg text-gray-600">
-    <Users size={14} />
-    {/* room.playerCount 대신 실제 선수 목록의 길이를 사용하거나, 정확한 실시간 데이터를 사용하도록 유도 */}
-    {room.playerCount || 0} / {room.maxPlayers}
-</span>
+                            <span className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 rounded-lg text-gray-600">
+                                <Users size={14} />
+                                {roomData?.playerCount || 0} / {roomData?.maxPlayers}
+                            </span>
                             <span className="w-0.5 h-2 bg-gray-300 rounded-full"></span>
                             <span className={isAdmin ? "text-[#00B16A]" : "text-gray-400"}>
                                 {isAdmin ? '관리자' : '개인'}
