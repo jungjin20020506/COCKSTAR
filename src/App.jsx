@@ -3148,7 +3148,6 @@ useEffect(() => {
                                    <PlayerCard 
                                         key={p.id} player={p} isAdmin={isAdmin} isCurrentUser={user.uid === p.id}
                                         isSelected={selectedPlayerIds.includes(p.id)}
-                                        {/* [수정] 휴식 상태에 따른 회색 처리를 위해 isResting 속성 전달 */}
                                         isResting={p.isResting}
                                         onCardClick={handleCardClick}
                                         onDeleteClick={handleKickPlayer}
