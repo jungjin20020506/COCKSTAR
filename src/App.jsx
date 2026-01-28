@@ -2310,10 +2310,16 @@ function InitialProfileModal({ isOpen, user }) {
         if (!formData.name.trim()) return alert("이름(실명)을 입력해주세요.");
         setLoading(true);
         try {
-            // users 컬렉션에 새 문서 생성
+            // [수정] 초기 경기수와 리셋 기준 날짜(새벽 2시 기준) 추가
+            const now = new Date();
+            if (now.getHours() < 2) now.setDate(now.getDate() - 1);
+            const dateStr = now.toISOString().split('T')[0];
+
             await setDoc(doc(db, "users", user.uid), {
                 ...formData,
                 email: user.email,
+                todayGames: 0,
+                lastResetDate: dateStr,
                 createdAt: serverTimestamp()
             });
             // Firebase Auth 프로필 업데이트
@@ -2537,7 +2543,7 @@ useEffect(() => {
             await runTransaction(db, async (transaction) => {
                 const playerSnap = await transaction.get(playerRef);
                 
-                // 문서가 없을 때만 생성 (중복 입장 방지)
+                // [수정] 선수가 방을 나갔다 들어와도 유지되도록 기존 경기수를 전역 프로필(userData)에서 가져옴
                 if (!playerSnap.exists()) {
                     transaction.set(playerRef, {
                         name: userData.name || '선수',
@@ -2546,9 +2552,16 @@ useEffect(() => {
                         birthYear: userData.birthYear || '',
                         region: userData.region || '미설정',
                         entryTime: serverTimestamp(),
-                        todayGames: 0,
+                        todayGames: userData.todayGames || 0,
                         isResting: false,
                         role: 'player'
+                    });
+                } else {
+                    // [수정] 이미 방에 등록된 상태라면 최신 전역 경기수와 정보로 업데이트
+                    transaction.update(playerRef, {
+                        todayGames: userData.todayGames || 0,
+                        name: userData.name,
+                        level: userData.level
                     });
                 }
             });
@@ -2559,22 +2572,37 @@ useEffect(() => {
 
     syncJoin();
 
-    // 언마운트 시 인원 삭제 (playerCount increment 대신 실제 문서 삭제만 수행)
+    // [수정] 언마운트 시 deleteDoc을 하지 않음으로써 선수 카드를 방 내에 계속 유지
     return () => {
-        if (user?.uid) {
-            deleteDoc(playerRef).catch(console.error);
-        }
+        // cleanup 시 삭제 로직 제거
     };
 }, [user?.uid, !!userData, !!roomData, loading, roomId]);
-    useEffect(() => {
-        const unsubPlayers = onSnapshot(playersCollectionRef, (snapshot) => {
+   useEffect(() => {
+        const unsubPlayers = onSnapshot(playersCollectionRef, async (snapshot) => {
             const playersArray = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            // [추가] 새벽 2시 리셋 로직: 관리자가 접속 중일 때 날짜 변화를 감지하여 방 전체 경기수 초기화
+            if (isAdmin && roomData) {
+                const now = new Date();
+                if (now.getHours() < 2) now.setDate(now.getDate() - 1);
+                const todayStr = now.toISOString().split('T')[0];
+
+                if (roomData.lastResetDate !== todayStr) {
+                    const batch = writeBatch(db);
+                    playersArray.forEach(p => {
+                        batch.update(doc(playersCollectionRef, p.id), { todayGames: 0 });
+                    });
+                    batch.update(roomDocRef, { lastResetDate: todayStr });
+                    await batch.commit();
+                }
+            }
+
             playersArray.sort((a, b) => (a.entryTime?.seconds || 0) - (b.entryTime?.seconds || 0));
             setPlayers(playersArray.reduce((acc, p) => ({ ...acc, [p.id]: p }), {}));
             setLoading(false);
         });
         return () => unsubPlayers();
-    }, [playersCollectionRef]);
+    }, [playersCollectionRef, isAdmin, !!roomData]);
 
     // [중요] 기존의 모든 핸들러 함수들(handleSwapPlayers, handleStartClick 등)이 이 자리에 위치해야 합니다.
     // (분량상 생략되었으나 제공해주신 로직들을 모두 이 안으로 포함시키세요.)
@@ -2933,11 +2961,17 @@ useEffect(() => {
         });
     };
 
-    // [신규] 수동 게임 수 저장 핸들러 추가
+   // [수정] 관리자가 경기수를 수동 수정할 때도 방 내부와 전역 프로필을 동시에 수정
     const handleSaveGames = async (playerId, newCount) => {
         try {
-            const playerRef = doc(playersCollectionRef, playerId);
-            await updateDoc(playerRef, { todayGames: newCount });
+            const batch = writeBatch(db);
+            const roomPlayerRef = doc(playersCollectionRef, playerId);
+            const userProfileRef = doc(db, "users", playerId);
+            
+            batch.update(roomPlayerRef, { todayGames: newCount });
+            batch.update(userProfileRef, { todayGames: newCount });
+            
+            await batch.commit();
             setEditGamePlayer(null);
         } catch (e) {
             console.error("게임 수 수정 실패:", e);
@@ -3014,16 +3048,21 @@ useEffect(() => {
     }
 };
 
-    const handleEndMatch = async (courtIdx) => {
+   const handleEndMatch = async (courtIdx) => {
         if (!isAdmin || !confirm("경기 종료?")) return;
         const court = roomData.inProgressCourts[courtIdx];
         const batch = writeBatch(db);
         
-        // 게임 수 증가
+        // [수정] 경기 종료 시 방 내부 데이터와 해당 유저의 전역 프로필 경기수를 모두 1씩 증가
         court.players.forEach(pid => {
             if (players[pid]) {
-                const ref = doc(playersCollectionRef, pid);
-                batch.update(ref, { todayGames: (players[pid].todayGames || 0) + 1 });
+                // 현재 방의 선수 정보 업데이트
+                const roomPlayerRef = doc(playersCollectionRef, pid);
+                batch.update(roomPlayerRef, { todayGames: (players[pid].todayGames || 0) + 1 });
+                
+                // 유저의 전역 프로필 경기수 업데이트 (어느 방을 가든 유지됨)
+                const userProfileRef = doc(db, "users", pid);
+                batch.update(userProfileRef, { todayGames: increment(1) });
             }
         });
         
@@ -3031,10 +3070,9 @@ useEffect(() => {
         const newCourts = [...roomData.inProgressCourts];
         newCourts[courtIdx] = null;
         
-        await batch.commit(); // 게임수 업데이트
-        await updateDoc(roomDocRef, { inProgressCourts: newCourts }); // 코트 상태 업데이트
+        await batch.commit(); 
+        await updateDoc(roomDocRef, { inProgressCourts: newCourts }); 
     };
-
 
     // --- Render ---
     if (loading) return <LoadingSpinner text="입장 중..." />;
@@ -3988,21 +4026,42 @@ export default function App() {
         }
     }, []);
 
-   useEffect(() => {
+  // [추가] 새벽 2시 기준 경기 날짜 계산 함수
+    const getGameDate = () => {
+        const now = new Date();
+        const hours = now.getHours();
+        // 새벽 00:00 ~ 01:59분까지는 어제 날짜로 취급 (새벽 2시 리셋)
+        if (hours < 2) {
+            now.setDate(now.getDate() - 1);
+        }
+        return now.toISOString().split('T')[0];
+    };
+
+    useEffect(() => {
         let unsubscribeUserDoc = null;
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
             if (currentUser) {
                 setUser(currentUser);
                 const userDocRef = doc(db, "users", currentUser.uid);
-                // 유저 정보 실시간 감시
-                unsubscribeUserDoc = onSnapshot(userDocRef, (docSnap) => {
+                
+                unsubscribeUserDoc = onSnapshot(userDocRef, async (docSnap) => {
                     if (docSnap.exists()) {
-                        setUserData(docSnap.data());
+                        const data = docSnap.data();
+                        const currentGameDate = getGameDate();
+                        
+                        // [추가] 새벽 2시가 지나 날짜가 바뀌었다면 전역 경기수 초기화
+                        if (data.lastResetDate !== currentGameDate) {
+                            await updateDoc(userDocRef, {
+                                todayGames: 0,
+                                lastResetDate: currentGameDate
+                            });
+                        } else {
+                            setUserData(data);
+                        }
                     } else {
-                        // 문서가 없으면 null로 명시 (최초 가입자)
                         setUserData(null);
                     }
-                    setLoading(false); // 데이터 확인 완료 후 로딩 해제
+                    setLoading(false);
                 });
             } else {
                 setUser(null);
