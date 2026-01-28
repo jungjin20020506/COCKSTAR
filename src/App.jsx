@@ -502,23 +502,28 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
                     setLocationName(buildingName);
                 }
 
-                // 2. 주소를 좌표로 변환 (Geocoding)
-                if (window.kakao && window.kakao.maps && window.kakao.maps.services) {
-                    const geocoder = new window.kakao.maps.services.Geocoder();
-                    
-                    geocoder.addressSearch(addr, (result, status) => {
-                        if (status === window.kakao.maps.services.Status.OK) {
-                            const lat = result[0].y;
-                            const lng = result[0].x;
-                            setCoords({ lat: parseFloat(lat), lng: parseFloat(lng) });
-                            console.log("좌표 변환 성공:", lat, lng);
+               // 2. 주소를 좌표로 변환 (Geocoding)
+                if (window.kakao && window.kakao.maps) {
+                    window.kakao.maps.load(() => {
+                        if (window.kakao.maps.services) {
+                            const geocoder = new window.kakao.maps.services.Geocoder();
+                            geocoder.addressSearch(addr, (result, status) => {
+                                if (status === window.kakao.maps.services.Status.OK) {
+                                    const lat = result[0].y;
+                                    const lng = result[0].x;
+                                    setCoords({ lat: parseFloat(lat), lng: parseFloat(lng) });
+                                    console.log("좌표 변환 성공:", lat, lng);
+                                } else {
+                                    console.error("좌표 변환 실패");
+                                    setError("주소는 찾았으나 위치 좌표를 가져올 수 없습니다.");
+                                }
+                            });
                         } else {
-                            console.error("좌표 변환 실패");
-                            setError("주소는 찾았으나 위치 좌표를 가져올 수 없습니다.");
+                            setError("카카오맵 서비스 모듈을 불러오지 못했습니다.");
                         }
                     });
                 } else {
-                    console.error("카카오맵 Geocoder 서비스를 사용할 수 없습니다.");
+                    setError("카카오맵 SDK가 로드되지 않았습니다.");
                 }
             }
         }).open();
@@ -1754,17 +1759,23 @@ function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete }) {
                     location: (!prev.location && buildingName) ? buildingName : prev.location // 장소명이 비어있으면 건물명 자동 입력
                 }));
 
-                // 좌표 변환 (Geocoder)
-                if (window.kakao && window.kakao.maps && window.kakao.maps.services) {
-                    const geocoder = new window.kakao.maps.services.Geocoder();
-                    geocoder.addressSearch(addr, (result, status) => {
-                        if (status === window.kakao.maps.services.Status.OK) {
-                            const lat = parseFloat(result[0].y);
-                            const lng = parseFloat(result[0].x);
-                            setFormData(prev => ({ ...prev, coords: { lat, lng } }));
-                            console.log("좌표 수정 완료:", lat, lng);
+               // 좌표 변환 (Geocoder)
+                if (window.kakao && window.kakao.maps) {
+                    window.kakao.maps.load(() => {
+                        if (window.kakao.maps.services) {
+                            const geocoder = new window.kakao.maps.services.Geocoder();
+                            geocoder.addressSearch(addr, (result, status) => {
+                                if (status === window.kakao.maps.services.Status.OK) {
+                                    const lat = parseFloat(result[0].y);
+                                    const lng = parseFloat(result[0].x);
+                                    setFormData(prev => ({ ...prev, coords: { lat, lng } }));
+                                    console.log("좌표 수정 완료:", lat, lng);
+                                } else {
+                                    alert("주소는 찾았으나 좌표를 가져올 수 없습니다.");
+                                }
+                            });
                         } else {
-                            alert("주소는 찾았으나 좌표를 가져올 수 없습니다.");
+                            alert("카카오맵 서비스 모듈을 사용할 수 없습니다.");
                         }
                     });
                 }
