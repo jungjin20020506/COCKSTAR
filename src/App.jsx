@@ -2598,8 +2598,9 @@ useEffect(() => {
         new Set(Object.values(roomData?.scheduledMatches || {}).flatMap(m => m || []).filter(Boolean)), 
     [roomData]);
 
-    const waitingPlayers = useMemo(() => 
-        Object.values(players).filter(p => !p.isResting && !inProgressPlayerIds.has(p.id) && !scheduledPlayerIds.has(p.id)), 
+   const waitingPlayers = useMemo(() => 
+        // [수정] 휴식 중인 선수도 대기 명단에 보이도록 !p.isResting 조건을 제거
+        Object.values(players).filter(p => !inProgressPlayerIds.has(p.id) && !scheduledPlayerIds.has(p.id)), 
     [players, inProgressPlayerIds, scheduledPlayerIds]);
     
     const maleWaiting = useMemo(() => waitingPlayers.filter(p => p.gender === '남'), [waitingPlayers]);
@@ -3101,7 +3102,8 @@ useEffect(() => {
             : 'bg-white text-[#00B16A] border-[#00B16A] shadow-sm' 
         }`}
     >
-        {players[user.uid]?.isResting ? '휴식' : '대기'}
+        {/* [수정] 버튼 명칭 변경: 대기 -> 휴식, 휴식 중일 때 -> 복귀 */}
+        {players[user.uid]?.isResting ? '복귀' : '휴식'}
     </button>
 
                     {isAdmin && (
