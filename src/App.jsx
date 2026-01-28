@@ -1346,16 +1346,23 @@ function GamePage({ user, userData, onLoginClick, sharedRoomId }) {
         setIsEditModalOpen(true);
     };
 
-    const handleEnterRoom = (roomId) => {
+   const handleEnterRoom = (roomId) => {
         setSelectedRoomId(roomId);
         setCurrentView('room');
+        // [수정] 방 입장 시 브라우저 URL에 roomId 파라미터를 추가하여 새로고침 시에도 유지되도록 함
+        const url = new URL(window.location);
+        url.searchParams.set('roomId', roomId);
+        window.history.pushState({}, '', url);
     };
 
     const handleExitRoom = () => {
         setSelectedRoomId(null);
         setCurrentView('lobby');
+        // [수정] 방에서 나갈 때 URL에서 roomId 파라미터를 제거함
+        const url = new URL(window.location);
+        url.searchParams.delete('roomId');
+        window.history.pushState({}, '', url);
     };
-
    // 💡 핵심 변경 부분: 로그인이 안 되어 있는데 공유 링크로 온 경우
     if (!user && selectedRoomId) {
         return (
@@ -3953,12 +3960,20 @@ const TabButton = ({ icon: Icon, label, isActive, onClick }) => {
 
 
 export default function App() {
-    const [page, setPage] = useState('home'); 
+    // [수정] 새로고침 시 마지막으로 머물던 페이지를 유지하기 위해 localStorage 값을 초기값으로 사용
+    const [page, setPage] = useState(localStorage.getItem('cockstar_last_page') || 'home'); 
     const [user, setUser] = useState(null);
     const [userData, setUserData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false); 
-    const [sharedRoomId, setSharedRoomId] = useState(null); // 공유받은 방 ID 상태 추가
+    const [sharedRoomId, setSharedRoomId] = useState(null); 
+
+    // [추가] 페이지(탭)가 변경될 때마다 localStorage에 현재 페이지 상태를 저장
+    useEffect(() => {
+        if (page) {
+            localStorage.setItem('cockstar_last_page', page);
+        }
+    }, [page]);
 
     // [신규] URL 파라미터 체크 로직
     useEffect(() => {
@@ -3966,7 +3981,7 @@ export default function App() {
         const roomId = params.get('roomId');
         if (roomId) {
             setSharedRoomId(roomId);
-            setPage('game'); // URL에 roomId가 있으면 즉시 경기 탭으로 이동
+            setPage('game'); 
         }
     }, []);
 
