@@ -3145,9 +3145,11 @@ useEffect(() => {
                             {/* 남자 대기 */}
                             <div className="grid grid-cols-4 gap-2">
                                 {maleWaiting.map(p => (
-                                    <PlayerCard 
+                                   <PlayerCard 
                                         key={p.id} player={p} isAdmin={isAdmin} isCurrentUser={user.uid === p.id}
                                         isSelected={selectedPlayerIds.includes(p.id)}
+                                        {/* [수정] 휴식 상태에 따른 회색 처리를 위해 isResting 속성 전달 */}
+                                        isResting={p.isResting}
                                         onCardClick={handleCardClick}
                                         onDeleteClick={handleKickPlayer}
                                         onLongPress={(p) => setEditGamePlayer(p)}
