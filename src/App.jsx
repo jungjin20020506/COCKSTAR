@@ -2487,39 +2487,48 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     const [pendingMatchIndex, setPendingMatchIndex] = useState(null); 
     const [availableCourts, setAvailableCourts] = useState([]);
 
-    // Firestore 참조
+   // 1. 참조값 및 권한 계산 (Hook은 항상 최상단)
     const roomDocRef = useMemo(() => doc(db, "rooms", roomId), [roomId]);
     const playersCollectionRef = useMemo(() => collection(db, "rooms", roomId, "players"), [roomId]);
 
-   // 중복된 주석 등을 정리한 최종본
-const handleShare = async () => {
-    // URL 생성 시 중복 방지를 위해 단순화
-    const shareUrl = `${window.location.origin}?roomId=${roomId}`;
+    const isAdmin = useMemo(() => {
+        if (!roomData || !user) return false;
+        return isSuperAdmin(user) || 
+               user.uid === roomData.adminUid || 
+               roomData.admins?.includes(user.email) || 
+               roomData.admins?.includes(user.uid);
+    }, [user, roomData]);
+
+    const inProgressPlayerIds = useMemo(() => 
+        new Set((roomData?.inProgressCourts || []).flatMap(c => c?.players || []).filter(Boolean)), 
+    [roomData]);
+
+    const scheduledPlayerIds = useMemo(() => 
+        new Set(Object.values(roomData?.scheduledMatches || {}).flatMap(m => m || []).filter(Boolean)), 
+    [roomData]);
+
+    const waitingPlayers = useMemo(() => 
+        Object.values(players).filter(p => !inProgressPlayerIds.has(p.id) && !scheduledPlayerIds.has(p.id)), 
+    [players, inProgressPlayerIds, scheduledPlayerIds]);
     
-    const shareData = {
-        title: `[COCKSTAR] 경기 초대`,
-        // text에 링크를 직접 넣지 않음 (navigator.share가 url 필드를 별도로 처리하도록 함)
-        text: `🏸 '${roomData?.name}' 경기방에 초대합니다! 지금 접속해서 팀을 확인하세요.`,
-        url: shareUrl,
+    const maleWaiting = useMemo(() => waitingPlayers.filter(p => p.gender === '남'), [waitingPlayers]);
+    const femaleWaiting = useMemo(() => waitingPlayers.filter(p => p.gender !== '남'), [waitingPlayers]);
+
+    // 2. 주요 함수 정의
+    const handleShare = async () => {
+        const shareUrl = `${window.location.origin}?roomId=${roomId}`;
+        const shareData = {
+            title: `[COCKSTAR] 경기 초대`,
+            text: `🏸 '${roomData?.name}' 경기방에 초대합니다!`,
+            url: shareUrl,
+        };
+        if (navigator.share) {
+            try { await navigator.share(shareData); } 
+            catch (e) { if (e.name !== 'AbortError') setShowShareModal(true); }
+        } else { setShowShareModal(true); }
     };
 
-    if (navigator.share) {
-        try {
-            await navigator.share(shareData);
-        } catch (e) {
-            // 공유 취소 또는 실패 시에만 모달 띄우기
-            if (e.name !== 'AbortError') {
-                setShowShareModal(true);
-            }
-        }
-    } else {
-        // navigator.share 미지원 브라우저 (PC 등)
-        setShowShareModal(true);
-    }
-};
-    
-
-    // 권한 체크 및 데이터 구독 (기존 로직 통합)
+    // 3. 데이터 구독 및 부가 효과 (Effect)
     useEffect(() => {
         if (roomData && (!roomData.password || user?.uid === roomData.adminUid)) setIsAuthorized(true);
     }, [roomData, user]);
@@ -2533,89 +2542,72 @@ const handleShare = async () => {
         return () => unsubRoom();
     }, [roomDocRef]);
 
-useEffect(() => {
-    if (!user || !userData || !roomData || loading) return;
+    useEffect(() => {
+        if (!user || !userData || !roomData || loading) return;
+        const playerRef = doc(db, "rooms", roomId, "players", user.uid);
+        const syncJoin = async () => {
+            try {
+                await runTransaction(db, async (transaction) => {
+                    const playerSnap = await transaction.get(playerRef);
+                    if (!playerSnap.exists()) {
+                        transaction.set(playerRef, {
+                            name: userData.name || '선수',
+                            level: userData.level || 'N조',
+                            gender: userData.gender || '남',
+                            birthYear: userData.birthYear || '',
+                            region: userData.region || '미설정',
+                            entryTime: serverTimestamp(),
+                            todayGames: userData.todayGames || 0,
+                            isResting: false,
+                            role: 'player'
+                        });
+                    } else {
+                        transaction.update(playerRef, {
+                            todayGames: userData.todayGames || 0,
+                            name: userData.name,
+                            level: userData.level
+                        });
+                    }
+                });
+            } catch (e) { console.error("입장 실패:", e); }
+        };
+        syncJoin();
+    }, [user?.uid, !!userData, !!roomData, loading, roomId]);
 
-    const playerRef = doc(db, "rooms", roomId, "players", user.uid);
-    
-    const syncJoin = async () => {
-        try {
-            await runTransaction(db, async (transaction) => {
-                const playerSnap = await transaction.get(playerRef);
-                
-                // [수정] 선수가 방을 나갔다 들어와도 유지되도록 기존 경기수를 전역 프로필(userData)에서 가져옴
-                if (!playerSnap.exists()) {
-                    transaction.set(playerRef, {
-                        name: userData.name || '선수',
-                        level: userData.level || 'N조',
-                        gender: userData.gender || '남',
-                        birthYear: userData.birthYear || '',
-                        region: userData.region || '미설정',
-                        entryTime: serverTimestamp(),
-                        todayGames: userData.todayGames || 0,
-                        isResting: false,
-                        role: 'player'
-                    });
-                } else {
-                    // [수정] 이미 방에 등록된 상태라면 최신 전역 경기수와 정보로 업데이트
-                    transaction.update(playerRef, {
-                        todayGames: userData.todayGames || 0,
-                        name: userData.name,
-                        level: userData.level
-                    });
-                }
-            });
-        } catch (e) {
-            console.error("입장 트랜잭션 실패:", e);
-        }
-    };
-
-    syncJoin();
-
-    // [수정] 언마운트 시 deleteDoc을 하지 않음으로써 선수 카드를 방 내에 계속 유지
-    return () => {
-        // cleanup 시 삭제 로직 제거
-    };
-}, [user?.uid, !!userData, !!roomData, loading, roomId]);
-   useEffect(() => {
+    useEffect(() => {
         const unsubPlayers = onSnapshot(playersCollectionRef, async (snapshot) => {
             const playersArray = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            
-            // [추가] 새벽 2시 리셋 로직: 관리자가 접속 중일 때 날짜 변화를 감지하여 방 전체 경기수 초기화
             if (isAdmin && roomData) {
                 const now = new Date();
                 if (now.getHours() < 2) now.setDate(now.getDate() - 1);
                 const todayStr = now.toISOString().split('T')[0];
-
                 if (roomData.lastResetDate !== todayStr) {
                     const batch = writeBatch(db);
-                    playersArray.forEach(p => {
-                        batch.update(doc(playersCollectionRef, p.id), { todayGames: 0 });
-                    });
+                    playersArray.forEach(p => batch.update(doc(playersCollectionRef, p.id), { todayGames: 0 }));
                     batch.update(roomDocRef, { lastResetDate: todayStr });
                     await batch.commit();
                 }
             }
-
             playersArray.sort((a, b) => (a.entryTime?.seconds || 0) - (b.entryTime?.seconds || 0));
             setPlayers(playersArray.reduce((acc, p) => ({ ...acc, [p.id]: p }), {}));
             setLoading(false);
         });
         return () => unsubPlayers();
-    }, [playersCollectionRef, isAdmin, !!roomData]);
+    }, [playersCollectionRef, isAdmin, !!roomData, roomDocRef]);
 
-    // [중요] 기존의 모든 핸들러 함수들(handleSwapPlayers, handleStartClick 등)이 이 자리에 위치해야 합니다.
-    // (분량상 생략되었으나 제공해주신 로직들을 모두 이 안으로 포함시키세요.)
+    // 4. 조건부 렌더링 (Hook 이후에 배치)
+    if (loading) return <LoadingSpinner text="입장 중..." />;
 
-// [수정] 모든 useMemo(Hook)는 조건부 리턴(if loading)보다 위에 있어야 합니다.
-    // 공동 관리자 배열에 사용자의 이메일 또는 UID가 포함되어 있는지 모두 확인합니다.
-    const isAdmin = useMemo(() => {
-        if (!roomData || !user) return false;
-        return isSuperAdmin(user) || 
-               user.uid === roomData.adminUid || 
-               roomData.admins?.includes(user.email) || 
-               roomData.admins?.includes(user.uid);
-    }, [user, roomData]);;
+    if (roomData?.password && !isAuthorized) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full bg-white p-8 text-center">
+                <Lock size={48} className="text-[#00B16A] mb-4" />
+                <h2 className="text-xl font-bold mb-4">비밀번호가 있는 방입니다</h2>
+                <input type="password" value={inputPassword} onChange={(e) => setInputPassword(e.target.value)} className="w-full p-4 bg-gray-50 border rounded-xl mb-4 text-center" />
+                <button onClick={() => inputPassword === roomData.password ? setIsAuthorized(true) : alert('틀렸습니다.')} className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl">입장하기</button>
+            </div>
+        );
+    }
 
     // 하단에 있던 Helper Lists를 위로 끌어올림
     const inProgressPlayerIds = useMemo(() => 
