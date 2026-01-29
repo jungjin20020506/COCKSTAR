@@ -2609,36 +2609,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         );
     }
 
-    // 하단에 있던 Helper Lists를 위로 끌어올림
-    const inProgressPlayerIds = useMemo(() => 
-        new Set((roomData?.inProgressCourts || []).flatMap(c => c?.players || []).filter(Boolean)), 
-    [roomData]);
-
-    const scheduledPlayerIds = useMemo(() => 
-        new Set(Object.values(roomData?.scheduledMatches || {}).flatMap(m => m || []).filter(Boolean)), 
-    [roomData]);
-
-   const waitingPlayers = useMemo(() => 
-        // [수정] 휴식 중인 선수도 대기 명단에 보이도록 !p.isResting 조건을 제거
-        Object.values(players).filter(p => !inProgressPlayerIds.has(p.id) && !scheduledPlayerIds.has(p.id)), 
-    [players, inProgressPlayerIds, scheduledPlayerIds]);
-    
-    const maleWaiting = useMemo(() => waitingPlayers.filter(p => p.gender === '남'), [waitingPlayers]);
-    const femaleWaiting = useMemo(() => waitingPlayers.filter(p => p.gender !== '남'), [waitingPlayers]);
-
-    // 모든 Hook 선언이 끝난 후 조건부 리턴 수행
-    if (loading) return <LoadingSpinner text="입장 중..." />;
-   if (roomData?.password && !isAuthorized) {
-        return (
-            <div className="flex flex-col items-center justify-center h-full bg-white p-8 text-center">
-                <Lock size={48} className="text-[#00B16A] mb-4" />
-                <h2 className="text-xl font-bold mb-4">비밀번호가 있는 방입니다</h2>
-                <input type="password" value={inputPassword} onChange={(e) => setInputPassword(e.target.value)} className="w-full p-4 bg-gray-50 border rounded-xl mb-4 text-center" />
-                <button onClick={() => inputPassword === roomData.password ? setIsAuthorized(true) : alert('틀렸습니다.')} className="w-full py-4 bg-[#00B16A] text-white font-bold rounded-xl">입장하기</button>
-            </div>
-        );
-    }
-
+   
 
 // --- Actions ---
 
