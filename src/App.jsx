@@ -2588,10 +2588,9 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         syncJoin();
     }, [user?.uid, !!userData, !!roomData, loading, roomId]);
 
-    useEffect(() => {
-       useEffect(() => {
+ useEffect(() => {
         const unsubPlayers = onSnapshot(playersCollectionRef, async (snapshot) => {
-            // 1. 가장 먼저 snapshot으로부터 데이터를 추출하여 playersArray를 정의해야 합니다.
+            // 1. snapshot으로부터 데이터를 추출하여 playersArray를 정의합니다.
             const playersArray = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
             // 2. 관리자 권한 및 날짜 체크 후 초기화 로직 실행
@@ -2615,6 +2614,12 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
             // 3. 정렬 및 상태 업데이트
             playersArray.sort((a, b) => (a.entryTime?.seconds || 0) - (b.entryTime?.seconds || 0));
             setPlayers(playersArray.reduce((acc, p) => ({ ...acc, [p.id]: p }), {}));
+            
+            // 4. 로딩 완료 처리 (정상 입장을 위해 반드시 필요)
+            setLoading(false);
+        });
+        return () => unsubPlayers();
+    }, [playersCollectionRef, isAdmin, !!roomData, roomDocRef]);
             
             // 4. 로딩 완료 처리 (이 코드가 실행되어야 입장 화면이 보입니다)
             setLoading(false);
