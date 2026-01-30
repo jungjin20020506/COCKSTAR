@@ -2590,10 +2590,10 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 
  useEffect(() => {
         const unsubPlayers = onSnapshot(playersCollectionRef, async (snapshot) => {
-            // 1. snapshot으로부터 데이터를 추출하여 playersArray를 정의합니다.
+            // 1. snapshot으로부터 데이터 추출
             const playersArray = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-            // 2. 관리자 권한 및 날짜 체크 후 초기화 로직 실행
+            // 2. 관리자 권한 및 날짜 체크 후 일일 경기수 초기화 로직
             if (isAdmin && roomData) {
                 const now = new Date();
                 if (now.getHours() < 2) now.setDate(now.getDate() - 1);
@@ -2615,13 +2615,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
             playersArray.sort((a, b) => (a.entryTime?.seconds || 0) - (b.entryTime?.seconds || 0));
             setPlayers(playersArray.reduce((acc, p) => ({ ...acc, [p.id]: p }), {}));
             
-            // 4. 로딩 완료 처리 (정상 입장을 위해 반드시 필요)
-            setLoading(false);
-        });
-        return () => unsubPlayers();
-    }, [playersCollectionRef, isAdmin, !!roomData, roomDocRef]);
-            
-            // 4. 로딩 완료 처리 (이 코드가 실행되어야 입장 화면이 보입니다)
+            // 4. 로딩 완료 처리
             setLoading(false);
         });
         return () => unsubPlayers();
