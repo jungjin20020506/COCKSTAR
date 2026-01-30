@@ -2590,16 +2590,19 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 
     useEffect(() => {
         const unsubPlayers = onSnapshot(playersCollectionRef, async (snapshot) => {
-            const playersArray = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             if (isAdmin && roomData) {
                 const now = new Date();
                 if (now.getHours() < 2) now.setDate(now.getDate() - 1);
                 const todayStr = now.toISOString().split('T')[0];
                 if (roomData.lastResetDate !== todayStr) {
-                    const batch = writeBatch(db);
-                    playersArray.forEach(p => batch.update(doc(playersCollectionRef, p.id), { todayGames: 0 }));
-                    batch.update(roomDocRef, { lastResetDate: todayStr });
-                    await batch.commit();
+                    try {
+                        const batch = writeBatch(db);
+                        playersArray.forEach(p => batch.update(doc(playersCollectionRef, p.id), { todayGames: 0 }));
+                        batch.update(roomDocRef, { lastResetDate: todayStr });
+                        await batch.commit();
+                    } catch (e) {
+                        console.error("일일 경기수 초기화 실패 (권한 부족):", e);
+                    }
                 }
             }
             playersArray.sort((a, b) => (a.entryTime?.seconds || 0) - (b.entryTime?.seconds || 0));
@@ -3028,27 +3031,32 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
    const handleEndMatch = async (courtIdx) => {
         if (!isAdmin || !confirm("경기 종료?")) return;
         const court = roomData.inProgressCourts[courtIdx];
-        const batch = writeBatch(db);
         
-        // [수정] 경기 종료 시 방 내부 데이터와 해당 유저의 전역 프로필 경기수를 모두 1씩 증가
-        court.players.forEach(pid => {
-            if (players[pid]) {
-                // 현재 방의 선수 정보 업데이트
-                const roomPlayerRef = doc(playersCollectionRef, pid);
-                batch.update(roomPlayerRef, { todayGames: (players[pid].todayGames || 0) + 1 });
-                
-                // 유저의 전역 프로필 경기수 업데이트 (어느 방을 가든 유지됨)
-                const userProfileRef = doc(db, "users", pid);
-                batch.update(userProfileRef, { todayGames: increment(1) });
-            }
-        });
-        
-        // 코트 비우기
-        const newCourts = [...roomData.inProgressCourts];
-        newCourts[courtIdx] = null;
-        
-        await batch.commit(); 
-        await updateDoc(roomDocRef, { inProgressCourts: newCourts }); 
+        try {
+            const batch = writeBatch(db);
+            
+            // 해당 코트의 모든 선수 경기수 증가
+            court.players.forEach(pid => {
+                if (players[pid]) {
+                    // 1. 방 내부 선수 정보 업데이트 (오늘 경기수 +1)
+                    const roomPlayerRef = doc(playersCollectionRef, pid);
+                    batch.update(roomPlayerRef, { todayGames: (players[pid].todayGames || 0) + 1 });
+                    
+                    // [참고] 보안 규칙상 관리자가 타인의 'users' 컬렉션을 직접 수정하는 것은 차단되므로 제외합니다.
+                }
+            });
+            
+            // 2. 코트 상태 업데이트 (비우기)
+            const newCourts = [...roomData.inProgressCourts];
+            newCourts[courtIdx] = null;
+            
+            await batch.commit(); 
+            await updateDoc(roomDocRef, { inProgressCourts: newCourts }); 
+            alert("경기가 정상적으로 종료되었습니다.");
+        } catch (e) {
+            console.error("경기 종료 오류:", e);
+            alert("처리 중 권한이 없거나 오류가 발생했습니다: " + e.message);
+        }
     };
 
     // --- Render ---
