@@ -2589,11 +2589,17 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     }, [user?.uid, !!userData, !!roomData, loading, roomId]);
 
     useEffect(() => {
+       useEffect(() => {
         const unsubPlayers = onSnapshot(playersCollectionRef, async (snapshot) => {
+            // 1. 가장 먼저 snapshot으로부터 데이터를 추출하여 playersArray를 정의해야 합니다.
+            const playersArray = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // 2. 관리자 권한 및 날짜 체크 후 초기화 로직 실행
             if (isAdmin && roomData) {
                 const now = new Date();
                 if (now.getHours() < 2) now.setDate(now.getDate() - 1);
                 const todayStr = now.toISOString().split('T')[0];
+                
                 if (roomData.lastResetDate !== todayStr) {
                     try {
                         const batch = writeBatch(db);
@@ -2601,12 +2607,16 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                         batch.update(roomDocRef, { lastResetDate: todayStr });
                         await batch.commit();
                     } catch (e) {
-                        console.error("일일 경기수 초기화 실패 (권한 부족):", e);
+                        console.error("일일 경기수 초기화 실패:", e);
                     }
                 }
             }
+            
+            // 3. 정렬 및 상태 업데이트
             playersArray.sort((a, b) => (a.entryTime?.seconds || 0) - (b.entryTime?.seconds || 0));
             setPlayers(playersArray.reduce((acc, p) => ({ ...acc, [p.id]: p }), {}));
+            
+            // 4. 로딩 완료 처리 (이 코드가 실행되어야 입장 화면이 보입니다)
             setLoading(false);
         });
         return () => unsubPlayers();
@@ -3028,8 +3038,8 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     }
 };
 
-   const handleEndMatch = async (courtIdx) => {
-        if (!isAdmin || !confirm("경기 종료?")) return;
+  const handleEndMatch = async (courtIdx) => {
+        if (!isAdmin || !confirm("경기를 종료하시겠습니까?")) return;
         const court = roomData.inProgressCourts[courtIdx];
         
         try {
@@ -3038,24 +3048,21 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
             // 해당 코트의 모든 선수 경기수 증가
             court.players.forEach(pid => {
                 if (players[pid]) {
-                    // 1. 방 내부 선수 정보 업데이트 (오늘 경기수 +1)
+                    // 방 내부 선수 정보만 업데이트 (보안 권한 문제 해결)
                     const roomPlayerRef = doc(playersCollectionRef, pid);
                     batch.update(roomPlayerRef, { todayGames: (players[pid].todayGames || 0) + 1 });
-                    
-                    // [참고] 보안 규칙상 관리자가 타인의 'users' 컬렉션을 직접 수정하는 것은 차단되므로 제외합니다.
                 }
             });
             
-            // 2. 코트 상태 업데이트 (비우기)
+            // 코트 비우기
             const newCourts = [...roomData.inProgressCourts];
             newCourts[courtIdx] = null;
             
             await batch.commit(); 
             await updateDoc(roomDocRef, { inProgressCourts: newCourts }); 
-            alert("경기가 정상적으로 종료되었습니다.");
         } catch (e) {
             console.error("경기 종료 오류:", e);
-            alert("처리 중 권한이 없거나 오류가 발생했습니다: " + e.message);
+            alert("권한이 없거나 오류가 발생했습니다.");
         }
     };
 
