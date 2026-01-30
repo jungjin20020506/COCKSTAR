@@ -1457,7 +1457,11 @@ function RoomCard({ room, onEnter, onEdit, user }) {
     const isAdmin = user && (
         isSuperAdmin(user) || 
         user.uid === room.adminUid || 
-        (room.admins && (room.admins.includes(user.email) || room.admins.includes(user.uid)))
+        (room.admins && room.admins.some(admin => 
+            admin === user.email || 
+            admin === user.uid || 
+            (user.email && admin === user.email.split('@')[0])
+        ))
     );
     return (
         <div 
@@ -2491,14 +2495,24 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     const roomDocRef = useMemo(() => doc(db, "rooms", roomId), [roomId]);
     const playersCollectionRef = useMemo(() => collection(db, "rooms", roomId, "players"), [roomId]);
 
-    const isAdmin = useMemo(() => {
+   const isAdmin = useMemo(() => {
         if (!roomData || !user) return false;
-        return isSuperAdmin(user) || 
-               user.uid === roomData.adminUid || 
-               roomData.admins?.includes(user.email) || 
-               roomData.admins?.includes(user.uid);
+        
+        // 1. 슈퍼 관리자 및 방장(생성자) 확인
+        if (isSuperAdmin(user) || user.uid === roomData.adminUid) return true;
+        
+        // 2. 공동 관리자 목록 확인
+        if (!roomData.admins || !Array.isArray(roomData.admins)) return false;
+        
+        const userEmail = user.email || "";
+        const userId = userEmail.split('@')[0]; // 'admin1@cockstar.app' -> 'admin1'
+        
+        return roomData.admins.some(admin => 
+            admin === userEmail ||    // 이메일 전체 일치
+            admin === user.uid ||      // UID 일치
+            (userId && admin === userId) // 아이디(ID)만 입력했을 경우 일치
+        );
     }, [user, roomData]);
-
     const inProgressPlayerIds = useMemo(() => 
         new Set((roomData?.inProgressCourts || []).flatMap(c => c?.players || []).filter(Boolean)), 
     [roomData]);
