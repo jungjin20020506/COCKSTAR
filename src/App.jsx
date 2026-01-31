@@ -2950,21 +2950,20 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         });
     };
 
-   // [수정] 관리자가 경기수를 수동 수정할 때도 방 내부와 전역 프로필을 동시에 수정
+   // [해결] 보안 권한 문제를 피하기 위해 관리자는 현재 방의 선수 정보만 수정합니다.
     const handleSaveGames = async (playerId, newCount) => {
         try {
-            const batch = writeBatch(db);
             const roomPlayerRef = doc(playersCollectionRef, playerId);
-            const userProfileRef = doc(db, "users", playerId);
             
-            batch.update(roomPlayerRef, { todayGames: newCount });
-            batch.update(userProfileRef, { todayGames: newCount });
+            // 전역 프로필(users) 대신 현재 경기방의 선수 문서만 업데이트합니다.
+            await updateDoc(roomPlayerRef, { 
+                todayGames: newCount 
+            });
             
-            await batch.commit();
             setEditGamePlayer(null);
         } catch (e) {
             console.error("게임 수 수정 실패:", e);
-            alert("수정 실패");
+            alert("수정 실패: " + e.message);
         }
     };
 
