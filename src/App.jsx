@@ -1971,33 +1971,40 @@ function EditGamesModal({ isOpen, onClose, player, onSave }) {
                     <p className="text-xs text-gray-400">경기 수 수정 및 히스토리 확인</p>
                 </div>
                 
-                {/* 경기수 수정 섹션 */}
+                {/* 경기수 수정 영역 */}
                 <div className="flex items-center justify-center gap-6 mb-8 bg-gray-50 py-4 rounded-xl">
                     <button 
                         onClick={() => setGames(g => Math.max(0, g - 1))} 
-                        className="w-10 h-10 rounded-full bg-white border border-gray-200 text-gray-600 font-bold text-xl shadow-sm"
+                        className="w-10 h-10 rounded-full bg-white border border-gray-200 text-gray-600 font-bold text-xl hover:bg-gray-100 transition-colors"
                     >
                         -
                     </button>
-                    <span className="text-3xl font-black text-[#00B16A] w-12 tabular-nums">{games}</span>
+                    <span className="text-3xl font-black text-[#00B16A] w-12 tabular-nums text-center">{games}</span>
                     <button 
                         onClick={() => setGames(g => g + 1)} 
-                        className="w-10 h-10 rounded-full bg-white border border-gray-200 text-[#00B16A] font-bold text-xl shadow-sm"
+                        className="w-10 h-10 rounded-full bg-white border border-gray-200 text-[#00B16A] font-bold text-xl hover:bg-gray-100 transition-colors"
                     >
                         +
                     </button>
                 </div>
 
-                {/* 이전 경기 히스토리 섹션 */}
-                <div className="mb-8">
-                    <h4 className="text-xs font-bold text-gray-500 mb-3 text-left pl-1">이전 경기 히스토리 (최근)</h4>
+                {/* [신규] 최근 경기 히스토리 영역 */}
+                <div className="mb-6">
+                    <h4 className="text-xs font-bold text-gray-500 mb-3 text-left pl-1">오늘 함께한 선수들</h4>
                     <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                         {player.matchHistory && player.matchHistory.length > 0 ? (
-                            player.matchHistory.map((match, idx) => (
+                            player.matchHistory.map((historyStr, idx) => (
                                 <div key={idx} className="bg-gray-50 p-2.5 rounded-lg border border-gray-100">
                                     <div className="flex flex-wrap gap-1">
-                                        {match.map((name, nIdx) => (
-                                            <span key={nIdx} className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${name === player.name ? 'bg-[#00B16A] text-white' : 'bg-white text-gray-600 border border-gray-100'}`}>
+                                        {historyStr.split(', ').map((name, nIdx) => (
+                                            <span 
+                                                key={nIdx} 
+                                                className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${
+                                                    name === player.name 
+                                                    ? 'bg-[#00B16A] text-white' 
+                                                    : 'bg-white text-gray-600 border border-gray-100'
+                                                }`}
+                                            >
                                                 {name}
                                             </span>
                                         ))}
@@ -2005,14 +2012,16 @@ function EditGamesModal({ isOpen, onClose, player, onSave }) {
                                 </div>
                             ))
                         ) : (
-                            <p className="text-[11px] text-gray-400 py-4 text-center">기록된 경기 히스토리가 없습니다.</p>
+                            <p className="text-[11px] text-gray-400 py-6 text-center border-2 border-dashed border-gray-50 rounded-xl">
+                                아직 경기 기록이 없습니다.
+                            </p>
                         )}
                     </div>
                 </div>
                 
                 <div className="flex gap-3">
-                    <button onClick={onClose} className="flex-1 py-3 bg-gray-100 text-gray-500 font-bold rounded-xl text-sm">취소</button>
-                    <button onClick={() => onSave(player.id, games)} className="flex-1 py-3 bg-[#00B16A] text-white font-bold rounded-xl text-sm shadow-lg shadow-green-100">저장</button>
+                    <button onClick={onClose} className="flex-1 py-3 bg-gray-100 text-gray-500 font-bold rounded-xl text-sm hover:bg-gray-200 transition-colors">취소</button>
+                    <button onClick={() => onSave(player.id, games)} className="flex-1 py-3 bg-[#00B16A] text-white font-bold rounded-xl text-sm shadow-lg shadow-green-100 hover:bg-green-600 transition-colors">저장</button>
                 </div>
             </div>
         </div>
@@ -2617,16 +2626,17 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         const unsubPlayers = onSnapshot(playersCollectionRef, async (snapshot) => {
             const playersArray = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
+           // 2. 관리자 권한 및 자정(12시) 날짜 체크 후 초기화 로직
             if (isAdmin && roomData) {
                 const now = new Date();
-                // 자정(0시) 기준으로 날짜 문자열 생성
+                // 자정 기준 날짜 문자열 (ISO 형식의 앞 10자리: YYYY-MM-DD)
                 const todayStr = now.toISOString().split('T')[0];
                 
                 if (roomData.lastResetDate !== todayStr) {
                     try {
                         const batch = writeBatch(db);
                         playersArray.forEach(p => {
-                            // 경기수와 경기 히스토리만 초기화 (강퇴나 방 나감 처리가 아님)
+                            // [수정] 자정에 오늘 경기수와 매치 히스토리만 초기화 (선수 문서는 유지)
                             batch.update(doc(playersCollectionRef, p.id), { 
                                 todayGames: 0,
                                 matchHistory: [] 
@@ -2635,7 +2645,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                         batch.update(roomDocRef, { lastResetDate: todayStr });
                         await batch.commit();
                     } catch (e) {
-                        console.error("자정 데이터 초기화 실패:", e);
+                        console.error("일일 데이터 초기화 실패:", e);
                     }
                 }
             }
@@ -3063,22 +3073,25 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     }
 };
 
- const handleEndMatch = async (courtIdx) => {
+const handleEndMatch = async (courtIdx) => {
         if (!isAdmin || !confirm("경기를 종료하시겠습니까?")) return;
         const court = roomData.inProgressCourts[courtIdx];
         
         try {
             const batch = writeBatch(db);
-            // 함께 경기한 4명의 이름을 추출
-            const matchMembers = court.players.map(pid => players[pid]?.name || '알 수 없음');
             
+            // [수정] 에러 방지를 위해 4명의 이름을 쉼표로 구분된 하나의 문자열로 합침
+            const matchMembersString = court.players
+                .map(pid => players[pid]?.name || '알 수 없음')
+                .join(', ');
+
             court.players.forEach(pid => {
                 if (players[pid]) {
                     const roomPlayerRef = doc(playersCollectionRef, pid);
-                    // 경기수 증가와 함께 matchHistory 배열에 이번 경기 멤버 명단을 추가
+                    // [수정] 오늘 경기수 증가 및 매치 히스토리에 문자열 추가 (최근 10개 유지)
                     batch.update(roomPlayerRef, { 
                         todayGames: (players[pid].todayGames || 0) + 1,
-                        matchHistory: [matchMembers, ...(players[pid].matchHistory || [])].slice(0, 10) // 최근 10개만 저장
+                        matchHistory: [matchMembersString, ...(players[pid].matchHistory || [])].slice(0, 10)
                     });
                 }
             });
@@ -4045,10 +4058,10 @@ export default function App() {
         }
     }, []);
 
- // [수정] 자정(00시) 기준 경기 날짜 계산 함수
+ // [수정] 매일 자정(12시) 기준 경기 날짜 계산 함수
     const getGameDate = () => {
         const now = new Date();
-        // 별도의 시간 차감 없이 현재 날짜를 반환하여 자정에 즉시 리셋되도록 함
+        // 자정이 지나면 즉시 새로운 날짜를 반환하여 초기화되도록 설정
         return now.toISOString().split('T')[0];
     };
     
