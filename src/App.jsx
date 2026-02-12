@@ -2449,6 +2449,7 @@ function CourtSelectionModal({ isOpen, onClose, courts, onSelect }) {
             </div>
         </div>
     );
+}
 // [신규] 얇은 띠배너 컴포넌트 (자동 슬라이드) - 크기 확대 및 고정 수정됨
 function GameBanner() {
     // ... (기존 GameBanner 코드 유지) ...
