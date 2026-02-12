@@ -907,6 +907,83 @@ function MainBanner() {
 }
 
 
+// [재수정] SectionHeader 컴포넌트 (HomePage 외부로 이동)
+const SectionHeader = ({ title, onMoreClick }) => (
+    <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold text-[#1E1E1E] tracking-tight">{title}</h2>
+        <button 
+            onClick={onMoreClick} 
+            className="text-sm font-medium text-gray-500 hover:text-[#00B16A] flex items-center transition-colors"
+        >
+            더보기 <ChevronRight size={18} />
+        </button>
+    </div>
+);
+
+// [수정] StoreCard 컴포넌트 (HomePage 외부로 이동)
+const StoreCard = ({ image, title, brand }) => (
+    <div className="w-40 flex-shrink-0 mr-4">
+        <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            <img 
+                src={image || "https://placehold.co/160x128/F5F5F5/BDBDBD?text=Store"} 
+                alt={title} 
+                className="w-full h-32 object-cover bg-gray-200"
+                loading="lazy"
+            />
+            <div className="p-3">
+                <p className="font-bold text-base text-[#1E1E1E] mt-1 truncate">{title}</p>
+                <p className="text-sm text-gray-500">{brand}</p>
+            </div>
+        </div>
+    </div>
+);
+
+// [수정] GameCard 컴포넌트 (HomePage 외부로 이동)
+const GameCard = ({ title, tags, location, current, total, onClick }) => (
+    <button 
+        onClick={onClick}
+        className="w-full p-5 bg-white rounded-xl shadow-md text-left transition-all duration-200 transform hover:scale-[1.02]"
+    >
+        <p className="font-semibold text-base text-[#1E1E1E] mb-2">{title}</p>
+        <div className="flex flex-wrap gap-2 mb-3">
+            {tags.map((tag, index) => (
+                <span 
+                    key={index} 
+                    className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-700"
+                >
+                    #{tag.label}
+                </span>
+            ))}
+        </div>
+        <div className="flex justify-between items-center">
+            <span className="text-sm text-gray-600 flex items-center">
+                <MapPin size={14} className="mr-1.5" /> {location}
+            </span>
+            <span className="text-sm font-medium text-[#00B16A] bg-green-100/80 px-2.5 py-1 rounded-full">
+                {current} / {total}명
+            </span>
+        </div>
+    </button>
+);
+
+// [수정] CommunityPost 컴포넌트 (HomePage 외부로 이동)
+const CommunityPost = ({ category, title, likes, onClick }) => (
+    <button 
+        onClick={onClick}
+        className="p-5 bg-white rounded-xl shadow-md flex justify-between items-center w-full transition-all duration-200 hover:shadow-lg"
+    >
+        <p className="truncate text-base font-medium text-[#1E1E1E] flex-1 mr-4">
+            <span className={`font-semibold ${category === 'Q&A' ? 'text-[#00B16A]' : 'text-gray-700'} mr-2`}>
+                [{category}]
+            </span>
+            {title}
+        </p>
+        <div className="text-xs text-gray-400 whitespace-nowrap flex items-center font-normal transition-colors hover:text-red-500">
+            <Heart size={14} className="mr-1" /> {likes}
+        </div>
+    </button>
+);
+
 /**
  * 2. 홈 페이지
  */
@@ -915,107 +992,13 @@ function HomePage({ user, setPage }) {
     // [아이디어 #1] 스켈레톤 로딩을 위한 상태
     const [loading, setLoading] = useState(true);
 
-    // 1.5초 후 로딩 상태 해제 (데이터 로딩 시뮬레이션)
+    // 1.5초 후 로딩 상태 해제
     useEffect(() => {
         const timer = setTimeout(() => {
             setLoading(false);
         }, 1500);
-        return () => clearTimeout(timer); // 컴포넌트 언마운트 시 타이머 제거
+        return () => clearTimeout(timer);
     }, []);
-
-  // [재수정] SectionHeader 컴포넌트 디자인 변경 (모바일 최적화)
-const SectionHeader = ({ title, onMoreClick }) => (
-    // [재수정] mb-6 -> mb-4 (제목 크기가 줄었으므로 하단 여백도 살짝 줄여 균형 맞춤)
-    <div className="flex justify-between items-center mb-4">
-        {/* [재수정] text-3xl font-extrabold -> text-2xl font-bold (더 세련된 크기로) */}
-        <h2 className="text-2xl font-bold text-[#1E1E1E] tracking-tight">{title}</h2>
-        <button 
-            onClick={onMoreClick} 
-            // (더보기 버튼은 디자인이 좋으므로 유지)
-            className="text-sm font-medium text-gray-500 hover:text-[#00B16A] flex items-center transition-colors"
-        >
-            더보기 <ChevronRight size={18} />
-        </button>
-    </div>
-);
-
-    // [수정] StoreCard 컴포넌트 디자인 변경
-    const StoreCard = ({ image, title, brand }) => (
-        <div className="w-40 flex-shrink-0 mr-4">
-            {/* [수정] shadow-lg -> shadow-md (그림자 약화) */}
-            <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                <img 
-                    src={image || "https://placehold.co/160x128/F5F5F5/BDBDBD?text=Store"} 
-                    alt={title} 
-                    className="w-full h-32 object-cover bg-gray-200"
-                    loading="lazy"
-                />
-                <div className="p-3">
-                    <p className="font-bold text-base text-[#1E1E1E] mt-1 truncate">{title}</p>
-                    <p className="text-sm text-gray-500">{brand}</p>
-                </div>
-            </div>
-        </div>
-    );
-
-    // [수정] GameCard 컴포넌트 디자인 변경
-    const GameCard = ({ title, tags, location, current, total }) => (
-        <button 
-            onClick={() => setPage('game')}
-            // [수정] p-4 -> p-5 (내부 여백 증가)
-            // [수정] shadow-lg -> shadow-md (그림자 약화)
-            // [수정] transition-transform -> transition-all duration-200 (부드러운 전환)
-            className="w-full p-5 bg-white rounded-xl shadow-md text-left transition-all duration-200 transform hover:scale-[1.02]"
-        >
-            {/* [수정] text-lg font-bold -> text-base font-semibold (H3 약화) */}
-            <p className="font-semibold text-base text-[#1E1E1E] mb-2">{title}</p>
-            <div className="flex flex-wrap gap-2 mb-3">
-                {tags.map((tag, index) => (
-                    <span 
-                        key={index} 
-                        className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-700"
-                    >
-                        #{tag.label}
-                    </span>
-                ))}
-            </div>
-            <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600 flex items-center">
-                    {/* [수정] 아이콘 크기/여백 조절 (16/mr-1 -> 14/mr-1.5) */}
-                    <MapPin size={14} className="mr-1.5" /> {location}
-                </span>
-                {/* [수정] bg-green-50 -> bg-green-100/80 (색상 일관성 및 투명도) */}
-                <span className="text-sm font-medium text-[#00B16A] bg-green-100/80 px-2.5 py-1 rounded-full">
-                    {current} / {total}명
-                </span>
-            </div>
-        </button>
-    );
-
-    // [수정] CommunityPost 컴포넌트 디자인 변경
-    const CommunityPost = ({ category, title, likes }) => (
-        <button 
-            onClick={() => setPage('community')}
-            // [수정] p-4 -> p-5 (내부 여백 증가)
-            // [수정] shadow-lg -> shadow-md (그림자 약화)
-            // [수정] transition-shadow -> transition-all duration-200 (부드러운 전환)
-            // [수정] hover:shadow-md -> hover:shadow-lg (호버 시 그림자 살짝 강조)
-            className="p-5 bg-white rounded-xl shadow-md flex justify-between items-center w-full transition-all duration-200 hover:shadow-lg"
-        >
-            {/* [수정] text-base -> text-base font-medium (본문 제목 두께 살짝) */}
-            <p className="truncate text-base font-medium text-[#1E1E1E] flex-1 mr-4">
-                <span className={`font-semibold ${category === 'Q&A' ? 'text-[#00B16A]' : 'text-gray-700'} mr-2`}>
-                    [{category}]
-                </span>
-                {title}
-            </p>
-            {/* [수정] 부가정보(좋아요) 약화: text-sm font-medium -> text-xs font-normal text-gray-400 */}
-            <div className="text-xs text-gray-400 whitespace-nowrap flex items-center font-normal transition-colors hover:text-red-500">
-                {/* [수정] 아이콘 크기 조절 (16 -> 14) */}
-                <Heart size={14} className="mr-1" /> {likes}
-            </div>
-        </button>
-    );
 
     // =================================================================
     // [신규] '신상 스토어' 마퀴 + 드래그 로직 (수정 완료)
@@ -1190,7 +1173,7 @@ return (
                 </div>
             </section>
 
-            {/* (3) 섹션: 지금 뜨는 경기 */}
+           {/* (3) 섹션: 지금 뜨는 경기 */}
             <section>
                 <SectionHeader title="지금 뜨는 경기" onMoreClick={() => setPage('game')} />
                 <div className="space-y-4">
@@ -1207,6 +1190,7 @@ return (
                                 location="OO 체육관"
                                 current={8}
                                 total={12}
+                                onClick={() => setPage('game')}
                             />
                             <GameCard 
                                 title="수원시 주말 40대 A조 모임" 
@@ -1214,6 +1198,7 @@ return (
                                 location="XX 체육관"
                                 current={10}
                                 total={16}
+                                onClick={() => setPage('game')}
                             />
                         </>
                     )}
@@ -1232,9 +1217,9 @@ return (
                         </>
                     ) : (
                         <>
-                            <CommunityPost category="Q&A" title="이 라켓 써보신 분 후기 있으신가요?" likes={12} />
-                            <CommunityPost category="자유글" title="C조 탈출하는 법.txt 공유합니다" likes={8} />
-                            <CommunityPost category="중고" title="[판매] 빅터 제트스피드 S12 팝니다" likes={5} />
+                            <CommunityPost category="Q&A" title="이 라켓 써보신 분 후기 있으신가요?" likes={12} onClick={() => setPage('community')} />
+                            <CommunityPost category="자유글" title="C조 탈출하는 법.txt 공유합니다" likes={8} onClick={() => setPage('community')} />
+                            <CommunityPost category="중고" title="[판매] 빅터 제트스피드 S12 팝니다" likes={5} onClick={() => setPage('community')} />
                         </>
                     )}
                 </div>
