@@ -3004,14 +3004,117 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     };
 
    // [해결] 보안 권한 문제를 피하기 위해 관리자는 현재 방의 선수 정보만 수정합니다.
-   const handleSaveGames = async (playerId, newCount) => {
-        // ... (기존 코드 내용 유지) ...
+  const handleSaveGames = async (playerId, newCount) => {
+        try {
+            const roomPlayerRef = doc(playersCollectionRef, playerId);
+            
+            // 전역 프로필(users) 대신 현재 경기방의 선수 문서만 업데이트합니다.
+            await updateDoc(roomPlayerRef, { 
+                todayGames: newCount 
+            });
+            
             setEditGamePlayer(null);
         } catch (e) {
             console.error("게임 수 수정 실패:", e);
             alert("수정 실패: " + e.message);
         }
     };
+
+    // ===========================================================================
+    // [신규] 시뮬레이션 랩 로직 (Simulation Logic)
+    // ===========================================================================
+    const [isTestLabOpen, setIsTestLabOpen] = useState(false); // 모달 열기/닫기
+    const [isAutoPlay, setIsAutoPlay] = useState(false);       // 자동 플레이 ON/OFF
+
+    // 1. 봇 생성 함수
+    const handleCreateBots = async (count, gender) => {
+        if (!isAdmin) return alert("관리자만 가능합니다.");
+        try {
+            const batch = writeBatch(db);
+            for (let i = 0; i < count; i++) {
+                const botId = `bot_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+                const botRef = doc(playersCollectionRef, botId);
+                const randomLevel = ['A조','B조','C조','D조'][Math.floor(Math.random() * 4)];
+                batch.set(botRef, {
+                    name: `Bot ${Math.floor(Math.random() * 1000)}`,
+                    level: randomLevel,
+                    gender: gender,
+                    isBot: true, // 봇임을 표시
+                    entryTime: serverTimestamp(),
+                    todayGames: 0,
+                    isResting: false
+                });
+            }
+            await batch.commit();
+        } catch (e) {
+            console.error("봇 생성 실패:", e);
+            alert("봇 생성 오류");
+        }
+    };
+
+    // 2. 자동 플레이 엔진 (1.5초마다 실행)
+    useEffect(() => {
+        if (!isAutoPlay || !isAdmin || !roomData) return;
+
+        const simulationInterval = setInterval(() => {
+            const emptyCourts = [];
+            (roomData.inProgressCourts || []).forEach((c, i) => { if(!c) emptyCourts.push(i); });
+            const occupiedCourts = [];
+            (roomData.inProgressCourts || []).forEach((c, i) => { if(c) occupiedCourts.push(i); });
+
+            // 행동 1: 30% 확률로 진행 중인 경기 종료 (코트 비우기)
+            if (occupiedCourts.length > 0 && Math.random() < 0.3) {
+                const targetCourt = occupiedCourts[Math.floor(Math.random() * occupiedCourts.length)];
+                handleEndMatch(targetCourt);
+                return; // 이번 턴 종료
+            }
+
+            // 행동 2: 50% 확률로 꽉 찬 대기열 경기 시작 (코트 채우기)
+            const fullMatches = [];
+            Object.entries(roomData.scheduledMatches || {}).forEach(([mIdx, players]) => {
+                if (players && players.filter(Boolean).length === 4) fullMatches.push(parseInt(mIdx));
+            });
+
+            if (fullMatches.length > 0 && emptyCourts.length > 0 && Math.random() < 0.5) {
+                const targetMatch = fullMatches[0]; // 첫 번째 꽉 찬 매치 실행
+                processStartMatch(targetMatch, emptyCourts[0]);
+                return; // 이번 턴 종료
+            }
+
+            // 행동 3: 빈 자리에 대기 중인 선수 채워넣기 (항상 시도)
+            if (waitingPlayers.length > 0) {
+                // 스케줄 중 빈 자리가 있는지 탐색
+                let targetMatchIdx = -1;
+                let targetSlotIdx = -1;
+
+                // 0번 매치부터 순서대로 빈 자리 찾기
+                for (let m = 0; m < roomData.numScheduledMatches; m++) {
+                    const match = roomData.scheduledMatches?.[m] || [null,null,null,null];
+                    const emptyIdx = match.indexOf(null); // 빈 자리 인덱스
+                    
+                    if (emptyIdx !== -1 && match.length >= 4) {
+                        targetMatchIdx = m;
+                        targetSlotIdx = emptyIdx;
+                        break;
+                    } else if (match.length < 4) {
+                         // 배열이 덜 만들어진 경우 (초기 상태)
+                         targetMatchIdx = m;
+                         targetSlotIdx = match.length;
+                         break;
+                    }
+                }
+
+                if (targetMatchIdx !== -1 && targetSlotIdx !== -1) {
+                    // 대기 선수 1명을 그 자리로 이동
+                    const playerToMove = waitingPlayers[0];
+                    handleSwapPlayers([playerToMove.id], null, targetMatchIdx, targetSlotIdx);
+                }
+            }
+
+        }, 1500); // 1.5초마다 행동
+
+        return () => clearInterval(simulationInterval);
+    }, [isAutoPlay, roomData, waitingPlayers, isAdmin]);
 
     // ===========================================================================
     // [신규] 시뮬레이션 랩 로직 (Simulation Logic)
