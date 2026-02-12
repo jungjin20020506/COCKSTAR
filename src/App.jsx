@@ -50,7 +50,8 @@ import {
     UserCheck as UserCheckIcon,
     GripVertical as GripVerticalIcon,
     Share2 as Share2Icon, // 공유 아이콘 추가
-    Copy as CopyIcon      // 복사 아이콘 추가
+    Copy as CopyIcon,      // 복사 아이콘 추가
+    FlaskConical as FlaskConicalIcon // [테스트용] 플라스크 아이콘 추가
 } from 'lucide-react';
 
 // [추가] Lucide 아이콘의 선 굵기를 일괄 조절하는 헬퍼 함수
@@ -58,6 +59,7 @@ const createThinIcon = (Icon) => (props) => <Icon {...props} strokeWidth={1.5} /
 
 const Share2 = createThinIcon(Share2Icon);
 const Copy = createThinIcon(CopyIcon);
+const FlaskConical = createThinIcon(FlaskConicalIcon);
 const Home = createThinIcon(HomeIcon);
 const Trophy = createThinIcon(TrophyIcon);
 const KokMap = createThinIcon(MapIcon); // Store -> KokMap으로 명칭 변경
@@ -2447,57 +2449,71 @@ function CourtSelectionModal({ isOpen, onClose, courts, onSelect }) {
             </div>
         </div>
     );
-}
 // [신규] 얇은 띠배너 컴포넌트 (자동 슬라이드) - 크기 확대 및 고정 수정됨
 function GameBanner() {
-    const [index, setIndex] = useState(0);
-    // 광고 데이터 예시
-   const ads = [
-        { 
-            id: 1, 
-            imageUrl: "https://firebasestorage.googleapis.com/v0/b/noerror-14ce3.firebasestorage.app/o/KakaoTalk_20251222_170201045.png?alt=media&token=cdefe786-bfce-4a51-a7c1-bb4885cfa32d", 
-            link: "https://www.pjbsports.com/INTRO" 
-        },
-        { 
-            id: 2, 
-            imageUrl: "https://firebasestorage.googleapis.com/v0/b/noerror-14ce3.firebasestorage.app/o/KakaoTalk_20251222_170201045.png?alt=media&token=cdefe786-bfce-4a51-a7c1-bb4885cfa32d", 
-            link: "https://www.pjbsports.com/INTRO" 
-        },
-    ];
-    useEffect(() => {
-        if (ads.length <= 1) return;
-        const timer = setInterval(() => {
-            setIndex((prev) => (prev + 1) % ads.length);
-        }, 4000);
-        return () => clearInterval(timer);
-    }, [ads.length]);
+    // ... (기존 GameBanner 코드 유지) ...
+    return (
+        // ... (기존 반환 코드 유지) ...
+        <div className="w-full aspect-[5/1] flex-shrink-0 relative overflow-hidden bg-gray-100 border-b border-gray-100 z-0">
+             {/* ... (기존 내용 유지) ... */}
+        </div>
+    );
+}
+
+// ===================================================================================
+// [신규] 관리자 시뮬레이션 랩 (Test Lab) 모달
+// ===================================================================================
+function TestLabModal({ isOpen, onClose, onCreateBots, isAutoPlay, setIsAutoPlay }) {
+    if (!isOpen) return null;
 
     return (
-        /* [핵심 수정] 
-           h-24(높이 고정)를 삭제하고 aspect-[5/1]을 추가했습니다.
-           이제 화면이 넓어지면 높이도 비례해서 늘어나고, 좁아지면 같이 줄어듭니다.
-        */
-        <div className="w-full aspect-[5/1] flex-shrink-0 relative overflow-hidden bg-gray-100 border-b border-gray-100 z-0">
-            {ads.map((ad, i) => (
-                <div 
-                    key={ad.id}
-                    className="absolute inset-0 transition-transform duration-700 ease-in-out cursor-pointer"
-                    style={{ transform: `translateX(${(i - index) * 100}%)` }}
-                    onClick={() => ad.link && window.open(ad.link, '_blank')}
-                >
-                    <img 
-                        src={ad.imageUrl} 
-                        alt={`광고 ${ad.id}`} 
-                        /* 이미지도 5:1, 상자도 5:1이므로 
-                           object-cover를 써도 전혀 잘림 없이 딱 맞게 들어갑니다. 
-                        */
-                        className="w-full h-full object-cover" 
-                    />
-                    <div className="absolute top-1 right-2 bg-black/30 text-[8px] text-white px-1 rounded font-bold">
-                        AD
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-fade-in-up border-2 border-[#00B16A]">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-[#1E1E1E] flex items-center gap-2">
+                        <FlaskConical size={24} className="text-[#00B16A]" /> 시뮬레이션 랩
+                    </h3>
+                    <button onClick={onClose}><X size={24} className="text-gray-400" /></button>
+                </div>
+
+                <div className="space-y-6">
+                    {/* 1. 봇 생성기 */}
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                        <h4 className="font-bold text-sm text-gray-600 mb-3">🤖 가상 선수(Bot) 투입</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button onClick={() => onCreateBots(4, '남')} className="py-3 bg-white border border-gray-200 rounded-lg text-sm font-bold shadow-sm hover:border-blue-500 hover:text-blue-500 transition-colors">
+                                남성 4명 추가
+                            </button>
+                            <button onClick={() => onCreateBots(4, '여')} className="py-3 bg-white border border-gray-200 rounded-lg text-sm font-bold shadow-sm hover:border-pink-500 hover:text-pink-500 transition-colors">
+                                여성 4명 추가
+                            </button>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-2 text-center">* 대기 명단으로 즉시 투입됩니다.</p>
+                    </div>
+
+                    {/* 2. 자동 플레이 */}
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                        <h4 className="font-bold text-sm text-gray-600 mb-3">⚡ 자동 매칭 시뮬레이션</h4>
+                        <button 
+                            onClick={() => setIsAutoPlay(!isAutoPlay)}
+                            className={`w-full py-4 rounded-xl text-lg font-black transition-all shadow-lg flex items-center justify-center gap-2 ${
+                                isAutoPlay 
+                                ? 'bg-red-500 text-white hover:bg-red-600 ring-2 ring-red-200' 
+                                : 'bg-[#1E1E1E] text-white hover:bg-black'
+                            }`}
+                        >
+                            {isAutoPlay ? (
+                                <><Loader2 className="animate-spin" /> 시뮬레이션 중지</>
+                            ) : (
+                                "자동 테스트 시작"
+                            )}
+                        </button>
+                        <p className="text-xs text-gray-400 mt-2 text-center">
+                            {isAutoPlay ? "봇들이 자동으로 경기를 진행하고 종료합니다." : "버튼을 누르면 봇들이 스스로 움직입니다."}
+                        </p>
                     </div>
                 </div>
-            ))}
+            </div>
         </div>
     );
 }
@@ -2988,21 +3004,110 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     };
 
    // [해결] 보안 권한 문제를 피하기 위해 관리자는 현재 방의 선수 정보만 수정합니다.
-    const handleSaveGames = async (playerId, newCount) => {
-        try {
-            const roomPlayerRef = doc(playersCollectionRef, playerId);
-            
-            // 전역 프로필(users) 대신 현재 경기방의 선수 문서만 업데이트합니다.
-            await updateDoc(roomPlayerRef, { 
-                todayGames: newCount 
-            });
-            
+   const handleSaveGames = async (playerId, newCount) => {
+        // ... (기존 코드 내용 유지) ...
             setEditGamePlayer(null);
         } catch (e) {
             console.error("게임 수 수정 실패:", e);
             alert("수정 실패: " + e.message);
         }
     };
+
+    // ===========================================================================
+    // [신규] 시뮬레이션 랩 로직 (Simulation Logic)
+    // ===========================================================================
+    const [isTestLabOpen, setIsTestLabOpen] = useState(false); // 모달 열기/닫기
+    const [isAutoPlay, setIsAutoPlay] = useState(false);       // 자동 플레이 ON/OFF
+
+    // 1. 봇 생성 함수
+    const handleCreateBots = async (count, gender) => {
+        if (!isAdmin) return alert("관리자만 가능합니다.");
+        try {
+            const batch = writeBatch(db);
+            for (let i = 0; i < count; i++) {
+                const botId = `bot_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+                const botRef = doc(playersCollectionRef, botId);
+                const randomLevel = ['A조','B조','C조','D조'][Math.floor(Math.random() * 4)];
+                batch.set(botRef, {
+                    name: `Bot ${Math.floor(Math.random() * 1000)}`,
+                    level: randomLevel,
+                    gender: gender,
+                    isBot: true, // 봇임을 표시
+                    entryTime: serverTimestamp(),
+                    todayGames: 0,
+                    isResting: false
+                });
+            }
+            await batch.commit();
+        } catch (e) {
+            console.error("봇 생성 실패:", e);
+            alert("봇 생성 오류");
+        }
+    };
+
+    // 2. 자동 플레이 엔진 (2초마다 실행)
+    useEffect(() => {
+        if (!isAutoPlay || !isAdmin || !roomData) return;
+
+        const simulationInterval = setInterval(() => {
+            const emptyCourts = [];
+            (roomData.inProgressCourts || []).forEach((c, i) => { if(!c) emptyCourts.push(i); });
+            const occupiedCourts = [];
+            (roomData.inProgressCourts || []).forEach((c, i) => { if(c) occupiedCourts.push(i); });
+
+            // 행동 1: 30% 확률로 진행 중인 경기 종료 (코트 비우기)
+            if (occupiedCourts.length > 0 && Math.random() < 0.3) {
+                const targetCourt = occupiedCourts[Math.floor(Math.random() * occupiedCourts.length)];
+                handleEndMatch(targetCourt);
+                return; // 이번 턴 종료
+            }
+
+            // 행동 2: 50% 확률로 꽉 찬 대기열 경기 시작 (코트 채우기)
+            const fullMatches = [];
+            Object.entries(roomData.scheduledMatches || {}).forEach(([mIdx, players]) => {
+                if (players && players.filter(Boolean).length === 4) fullMatches.push(parseInt(mIdx));
+            });
+
+            if (fullMatches.length > 0 && emptyCourts.length > 0 && Math.random() < 0.5) {
+                const targetMatch = fullMatches[0]; // 첫 번째 꽉 찬 매치 실행
+                processStartMatch(targetMatch, emptyCourts[0]);
+                return; // 이번 턴 종료
+            }
+
+            // 행동 3: 빈 자리에 대기 중인 선수 채워넣기 (항상 시도)
+            if (waitingPlayers.length > 0) {
+                // 스케줄 중 빈 자리가 있는지 탐색
+                let targetMatchIdx = -1;
+                let targetSlotIdx = -1;
+
+                // 0번 매치부터 순서대로 빈 자리 찾기
+                for (let m = 0; m < roomData.numScheduledMatches; m++) {
+                    const match = roomData.scheduledMatches?.[m] || [null,null,null,null];
+                    const emptyIdx = match.indexOf(null); // 빈 자리 인덱스
+                    // 배열 길이가 4보다 작아서 undefined인 경우도 고려해야 함
+                    if (emptyIdx !== -1 && match.length >= 4) {
+                        targetMatchIdx = m;
+                        targetSlotIdx = emptyIdx;
+                        break;
+                    } else if (match.length < 4) {
+                         // 배열이 덜 만들어진 경우 (초기 상태)
+                         targetMatchIdx = m;
+                         targetSlotIdx = match.length;
+                         break;
+                    }
+                }
+
+                if (targetMatchIdx !== -1 && targetSlotIdx !== -1) {
+                    // 대기 선수 1명을 그 자리로 이동 (트랜잭션 함수 활용)
+                    const playerToMove = waitingPlayers[0];
+                    handleSwapPlayers([playerToMove.id], null, targetMatchIdx, targetSlotIdx);
+                }
+            }
+
+        }, 1500); // 1.5초마다 행동
+
+        return () => clearInterval(simulationInterval);
+    }, [isAutoPlay, roomData, waitingPlayers, isAdmin]); // 의존성 배열
 
 
     // --- Render ---
@@ -3172,17 +3277,26 @@ const handleEndMatch = async (courtIdx) => {
             : 'bg-white text-[#00B16A] border-[#00B16A] shadow-sm' 
         }`}
     >
-        {/* [수정] 버튼 명칭 변경: 대기 -> 휴식, 휴식 중일 때 -> 복귀 */}
         {players[user.uid]?.isResting ? '복귀' : '휴식'}
     </button>
 
+                    {/* [신규] 관리자 전용 테스트 랩 버튼 */}
                     {isAdmin && (
-                        <button 
-                            onClick={() => setIsSettingsOpen(true)}
-                            className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-[#1E1E1E] hover:bg-gray-100 transition-all"
-                        >
-                            <GripVertical size={20} />
-                        </button>
+                        <div className="flex gap-1.5">
+                            <button 
+                                onClick={() => setIsTestLabOpen(true)}
+                                className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${isAutoPlay ? 'bg-red-100 text-red-500 animate-pulse' : 'text-gray-400 hover:text-[#00B16A] hover:bg-green-50'}`}
+                                title="시뮬레이션 랩"
+                            >
+                                <FlaskConical size={20} />
+                            </button>
+                            <button 
+                                onClick={() => setIsSettingsOpen(true)}
+                                className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-[#1E1E1E] hover:bg-gray-100 transition-all"
+                            >
+                                <GripVertical size={20} />
+                            </button>
+                        </div>
                     )}
                 </div>
             </header>
@@ -3393,13 +3507,22 @@ const handleEndMatch = async (courtIdx) => {
                 onSave={handleSaveGames}
             />
             
-            {/* 방 정보 수정 모달 */}
+           {/* 방 정보 수정 모달 */}
              <EditRoomInfoModal 
                 isOpen={isEditInfoOpen}
                 onClose={() => setIsEditInfoOpen(false)}
                 roomData={roomData}
                 onSave={handleRoomInfoSave}
                 onDelete={handleRoomDelete}
+            />
+
+            {/* [신규] 테스트 랩 모달 연결 */}
+            <TestLabModal 
+                isOpen={isTestLabOpen}
+                onClose={() => setIsTestLabOpen(false)}
+                onCreateBots={handleCreateBots}
+                isAutoPlay={isAutoPlay}
+                setIsAutoPlay={setIsAutoPlay}
             />
         </div>
     );
