@@ -2667,7 +2667,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     useEffect(() => {
         if (!isAutoPlay || !isAdmin || !roomData) return;
 
-        const simulationInterval = setInterval(() => {
+       const simulationInterval = setInterval(() => {
             const emptyCourts = [];
             (roomData.inProgressCourts || []).forEach((c, i) => { if(!c) emptyCourts.push(i); });
             const occupiedCourts = [];
@@ -2714,7 +2714,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                     handleSwapPlayers([playerToMove.id], null, targetMatchIdx, targetSlotIdx);
                 }
             }
-        }, 1500);
+        }, 500);
 
         return () => clearInterval(simulationInterval);
     }, [isAutoPlay, roomData, waitingPlayers, isAdmin]);
@@ -3073,14 +3073,15 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                 const botId = `bot_${Date.now()}_${Math.floor(Math.random()*1000)}`;
                 const botRef = doc(playersCollectionRef, botId);
                 const randomLevel = ['A조','B조','C조','D조'][Math.floor(Math.random() * 4)];
-                batch.set(botRef, {
+               batch.set(botRef, {
                     name: `Bot ${Math.floor(Math.random() * 1000)}`,
                     level: randomLevel,
                     gender: gender,
                     isBot: true,
                     entryTime: serverTimestamp(),
                     todayGames: 0,
-                    isResting: false
+                    isResting: false,
+                    matchHistory: [] // 히스토리 데이터 초기화
                 });
             }
             await batch.commit();
@@ -3163,22 +3164,30 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 const handleEndMatch = async (courtIdx) => {
         if (!isAdmin || !confirm("경기를 종료하시겠습니까?")) return;
         const court = roomData.inProgressCourts[courtIdx];
+        if (!court || !court.players) return;
         
         try {
             const batch = writeBatch(db);
             
-            // [수정] 에러 방지를 위해 4명의 이름을 쉼표로 구분된 하나의 문자열로 합침
+            // 1. 참여자 이름 리스트 생성 및 봇 검증 (히스토리 가독성 향상)
             const matchMembersString = court.players
-                .map(pid => players[pid]?.name || '알 수 없음')
+                .map(pid => {
+                    const p = players[pid];
+                    if (!p) return '퇴장한 선수';
+                    return p.isBot ? `[Bot]${p.name}` : p.name;
+                })
                 .join(', ');
 
+            // 2. 유효한 선수(및 봇) 문서만 업데이트 (400 오류 방지)
             court.players.forEach(pid => {
-                if (players[pid]) {
+                const p = players[pid];
+                if (pid && p) {
                     const roomPlayerRef = doc(playersCollectionRef, pid);
-                    // [수정] 오늘 경기수 증가 및 매치 히스토리에 문자열 추가 (최근 10개 유지)
+                    const currentHistory = Array.isArray(p.matchHistory) ? p.matchHistory : [];
+                    
                     batch.update(roomPlayerRef, { 
-                        todayGames: (players[pid].todayGames || 0) + 1,
-                        matchHistory: [matchMembersString, ...(players[pid].matchHistory || [])].slice(0, 10)
+                        todayGames: (p.todayGames || 0) + 1,
+                        matchHistory: [matchMembersString, ...currentHistory].slice(0, 10)
                     });
                 }
             });
@@ -3189,8 +3198,8 @@ const handleEndMatch = async (courtIdx) => {
             await batch.commit(); 
             await updateDoc(roomDocRef, { inProgressCourts: newCourts }); 
         } catch (e) {
-            console.error("경기 종료 오류:", e);
-            alert("권한이 없거나 오류가 발생했습니다.");
+            console.error("경기 종료 및 히스토리 저장 오류:", e);
+            alert("히스토리 저장 중 오류가 발생했습니다. 데이터를 확인해주세요.");
         }
     };
     // --- Render ---
