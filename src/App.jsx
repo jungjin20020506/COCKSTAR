@@ -2611,9 +2611,9 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                             isResting: false,
                             role: 'player'
                         });
-                    } else {
+                   } else {
                         transaction.update(playerRef, {
-                            todayGames: userData.todayGames || 0,
+                            // 기존 경기방에 기록된 경기수를 보존하기 위해 todayGames 업데이트 제외
                             name: userData.name,
                             level: userData.level
                         });
@@ -3343,12 +3343,13 @@ const handleEndMatch = async (courtIdx) => {
                                 </div>
                             )}
 
-                            {/* 여자 대기 */}
+                           {/* 여자 대기 */}
                             <div className="grid grid-cols-4 gap-2">
                                 {femaleWaiting.map(p => (
                                     <PlayerCard 
                                         key={p.id} player={p} isAdmin={isAdmin} isCurrentUser={user.uid === p.id}
                                         isSelected={selectedPlayerIds.includes(p.id)}
+                                        isResting={p.isResting}
                                         onCardClick={handleCardClick}
                                         onDeleteClick={handleKickPlayer}
                                         onLongPress={(p) => setEditGamePlayer(p)}
