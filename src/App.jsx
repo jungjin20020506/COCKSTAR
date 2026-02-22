@@ -18,6 +18,7 @@ import {
     getDocs,
     increment // 인원수 증감을 위해 추가
 } from 'firebase/firestore';
+import noErrorBanner from './noerror.png'; 
 // StoreIcon 대신 Map 아이콘을 가져옵니다.
 import {
     Home as HomeIcon, 
@@ -2437,12 +2438,11 @@ function CourtSelectionModal({ isOpen, onClose, courts, onSelect }) {
 }
 
 
-// [수정] PJB Sports 전용 배너 (Firebase Storage 이미지 및 랜딩 페이지 적용)
+// [수정] PJB Sports 전용 배너 (로컬 이미지 noerror.png 적용)
 function GameBanner() {
-    // 파이어베이스 Storage에 저장된 이미지 파일명을 호출하는 경로를 구성합니다.
     const pjbBanner = {
         id: 'pjb-sports-banner',
-        imageUrl: `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/KakaoTalk_20251222_170201045.png?alt=media`,
+        imageUrl: noErrorBanner, 
         linkUrl: 'https://www.pjbsports.com/'
     };
 
@@ -2460,10 +2460,6 @@ function GameBanner() {
                     src={pjbBanner.imageUrl} 
                     alt="PJB SPORTS 광고 배너" 
                     className="w-full h-full object-cover"
-                    onError={(e) => {
-                        // 이미지 로드 실패 시 표시할 대체 배경
-                        e.target.src = "https://placehold.co/600x120/00B16A/FFFFFF?text=PJB+SPORTS";
-                    }}
                 />
             </div>
         </div>
