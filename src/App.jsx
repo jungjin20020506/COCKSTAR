@@ -2437,90 +2437,38 @@ function CourtSelectionModal({ isOpen, onClose, courts, onSelect }) {
 }
 
 
-// [신규] 얇은 띠배너 컴포넌트 (자동 슬라이드) - 파이어베이스 연동 및 클릭 시 이동 기능 구현
+// [수정] PJB Sports 전용 배너 (Firebase Storage 이미지 및 랜딩 페이지 적용)
 function GameBanner() {
-    const [banners, setBanners] = useState([]);
-    const [currentIndex, setCurrentIndex] = useState(0);
-
-    // 파이어베이스 Firestore에서 'banners' 컬렉션 데이터를 실시간으로 가져옵니다.
-    useEffect(() => {
-        // Firestore의 'banners' 컬렉션에서 데이터를 가져옵니다.
-        const q = query(collection(db, "banners"), orderBy("createdAt", "desc"));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const bannerData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            setBanners(bannerData);
-        }, (error) => {
-            console.error("배너 데이터를 불러오는 중 오류 발생:", error);
-        });
-
-        return () => unsubscribe();
-    }, []);
-
-    // 5초 간격으로 배너가 자동으로 전환되는 로직
-    useEffect(() => {
-        if (banners.length <= 1) return;
-        const timer = setInterval(() => {
-            setCurrentIndex((prev) => (prev + 1) % banners.length);
-        }, 5000);
-        return () => clearInterval(timer);
-    }, [banners]);
-
-   // [수정] Firestore에 데이터가 없을 경우 표시할 기본 배너 데이터 설정
-    const displayBanners = banners.length > 0 ? banners : [
-        {
-            id: 'default-banner',
-            imageUrl: 'https://placehold.co/600x120/00B16A/FFFFFF?text=COCKSTAR+BADMINTON+CLUB',
-            linkUrl: '#'
-        }
-    ];
+    const pjbBanner = {
+        id: 'pjb-sports-banner',
+        // 파이어베이스 Storage에 저장된 이미지 파일명을 호출하는 경로입니다.
+        imageUrl: `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/KakaoTalk_20251222_170201045.png?alt=media`,
+        linkUrl: 'https://www.pjbsports.com/'
+    };
 
     return (
         <div className="w-full aspect-[5/1] flex-shrink-0 relative overflow-hidden bg-gray-50 border-b border-gray-100 z-10">
             <div 
-                className="flex transition-transform duration-500 ease-in-out h-full"
-                style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+                className="w-full h-full cursor-pointer"
+                onClick={() => {
+                    if (pjbBanner.linkUrl) {
+                        window.open(pjbBanner.linkUrl, '_blank');
+                    }
+                }}
             >
-                {displayBanners.map((banner) => (
-                    <div 
-                        key={banner.id}
-                        className="w-full h-full flex-shrink-0 cursor-pointer"
-                        onClick={() => {
-                            if (banner.linkUrl && banner.linkUrl !== '#') {
-                                window.open(banner.linkUrl, '_blank');
-                            }
-                        }}
-                    >
-                        <img 
-                            src={banner.imageUrl} 
-                            alt="광고 배너" 
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                                e.target.src = "https://placehold.co/600x120/f3f4f6/9ca3af?text=Banner+Load+Error";
-                            }}
-                        />
-                    </div>
-                ))}
+                <img 
+                    src={pjbBanner.imageUrl} 
+                    alt="PJB SPORTS 광고 배너" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                        // 이미지 로드 실패 시 표시할 대체 배경
+                        e.target.src = "https://placehold.co/600x120/00B16A/FFFFFF?text=PJB+SPORTS";
+                    }}
+                />
             </div>
-            
-            {displayBanners.length > 1 && (
-                <div className="absolute bottom-2 right-3 flex gap-1.5">
-                    {displayBanners.map((_, idx) => (
-                        <div 
-                            key={idx}
-                            className={`h-1 rounded-full transition-all ${
-                                currentIndex === idx ? 'w-4 bg-[#00B16A]' : 'w-1 bg-white/60 shadow-sm'
-                            }`}
-                        />
-                    ))}
-                </div>
-            )}
         </div>
     );
 }
-
 // ===================================================================================
 // [신규] 관리자 시뮬레이션 랩 (Test Lab) 모달
 // ===================================================================================
