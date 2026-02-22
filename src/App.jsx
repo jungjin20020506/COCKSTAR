@@ -2439,9 +2439,9 @@ function CourtSelectionModal({ isOpen, onClose, courts, onSelect }) {
 
 // [수정] PJB Sports 전용 배너 (Firebase Storage 이미지 및 랜딩 페이지 적용)
 function GameBanner() {
+    // 파이어베이스 Storage에 저장된 이미지 파일명을 호출하는 경로를 구성합니다.
     const pjbBanner = {
         id: 'pjb-sports-banner',
-        // 파이어베이스 Storage에 저장된 이미지 파일명을 호출하는 경로입니다.
         imageUrl: `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/KakaoTalk_20251222_170201045.png?alt=media`,
         linkUrl: 'https://www.pjbsports.com/'
     };
