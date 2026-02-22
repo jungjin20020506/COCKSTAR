@@ -2468,7 +2468,14 @@ function GameBanner() {
         return () => clearInterval(timer);
     }, [banners]);
 
-    if (banners.length === 0) return null;
+   // [수정] Firestore에 데이터가 없을 경우 표시할 기본 배너 데이터 설정
+    const displayBanners = banners.length > 0 ? banners : [
+        {
+            id: 'default-banner',
+            imageUrl: 'https://placehold.co/600x120/00B16A/FFFFFF?text=COCKSTAR+BADMINTON+CLUB',
+            linkUrl: '#'
+        }
+    ];
 
     return (
         <div className="w-full aspect-[5/1] flex-shrink-0 relative overflow-hidden bg-gray-50 border-b border-gray-100 z-10">
@@ -2476,13 +2483,12 @@ function GameBanner() {
                 className="flex transition-transform duration-500 ease-in-out h-full"
                 style={{ transform: `translateX(-${currentIndex * 100}%)` }}
             >
-                {banners.map((banner) => (
+                {displayBanners.map((banner) => (
                     <div 
                         key={banner.id}
                         className="w-full h-full flex-shrink-0 cursor-pointer"
                         onClick={() => {
-                            if (banner.linkUrl) {
-                                // 설정된 랜딩페이지 URL로 이동 (새 창 열기)
+                            if (banner.linkUrl && banner.linkUrl !== '#') {
                                 window.open(banner.linkUrl, '_blank');
                             }
                         }}
@@ -2492,7 +2498,6 @@ function GameBanner() {
                             alt="광고 배너" 
                             className="w-full h-full object-cover"
                             onError={(e) => {
-                                // 이미지 로드 실패 시 대체 이미지 표시
                                 e.target.src = "https://placehold.co/600x120/f3f4f6/9ca3af?text=Banner+Load+Error";
                             }}
                         />
@@ -2500,10 +2505,9 @@ function GameBanner() {
                 ))}
             </div>
             
-            {/* 배너 개수가 여러 개일 때 하단에 표시되는 인디케이터(도트) */}
-            {banners.length > 1 && (
+            {displayBanners.length > 1 && (
                 <div className="absolute bottom-2 right-3 flex gap-1.5">
-                    {banners.map((_, idx) => (
+                    {displayBanners.map((_, idx) => (
                         <div 
                             key={idx}
                             className={`h-1 rounded-full transition-all ${
