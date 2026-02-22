@@ -2435,13 +2435,84 @@ function CourtSelectionModal({ isOpen, onClose, courts, onSelect }) {
         </div>
     );
 }
-// [신규] 얇은 띠배너 컴포넌트 (자동 슬라이드) - 크기 확대 및 고정 수정됨
+
+
+// [신규] 얇은 띠배너 컴포넌트 (자동 슬라이드) - 파이어베이스 연동 및 클릭 시 이동 기능 구현
 function GameBanner() {
-    // ... (기존 GameBanner 코드 유지) ...
+    const [banners, setBanners] = useState([]);
+    const [currentIndex, setCurrentIndex] = useState(0);
+
+    // 파이어베이스 Firestore에서 'banners' 컬렉션 데이터를 실시간으로 가져옵니다.
+    useEffect(() => {
+        // Firestore의 'banners' 컬렉션에서 데이터를 가져옵니다.
+        const q = query(collection(db, "banners"), orderBy("createdAt", "desc"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const bannerData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            setBanners(bannerData);
+        }, (error) => {
+            console.error("배너 데이터를 불러오는 중 오류 발생:", error);
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+    // 5초 간격으로 배너가 자동으로 전환되는 로직
+    useEffect(() => {
+        if (banners.length <= 1) return;
+        const timer = setInterval(() => {
+            setCurrentIndex((prev) => (prev + 1) % banners.length);
+        }, 5000);
+        return () => clearInterval(timer);
+    }, [banners]);
+
+    if (banners.length === 0) return null;
+
     return (
-        // ... (기존 반환 코드 유지) ...
-        <div className="w-full aspect-[5/1] flex-shrink-0 relative overflow-hidden bg-gray-100 border-b border-gray-100 z-0">
-             {/* ... (기존 내용 유지) ... */}
+        <div className="w-full aspect-[5/1] flex-shrink-0 relative overflow-hidden bg-gray-50 border-b border-gray-100 z-10">
+            <div 
+                className="flex transition-transform duration-500 ease-in-out h-full"
+                style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+            >
+                {banners.map((banner) => (
+                    <div 
+                        key={banner.id}
+                        className="w-full h-full flex-shrink-0 cursor-pointer"
+                        onClick={() => {
+                            if (banner.linkUrl) {
+                                // 설정된 랜딩페이지 URL로 이동 (새 창 열기)
+                                window.open(banner.linkUrl, '_blank');
+                            }
+                        }}
+                    >
+                        <img 
+                            src={banner.imageUrl} 
+                            alt="광고 배너" 
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                                // 이미지 로드 실패 시 대체 이미지 표시
+                                e.target.src = "https://placehold.co/600x120/f3f4f6/9ca3af?text=Banner+Load+Error";
+                            }}
+                        />
+                    </div>
+                ))}
+            </div>
+            
+            {/* 배너 개수가 여러 개일 때 하단에 표시되는 인디케이터(도트) */}
+            {banners.length > 1 && (
+                <div className="absolute bottom-2 right-3 flex gap-1.5">
+                    {banners.map((_, idx) => (
+                        <div 
+                            key={idx}
+                            className={`h-1 rounded-full transition-all ${
+                                currentIndex === idx ? 'w-4 bg-[#00B16A]' : 'w-1 bg-white/60 shadow-sm'
+                            }`}
+                        />
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
