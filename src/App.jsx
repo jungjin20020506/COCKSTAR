@@ -1979,16 +1979,20 @@ function EditGamesModal({ isOpen, onClose, player, onSave }) {
                 {/* [신규] 최근 경기 히스토리 영역 */}
                 <div className="mb-6">
                     <h4 className="text-xs font-bold text-gray-500 mb-3 text-left pl-1">오늘 함께한 선수들</h4>
-                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                        {player.matchHistory && player.matchHistory.length > 0 ? (
+                    <di{player.matchHistory && player.matchHistory.length > 0 ? (
                             player.matchHistory.map((historyStr, idx) => (
-                                <div key={idx} className="bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                                <div key={idx} className="bg-gray-50 p-2.5 rounded-lg border border-gray-100 flex items-start gap-3">
+                                    {/* 경기 순번 표시 (최근 경기가 위로 오므로 역순 계산) */}
+                                    <span className="text-[10px] font-bold text-[#00B16A] pt-1 shrink-0">
+                                        {player.matchHistory.length - idx}.
+                                    </span>
                                     <div className="flex flex-wrap gap-1">
                                         {historyStr.split(', ').map((name, nIdx) => (
                                             <span 
                                                 key={nIdx} 
                                                 className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${
-                                                    name === player.name 
+                                                    // 이름 앞에 급수가 붙어있으므로 includes로 본인 확인
+                                                    name.includes(player.name)
                                                     ? 'bg-[#00B16A] text-white' 
                                                     : 'bg-white text-gray-600 border border-gray-100'
                                                 }`}
@@ -3188,12 +3192,14 @@ const handleEndMatch = async (courtIdx) => {
         try {
             const batch = writeBatch(db);
             
-            // 1. 참여자 이름 리스트 생성 및 봇 검증 (히스토리 가독성 향상)
+           // 1. 참여자 이름 리스트 생성 및 봇 검증 (급수 포함)
             const matchMembersString = court.players
                 .map(pid => {
                     const p = players[pid];
                     if (!p) return '퇴장한 선수';
-                    return p.isBot ? `[Bot]${p.name}` : p.name;
+                    // 급수가 '미설정'이 아닐 경우 첫 글자(S, A, B 등)를 이름 앞에 붙임
+                    const levelMark = (p.level && p.level !== '미설정') ? p.level[0] : '';
+                    return `${levelMark}${p.isBot ? `[Bot]${p.name}` : p.name}`;
                 })
                 .join(', ');
 
