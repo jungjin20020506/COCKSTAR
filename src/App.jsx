@@ -1977,9 +1977,10 @@ function EditGamesModal({ isOpen, onClose, player, onSave }) {
                 </div>
 
                 {/* [신규] 최근 경기 히스토리 영역 */}
-                <div className="mb-6">
+              <div className="mb-6">
                     <h4 className="text-xs font-bold text-gray-500 mb-3 text-left pl-1">오늘 함께한 선수들</h4>
-                    <di{player.matchHistory && player.matchHistory.length > 0 ? (
+                    <div className="space-y-2">
+                        {player.matchHistory && player.matchHistory.length > 0 ? (
                             player.matchHistory.map((historyStr, idx) => (
                                 <div key={idx} className="bg-gray-50 p-2.5 rounded-lg border border-gray-100 flex items-start gap-3">
                                     {/* 경기 순번 표시 (최근 경기가 위로 오므로 역순 계산) */}
