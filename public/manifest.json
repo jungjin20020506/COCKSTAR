@@ -17,7 +17,7 @@
   ],
   "start_url": "/",
   "display": "standalone",
-  "theme_color": "#0B0B0C",
-  "background_color": "#0B0B0C",
+  "theme_color": "#08090C",
+  "background_color": "#08090C",
   "description": "배드민턴 퍼포먼스 플랫폼 · 코트를 지배하라"
 }

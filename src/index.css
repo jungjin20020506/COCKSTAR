@@ -3,14 +3,14 @@
 @tailwind utilities;
 
 /* =========================================================================
-   COCKSTAR — "Performance" design system
-   Athletic / high-contrast / volt-accented visual language
+   COCKSTAR — "Blackout" dark performance design system
    ========================================================================= */
 
 :root {
-  --ink: #0B0B0C;
-  --volt: #CCFF00;
-  --paper: #FFFFFF;
+  --ink: #08090C;
+  --volt: #CDFB47;
+  --coral: #FF6A52;
+  --txt: #F3F5F8;
 }
 
 * {
@@ -18,54 +18,63 @@
 }
 
 html, body {
-  background: #0B0B0C; /* letterbox behind the phone frame */
+  background: #08090C;
 }
 
 body {
   margin: 0;
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  color: var(--ink);
+  font-family: 'Pretendard', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--txt);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  -webkit-user-select: none;
+  user-select: none;
+  overscroll-behavior-y: none;
+  touch-action: manipulation;
 }
 
-/* Volt text selection */
+/* inputs must stay selectable */
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 ::selection {
   background: var(--volt);
-  color: #0B0B0C;
+  color: #08090C;
 }
 
-/* Hide scrollbars (utility already referenced across the app) */
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* Safe-area helpers used in the layout */
 .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
-/* --- Display type helpers -------------------------------------------------- */
+/* --- Display type (Anton) ------------------------------------------------- */
 .font-display {
-  font-family: 'Pretendard', sans-serif;
-  font-weight: 900;
-  letter-spacing: -0.04em;
+  font-family: 'Anton', 'Pretendard', sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.005em;
 }
 .display-italic {
-  font-style: italic;
-  font-weight: 900;
-  letter-spacing: -0.045em;
+  font-family: 'Anton', 'Pretendard', sans-serif;
+  font-style: normal;
+  transform: skewX(-6deg);
+  display: inline-block;
 }
 .kern-tight { letter-spacing: -0.03em; }
+.label { letter-spacing: 0.18em; text-transform: uppercase; }
 .tabular { font-variant-numeric: tabular-nums; }
 
-/* --- Signature marquee strip ---------------------------------------------- */
-.marquee-track {
-  display: inline-flex;
-  white-space: nowrap;
-  will-change: transform;
+/* --- Glass (nav / modals) ------------------------------------------------- */
+.glass {
+  background: rgba(16, 18, 23, 0.72);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
-/* --- Skeleton shimmer ------------------------------------------------------ */
+/* --- Skeleton shimmer (dark) ---------------------------------------------- */
 .skeleton {
-  background: linear-gradient(90deg, #e9e9e6 25%, #f3f3f0 37%, #e9e9e6 63%);
+  background: linear-gradient(90deg, #171A21 25%, #23262f 37%, #171A21 63%);
   background-size: 400% 100%;
   animation: shimmer 1.4s ease infinite;
 }
@@ -74,18 +83,26 @@ body {
   100% { background-position: -100% 0; }
 }
 
-/* --- Volt glow underline for active nav ----------------------------------- */
-.volt-glow { box-shadow: 0 0 12px 0 rgba(204, 255, 0, 0.7); }
+/* --- Volt glow ------------------------------------------------------------ */
+.volt-glow { box-shadow: 0 0 12px 0 rgba(205, 251, 71, 0.8); }
 
-/* --- Grain / noise overlay for hero blocks (subtle athletic texture) ------ */
+/* --- Grain / noise overlay for hero blocks -------------------------------- */
 .grain::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.05;
+  opacity: 0.06;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* --- Kakao map guards (kept from original app) ---------------------------- */
+/* --- Court-line texture for dark hero blocks ------------------------------ */
+.court-lines {
+  background-image:
+    linear-gradient(rgba(205,251,71,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(205,251,71,0.05) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+/* --- Kakao map guards ----------------------------------------------------- */
 #kakao-map img { max-width: none !important; height: auto !important; border: 0; }
