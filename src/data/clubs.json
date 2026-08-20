@@ -1,0 +1,420 @@
+{
+ "fetchedAt": "2026-08-20T07:52:20.949Z",
+ "source": "소모임 (somoim.co.kr)",
+ "note": "소모임에 등록된 모임만 포함합니다. 전체 동호회의 일부입니다.",
+ "count": 50,
+ "byRegion": {
+  "안양시": 10,
+  "수원시": 24,
+  "안산시": 3,
+  "고양시": 1,
+  "군포시": 1,
+  "서울 강남구": 4,
+  "서울 서초구": 1,
+  "서울 관악구": 4,
+  "서울 금천구": 1,
+  "서울 동작구": 1
+ },
+ "clubs": [
+  {
+   "id": "e0afff6c-e38f-11e3-acd7-22000a7e832f1",
+   "name": "민턴꾼 (신규회원 모집중)",
+   "description": "(혼복, 여복, 남복 게임 짜드립니다🔥)",
+   "region": "안양시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/e0afff6c-e38f-11e3-acd7-22000a7e832f1"
+  },
+  {
+   "id": "d9763362-53c1-11ef-b030-0acc289683371",
+   "name": "R&D 배드민턴🏸",
+   "description": "영통 오전 배드민턴🏸 [모집중]",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/d9763362-53c1-11ef-b030-0acc289683371"
+  },
+  {
+   "id": "b44b0398-16a9-4af3-beee-7d906a42079b1",
+   "name": "구운콕 -8월 모집 마감-",
+   "description": "🏸 구운콕 — 매일 치는 즐거움, 함께하는 배드민턴!",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/b44b0398-16a9-4af3-beee-7d906a42079b1"
+  },
+  {
+   "id": "efe88c0f-7ced-4348-ba7a-51ede41f79701",
+   "name": "배드민턴 새싹단",
+   "description": "🌱 배드민턴 새싹단",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/efe88c0f-7ced-4348-ba7a-51ede41f79701"
+  },
+  {
+   "id": "11b94558-daae-11ee-9d1f-0a9fa3be91911",
+   "name": "행복민턴🙂 2030",
+   "description": "- 가입연령 : 1988년생 ~ 2007년생",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/11b94558-daae-11ee-9d1f-0a9fa3be91911"
+  },
+  {
+   "id": "37da4ec6-de87-4870-97c6-7177ca71b3641",
+   "name": "[모집중]Here we cock",
+   "description": "수원 배드민턴 모임 🏸 [C조 이상]",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/37da4ec6-de87-4870-97c6-7177ca71b3641"
+  },
+  {
+   "id": "87901f2e-966a-11ed-881e-0af2427389691",
+   "name": "안산 배드민턴 🏆팀로테이션🏆",
+   "description": "안산 배드민턴 모임 로테이션입니다😀",
+   "region": "안산시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/87901f2e-966a-11ed-881e-0af2427389691"
+  },
+  {
+   "id": "102bc802-e6aa-11ee-871a-0ac3e4c0e5811",
+   "name": "🏸민턴유치원👶",
+   "description": "🏸매일있는 운동일정 활발한 참석인원",
+   "region": "안양시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/102bc802-e6aa-11ee-871a-0ac3e4c0e5811"
+  },
+  {
+   "id": "be14d01c-eb46-11ee-b990-0a368fc2dd011",
+   "name": "플레이콕 [플콕] 배드민턴🏸",
+   "description": "✨다 같이 집콕 대신 플콕으로✨",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/be14d01c-eb46-11ee-b990-0a368fc2dd011"
+  },
+  {
+   "id": "373ed9bd-4159-44d3-8882-84c16c1f847e1",
+   "name": "배드민턴 남복모임 - 팀 쿨톤(CT)",
+   "description": "* 한달간 가입비, 월회비 무료 *",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/373ed9bd-4159-44d3-8882-84c16c1f847e1"
+  },
+  {
+   "id": "56fbb1fa-ce2f-11ed-a39f-0acb1011df691",
+   "name": "🏸매치포인트🏸 수원 배드민턴",
+   "description": "수원 영흥체육관 배드민턴 모임 🏸",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/56fbb1fa-ce2f-11ed-a39f-0acb1011df691"
+  },
+  {
+   "id": "034e5804-f2e4-11ec-8ee3-0a5994e1a11b1",
+   "name": "🏸매드민턴🏸(신입 모집중)",
+   "description": "함께 즐기고 성장하는 배드민턴🏸",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/034e5804-f2e4-11ec-8ee3-0a5994e1a11b1"
+  },
+  {
+   "id": "d61cdeb9-c98d-4962-a16a-6afbc9012b041",
+   "name": "안산삼육오🏃 함께하실분 모집중🫰",
+   "description": "🏃🏼‍♀️안산삼육오🏃🏼",
+   "region": "안산시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/d61cdeb9-c98d-4962-a16a-6afbc9012b041"
+  },
+  {
+   "id": "bf3ba612-a64b-11ef-84e1-0a3efae1ffb51",
+   "name": "한스민턴☆ Han’s minton🏸",
+   "description": "🏸평촌경영고 단독구장🫶🏻  월~금 18:30~22:00🏸",
+   "region": "안양시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/bf3ba612-a64b-11ef-84e1-0a3efae1ffb51"
+  },
+  {
+   "id": "4381606c-7149-11ee-a561-0a9c0f14a4191",
+   "name": "[A.R.P] 안산 런앤플레이🌼",
+   "description": "안녕하세요, 안산 런앤플레이는 다양한 운동을 같이할 친구를 모집 합니다 같이 뛰고 걷고 놀",
+   "region": "안산시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/4381606c-7149-11ee-a561-0a9c0f14a4191"
+  },
+  {
+   "id": "2f0fc7d0-e7b2-11e7-9a6e-22000aad836e1",
+   "name": "HangOut 배드민턴🏸",
+   "description": "☆ Hang Out(=함께 시간을 보내다)",
+   "region": "고양시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/2f0fc7d0-e7b2-11e7-9a6e-22000aad836e1"
+  },
+  {
+   "id": "2cead298-ff3f-11ec-af7e-0a793ddbdb331",
+   "name": "[수원극단W]단원/배우/스텝 모집🤗",
+   "description": "📢연기/연극/뮤지컬 신입 모집중📢",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/2cead298-ff3f-11ec-af7e-0a793ddbdb331"
+  },
+  {
+   "id": "c9d6f14e-77da-11ee-a6e8-0af052d836691",
+   "name": "수원 🐘콕기릿🏸 -회원모집-",
+   "description": "2030 수원 배드민턴 모임 since 2023.11",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/c9d6f14e-77da-11ee-a6e8-0af052d836691"
+  },
+  {
+   "id": "970ec0c4-5704-11e6-bb5c-22000aac02e41",
+   "name": "안양 배드민턴모임 누림",
+   "description": "- 정모시간 : 월요일, 화요일, 수요일, 목요일 18시 50분 ~ 22시",
+   "region": "안양시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/970ec0c4-5704-11e6-bb5c-22000aac02e41"
+  },
+  {
+   "id": "be5db14c-437e-11e6-b305-22000a7d05101",
+   "name": "[WannaBe] 워너비 민턴 모임",
+   "description": "☆워너비 가입순서 : 필독 확인 & 자기소개서 작성 -> 가입시 회비 먼저내고 다음달 회비",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/be5db14c-437e-11e6-b305-22000a7d05101"
+  },
+  {
+   "id": "c1997158-8096-11ef-aa81-0a619803be6f1",
+   "name": "호북Crew 수원 배드민턴",
+   "description": "🎈 2030 신규 인원 모집중",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/c1997158-8096-11ef-aa81-0a619803be6f1"
+  },
+  {
+   "id": "f6a33d46-4f4e-11ed-834e-0aa9a5dbdfb31",
+   "name": "Team Rally (팀랠리) 🏸",
+   "description": "🏸대기X 단독 구장이 있는 배드민턴 모임🏸",
+   "region": "안양시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/f6a33d46-4f4e-11ed-834e-0aa9a5dbdfb31"
+  },
+  {
+   "id": "df3a6728-270c-11ef-9551-0a0ffa6116ff1",
+   "name": "모여봐요 배드민턴 숲",
+   "description": "[모•배•숲] 모임은 이름과 같이 모•동•숲 컨셉을 가지고 동네 이웃분들과 함께 취미 운동",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/df3a6728-270c-11ef-9551-0a0ffa6116ff1"
+  },
+  {
+   "id": "7930fda4-e026-4e36-9131-5834c12af90d1",
+   "name": "제로원 배드민턴",
+   "description": "군포, 안양시 배드민턴 팀 제로원 입니다!",
+   "region": "군포시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/7930fda4-e026-4e36-9131-5834c12af90d1"
+  },
+  {
+   "id": "1a4e0cc0-e0bb-4ca0-9485-b06c9575ca4b1",
+   "name": "SmaaSh🏸 수원 배드민턴",
+   "description": "👋수원 배드민턴 모임👋",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/1a4e0cc0-e0bb-4ca0-9485-b06c9575ca4b1"
+  },
+  {
+   "id": "6f6eceb8-b85b-47ed-967a-63ad305bec8b1",
+   "name": "🏸팀블랙😎",
+   "description": "배드민턴 매주 일요일 1시 번개운동 🏸",
+   "region": "안양시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/6f6eceb8-b85b-47ed-967a-63ad305bec8b1"
+  },
+  {
+   "id": "7adebf7d-265f-4b7e-b3a1-5918c45cb3861",
+   "name": "DopaMinton(인원 모집중🔥)",
+   "description": "2025.09.27~ing✨",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/7adebf7d-265f-4b7e-b3a1-5918c45cb3861"
+  },
+  {
+   "id": "e784a556-2dfc-11ee-b1b1-0a89d5bdfa271",
+   "name": "Team Victor Develop🦋",
+   "description": "🦋Ready to win, Victor와 함께하는 여복모임 디벨롭 입니다🦋",
+   "region": "안양시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/e784a556-2dfc-11ee-b1b1-0a89d5bdfa271"
+  },
+  {
+   "id": "a601e3f4-076b-11ed-a48e-0adf08a96b251",
+   "name": "💙안전모(안양전부모여!)💙신입모집",
+   "description": "●●신입 2분 모집 중●●",
+   "region": "안양시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/a601e3f4-076b-11ed-a48e-0adf08a96b251"
+  },
+  {
+   "id": "b9f0b04b-7206-4c2e-9a1f-b6887645727f1",
+   "name": "배짱이 (인원 모집중🏸 )",
+   "description": "배드민턴 모임 '배짱이' 입니다.",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/b9f0b04b-7206-4c2e-9a1f-b6887645727f1"
+  },
+  {
+   "id": "2c446b4f-b4f7-4bb4-8205-7496de7ff2f31",
+   "name": "셔틀 프렌즈 (모집중)",
+   "description": "🏸 배드민턴 좋아하는 초심자들을 위한 모임 🏸",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/2c446b4f-b4f7-4bb4-8205-7496de7ff2f31"
+  },
+  {
+   "id": "27deefa2-8b90-11ef-aa53-0a5b247457c31",
+   "name": "🐯어•흥 활동모임🪭인원마감❌",
+   "description": "🙇‍♀️❌현재 인원마감입니다❌🙇‍♀️",
+   "region": "안양시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/27deefa2-8b90-11ef-aa53-0a5b247457c31"
+  },
+  {
+   "id": "b6474140-1da4-11ef-8ed3-0af1d1d9d55f1",
+   "name": "도파민턴",
+   "description": "배드민턴으로 도파민 뿜뿜",
+   "region": "안양시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/b6474140-1da4-11ef-8ed3-0af1d1d9d55f1"
+  },
+  {
+   "id": "c605ee2b-319e-4ade-babf-5c3caf6d689b1",
+   "name": "민턴칠래 (인원모집중🏸)",
+   "description": "🔥수원시 배드민턴 모임🔥",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/c605ee2b-319e-4ade-babf-5c3caf6d689b1"
+  },
+  {
+   "id": "e5d0980e-4558-11ef-bac6-0accfb63b7571",
+   "name": "🅱️블라인드민턴",
+   "description": "Since 2020.08~",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/e5d0980e-4558-11ef-bac6-0accfb63b7571"
+  },
+  {
+   "id": "e5e24c52-0c74-48ce-af9c-71e3b65f5ed61",
+   "name": "🏸 IMPACT 배드민턴 모임",
+   "description": "🏸 IMPACT | Smash It! 인원 모집중!",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/e5e24c52-0c74-48ce-af9c-71e3b65f5ed61"
+  },
+  {
+   "id": "f778ab4b-d245-4792-9489-cc6714cdd44e1",
+   "name": "하이콕 배드민턴",
+   "description": "하이콕 배드민턴 아카데미는 여러분을 환영합니다!",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/f778ab4b-d245-4792-9489-cc6714cdd44e1"
+  },
+  {
+   "id": "0e7a2e35-d138-47d1-846b-0f143d275ab11",
+   "name": "The EXIT(인원모집중🔥)",
+   "description": "<경기남부 직장인 모임>",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/0e7a2e35-d138-47d1-846b-0f143d275ab11"
+  },
+  {
+   "id": "319f2664-4722-48cf-8130-8dbd4def48b51",
+   "name": "레이디턴 (LADITON)",
+   "description": "배드민턴 여복모임 💜LADITON💜",
+   "region": "수원시",
+   "members": null,
+   "url": "https://www.somoim.co.kr/319f2664-4722-48cf-8130-8dbd4def48b51"
+  },
+  {
+   "id": "33cb2701-74ec-4b92-b543-08f91201dcfc1",
+   "name": "🐢거북단 2030 등산모임🐢",
+   "description": "🐢안녕하세요 등태아 거북단입니다🐢",
+   "region": "서울 강남구",
+   "members": null,
+   "url": "https://www.somoim.co.kr/33cb2701-74ec-4b92-b543-08f91201dcfc1"
+  },
+  {
+   "id": "813c9d5f-017a-434f-90b7-07d720fd6f8f1",
+   "name": "강남 크루즈(Crews)🤸신입모집",
+   "description": "🧑‍🩰강남, 서초구 동네 친구들의 슬기로운 친목 생활",
+   "region": "서울 강남구",
+   "members": null,
+   "url": "https://www.somoim.co.kr/813c9d5f-017a-434f-90b7-07d720fd6f8f1"
+  },
+  {
+   "id": "19525088-1311-4bdc-b172-e87dbd8f02861",
+   "name": "🌙DALKOK MINTON 신입 모",
+   "description": "🏸 20 & 30대 배드민턴 모임",
+   "region": "서울 강남구",
+   "members": null,
+   "url": "https://www.somoim.co.kr/19525088-1311-4bdc-b172-e87dbd8f02861"
+  },
+  {
+   "id": "ac802533-54f9-43ad-b2f6-62f9c652ac261",
+   "name": "🌿모두의 양재천🌿",
+   "description": "✨양재천을 좋아하는 사람들이 '함께' 만드는 동네 커뮤니티",
+   "region": "서울 서초구",
+   "members": null,
+   "url": "https://www.somoim.co.kr/ac802533-54f9-43ad-b2f6-62f9c652ac261"
+  },
+  {
+   "id": "57a102f4-6afd-11ec-b22b-0a4ce1cee7851",
+   "name": "🌈민초단 배드민턴🌈🏸3040🏆",
+   "description": "민초단은 2022.01.01 시작된 배드민턴 모임으로, ​초보부터 다양한 급수의 회원이 함",
+   "region": "서울 관악구",
+   "members": null,
+   "url": "https://www.somoim.co.kr/57a102f4-6afd-11ec-b22b-0a4ce1cee7851"
+  },
+  {
+   "id": "7fde2f47-4b7f-422a-9dee-262110ce559b1",
+   "name": "🏸수틀콕🏸  🔥신입모집🔥",
+   "description": "🏸서울 2030 수요일 배드민턴 모임",
+   "region": "서울 관악구",
+   "members": null,
+   "url": "https://www.somoim.co.kr/7fde2f47-4b7f-422a-9dee-262110ce559b1"
+  },
+  {
+   "id": "c46916a4-de32-11eb-a466-0a0e28584df71",
+   "name": "WDS 양재천 우리동네스포츠⛰️🏃",
+   "description": "양재천 러닝을 기반으로 뭉친 2030 운동크루  'WDS' 혼자가 아닌 다같이 즐기는 크루",
+   "region": "서울 강남구",
+   "members": null,
+   "url": "https://www.somoim.co.kr/c46916a4-de32-11eb-a466-0a0e28584df71"
+  },
+  {
+   "id": "8dd4f44a-7d2d-11ee-9367-0aefff3617991",
+   "name": "E'lite 민턴⭐️가입 문의⭐️",
+   "description": "🏸안녕하세요🏸 관악구 20•30 대표 모임 엘리트입니다.",
+   "region": "서울 관악구",
+   "members": null,
+   "url": "https://www.somoim.co.kr/8dd4f44a-7d2d-11ee-9367-0aefff3617991"
+  },
+  {
+   "id": "f32ec277-c1b3-457a-bda0-94fbc508615c1",
+   "name": "🏸Clear(클리어)🔥회원모집🔥",
+   "description": "🏸[New]Clear_2030 금천 관악 배드민턴 모임",
+   "region": "서울 금천구",
+   "members": null,
+   "url": "https://www.somoim.co.kr/f32ec277-c1b3-457a-bda0-94fbc508615c1"
+  },
+  {
+   "id": "302c8fb2-bc40-11ef-b080-0adc36d6651d1",
+   "name": "위너스턴 / 신입 모집중 🏸",
+   "description": "관악구 20&30대 배드민턴 모임 위너스턴입니다 !",
+   "region": "서울 관악구",
+   "members": null,
+   "url": "https://www.somoim.co.kr/302c8fb2-bc40-11ef-b080-0adc36d6651d1"
+  },
+  {
+   "id": "d8808094-3acd-11ec-8e74-0a7993622f3f1",
+   "name": "[B.R.P] 보라매 런앤플레이🍀",
+   "description": "안녕하세요, 보라매 런앤플레이는 다양한 운동을 같이할 친구를 모집 합니다 같이 뛰고 걷고",
+   "region": "서울 동작구",
+   "members": null,
+   "url": "https://www.somoim.co.kr/d8808094-3acd-11ec-8e74-0a7993622f3f1"
+  }
+ ]
+}

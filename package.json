@@ -8,6 +8,9 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "fetch:products": "node scripts/fetch-noerror-products.mjs",
+    "fetch:gyms": "node scripts/fetch-gyms.mjs",
+    "fetch:clubs": "node scripts/fetch-clubs.mjs",
     "test:matching": "node scripts/simulate-matching.mjs",
     "test:matching:stress": "node scripts/stress-test-matching.mjs"
   },

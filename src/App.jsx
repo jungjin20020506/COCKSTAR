@@ -78,6 +78,19 @@ import { MatchOptionsModal } from './components/MatchOptionsModal';
 import { AutoMatchGuide } from './tutorial/AutoMatchGuide';
 import { AUTOMATCH_GUIDE_KEY } from './tutorial/guideKeys';
 
+// ── 노에러 공식몰 실제 상품 데이터 (scripts/fetch-noerror-products.mjs 로 수집) ──
+import {
+    PRODUCTS, CATEGORIES, FETCHED_AT, formatPrice,
+    byCategory, uniqueByName, newArrivals, bestDeals, gearPicks, categoryThumb,
+} from './lib/products';
+import { ProductCardH, ProductCardGrid, ProductCardWide, ProductImage } from './components/ProductCards';
+
+// ── 콕맵 데이터: 경기도 체육관(카카오 로컬 API) · 배드민턴 동호회(소모임) ──
+import {
+    GYMS, GYM_COUNT, CLUB_COUNT, CLUB_SOURCE, MAP_FILTERS,
+    filterGyms, nearestGyms, searchGyms, clubsInRegion, distanceKm,
+} from './lib/places';
+
 const createIcon = (Icon) => (props) => <Icon strokeWidth={2} {...props} />;
 
 const Share2 = createIcon(Share2Icon);
@@ -193,29 +206,10 @@ const getDailyResetKey = (now = new Date()) => {
 
 // NOERROR 광고 파트너 (콕스타 공식 스폰서)
 const NOERROR_URL = 'https://www.pjbsports.com/';
-// 스토어 상품 데이터 — 약 2/3가 NOERROR(노에러) 제품
-const STORE_ITEMS = [
-    { brand: 'NOERROR', name: '컴페티션 경기 반팔티', price: '39,000', tag: 'NEW', cat: '의류' },
-    { brand: 'NOERROR', name: '프로 라켓 · 헤드헤비', price: '132,000', tag: 'BEST', cat: '라켓' },
-    { brand: 'NOERROR', name: '3D 우븐 바람막이', price: '89,000', tag: 'NEW', cat: '의류' },
-    { brand: 'NOERROR', name: '엘리트 배드민턴화', price: '119,000', tag: 'HOT', cat: '신발' },
-    { brand: 'NOERROR', name: '투어 3단 백팩', price: '98,000', tag: '', cat: '가방' },
-    { brand: 'NOERROR', name: '프리미엄 셔틀콕 (1타)', price: '28,000', tag: 'BEST', cat: '셔틀콕' },
-    { brand: 'NOERROR', name: '슈퍼 오버그립 (5p)', price: '9,900', tag: '', cat: '그립' },
-    { brand: 'NOERROR', name: '컴프레션 스포츠 양말', price: '12,000', tag: '', cat: '용품' },
-    { brand: 'NOERROR', name: '우먼스 스커트 팬츠', price: '46,000', tag: 'NEW', cat: '의류' },
-    { brand: 'Yonex', name: '아스트록스 88D', price: '245,000', tag: '', cat: '라켓' },
-    { brand: 'Victor', name: '제트스피드 S12', price: '198,000', tag: '', cat: '라켓' },
-    { brand: 'Li-Ning', name: '에어로넛 9000', price: '176,000', tag: '', cat: '라켓' },
-];
-const brandTint = {
-    NOERROR: 'from-volt/25 via-card to-card',
-    Yonex: 'from-emerald-600/25 via-card to-card',
-    Victor: 'from-blue-600/25 via-card to-card',
-    'Li-Ning': 'from-amber-500/25 via-card to-card',
-    Mizuno: 'from-red-600/25 via-card to-card',
-    Adidas: 'from-zinc-500/25 via-card to-card',
-};
+
+// 예전에는 여기에 가짜 상품 목록(STORE_ITEMS)을 손으로 적어뒀지만,
+// 이제 공식몰에서 받아온 실제 상품 190개를 쓴다 → src/lib/products.js
+// 데이터 갱신: npm run fetch:products -- --force
 
 // ===================================================================================
 // 토스트 (전역 알림) — window 이벤트 기반 싱글턴
@@ -753,10 +747,27 @@ function ShareModal({ isOpen, onClose, roomId }) {
 // ===================================================================================
 // 홈 — 메인 배너 (2/3 노에러 프로모션)
 // ===================================================================================
+// 메인 배너 — 실제 상품 수·할인율을 넣어 문구가 거짓말이 되지 않게 한다.
+// (예전에는 "최대 20%"처럼 손으로 적어둔 숫자여서 실제 할인과 어긋났다)
 const bannerSlides = [
-    { kicker: "NOERROR · 2026 S/S", title: "새 시즌,\n장비를 바꿔라", sub: "노에러 신상 컬렉션 오픈", cta: "지금 보기", type: 'noerror', accent: 'volt', art: FlameIcon },
-    { kicker: "TONIGHT", title: "오늘 저녁,\n빈 코트를 찾아라", sub: "내 주변 실시간 경기방", cta: "경기 찾기", type: 'game', accent: 'volt', art: ZapIcon },
-    { kicker: "NOERROR · RACKET", title: "박주봉이 만든\n노에러 라켓", sub: "이븐 · 헤드헤비 · 헤드라이트", cta: "라켓 보기", type: 'noerror', accent: 'coral', art: TrophyIcon },
+    {
+        kicker: "NOERROR · 2026 S/S",
+        title: "새 시즌,\n장비를 바꿔라",
+        sub: `노에러 신상 컬렉션 ${PRODUCTS.filter(p => p.cat === '신상').length}종`,
+        cta: "신상 보기", type: 'store', accent: 'volt', art: FlameIcon,
+    },
+    {
+        kicker: "TONIGHT",
+        title: "오늘 저녁,\n빈 코트를 찾아라",
+        sub: "내 주변 실시간 경기방",
+        cta: "경기 찾기", type: 'game', accent: 'volt', art: ZapIcon,
+    },
+    {
+        kicker: "NOERROR · OUTLET",
+        title: `지금 최대\n${Math.max(0, ...PRODUCTS.map(p => p.discountRate))}% 할인`,
+        sub: `아웃렛 특가 ${PRODUCTS.filter(p => p.discountRate >= 30).length}종`,
+        cta: "특가 보기", type: 'store', accent: 'coral', art: TrophyIcon,
+    },
 ];
 
 function MainBanner({ onNavigate }) {
@@ -808,9 +819,10 @@ function MainBanner({ onNavigate }) {
     };
 
     const fireSlide = (slide) => {
-        if (movedRef.current) return;
-        if (slide.type === 'noerror') window.open(NOERROR_URL, '_blank');
-        else onNavigate && onNavigate('game');
+        if (movedRef.current) return; // 넘기려고 끌었을 뿐이면 눌린 게 아니다
+        // 상품 배너는 앱 안의 스토어 화면으로 보낸다.
+        // 바로 외부 쇼핑몰로 튕기면 앱을 벗어나 버려서 다시 안 돌아온다.
+        onNavigate && onNavigate(slide.type === 'store' ? 'store' : 'game');
     };
 
     return (
@@ -860,9 +872,11 @@ const SectionHeader = ({ title, sub, onMoreClick }) => (
 );
 
 // NOERROR 공식 파트너 배너 (홈 광고)
-function NoerrorSponsorBanner() {
+// 문구의 숫자는 실제 상품 데이터에서 계산한다 — 손으로 적어두면 금방 사실과 어긋난다.
+function NoerrorSponsorBanner({ onOpenStore }) {
+    const maxRate = Math.max(0, ...PRODUCTS.map(p => p.discountRate));
     return (
-        <button onClick={() => window.open(NOERROR_URL, '_blank')} className="w-full rounded-3xl overflow-hidden border border-white/[0.06] active:scale-[0.99] transition-transform text-left">
+        <button onClick={onOpenStore} className="w-full rounded-3xl overflow-hidden border border-white/[0.06] active:scale-[0.99] transition-transform text-left">
             <div className="relative bg-card grain px-5 py-5 flex items-center gap-4">
                 <div className="w-14 h-14 rounded-2xl bg-volt flex items-center justify-center shrink-0">
                     <span className="font-display text-ink text-lg leading-none">NE</span>
@@ -870,7 +884,9 @@ function NoerrorSponsorBanner() {
                 <div className="flex-1 min-w-0">
                     <span className="text-[10px] font-black label text-volt">Official Partner</span>
                     <h3 className="text-txt font-black text-base kern-tight leading-tight mt-0.5">노에러 공식 스토어</h3>
-                    <p className="text-dim text-xs font-bold mt-0.5 truncate">콕스타 회원 전용 혜택 · 신상 최대 20%</p>
+                    <p className="text-dim text-xs font-bold mt-0.5 truncate">
+                        상품 {PRODUCTS.length}종 · 최대 {maxRate}% 할인
+                    </p>
                 </div>
                 <ArrowUpRight size={20} className="text-dim shrink-0" />
             </div>
@@ -878,24 +894,25 @@ function NoerrorSponsorBanner() {
     );
 }
 
-const StoreCard = ({ item }) => {
-    const isNoerror = item.brand === 'NOERROR';
+/**
+ * 카테고리 바로가기 타일 — 대표 상품 사진을 배경으로 깐다.
+ * 글자만 있는 칩보다 "여기 뭐가 있는지"가 한눈에 들어온다.
+ */
+function CategoryTile({ cat, onClick }) {
+    const thumb = categoryThumb(cat);
+    const count = PRODUCTS.filter(p => p.cat === cat).length;
     return (
-        <button onClick={() => window.open(NOERROR_URL, '_blank')} className="w-40 flex-shrink-0 mr-3 text-left active:scale-[0.97] transition-transform">
-            <div className="rounded-2xl overflow-hidden bg-card border border-white/[0.06]">
-                <div className={`relative w-full h-32 bg-gradient-to-br ${brandTint[item.brand] || 'from-zinc-600/20 via-card to-card'} grain overflow-hidden flex items-end p-3`}>
-                    <span className={`font-display display-italic text-lg leading-none relative z-10 ${isNoerror ? 'text-volt' : 'text-txt'}`}>{item.brand}</span>
-                    {item.tag && <span className={`absolute top-2.5 right-2.5 text-[9px] font-black px-2 py-0.5 rounded-full z-10 ${isNoerror ? 'bg-volt text-ink' : 'bg-white/15 text-txt'}`}>{item.tag}</span>}
-                    <ShoppingBag className="absolute -right-3 -top-3 w-20 h-20 text-white/[0.05]" strokeWidth={1} />
-                </div>
-                <div className="p-3">
-                    <p className="font-black text-sm text-txt truncate kern-tight">{item.name}</p>
-                    <p className="text-xs text-volt font-black mt-1 tabular">₩{item.price}</p>
-                </div>
+        <button onClick={onClick} className="relative rounded-2xl overflow-hidden border border-white/[0.06] aspect-[4/3] active:scale-[0.97] transition-transform">
+            <ProductImage src={thumb} alt={cat} className="absolute inset-0 w-full h-full" />
+            {/* 사진 위 글씨가 묻히지 않게 아래쪽을 어둡게 깐다 */}
+            <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/40 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 p-2.5 text-left">
+                <p className="font-black text-sm text-txt kern-tight leading-none">{cat}</p>
+                <p className="text-[10px] text-dim font-bold mt-1 tabular">{count}종</p>
             </div>
         </button>
     );
-};
+}
 
 const GameCard = ({ title, tags, location, current, total, onClick }) => {
     const pct = total ? Math.min(100, Math.round((current / total) * 100)) : 0;
@@ -933,91 +950,35 @@ const CommunityPost = ({ category, title, likes, onClick }) => (
 );
 
 // 홈 페이지
+// -----------------------------------------------------------------------------------
+// 구성 순서에 의도가 있다.
+//   ① 인사 → ② 배너 → ③ 카테고리 바로가기 → ④ 특가 → ⑤ 신상 → ⑥ 장비
+//   → ⑦ 지금 뜨는 경기 → ⑧ 커뮤니티 → ⑨ 파트너 배너
+// 상품을 위쪽에 두되, 경기·커뮤니티가 아래로 밀려 안 보이지 않게 상품 구역은
+// 가로 스크롤 한 줄씩으로 짧게 끊었다. (세로로 길게 늘어놓으면 스토어 앱처럼 보인다)
+//
+// 예전에 있던 '자동으로 흘러가는 상품 띠'는 뺐다. 사용자가 읽으려고 멈춰도 계속
+// 움직여서 가격을 확인하기 어렵고, 손가락 스크롤과도 싸운다. 그냥 가로 스크롤이 낫다.
 function HomePage({ user, setPage }) {
     const [loading, setLoading] = useState(true);
-    useEffect(() => { const t = setTimeout(() => setLoading(false), 1200); return () => clearTimeout(t); }, []);
+    useEffect(() => { const t = setTimeout(() => setLoading(false), 700); return () => clearTimeout(t); }, []);
 
-    const storeContainerRef = useRef(null);
-    const scrollContentRef = useRef(null);
-    const scrollAmountRef = useRef(0);
-    const animationFrameRef = useRef(null);
-    const isDraggingRef = useRef(false);
-    const dragStartXRef = useRef(0);
-    const scrollLeftRef = useRef(0);
-    const lastScrollPosRef = useRef(0);
-    const contentWidthRef = useRef(0);
+    // 목록은 렌더마다 다시 계산할 필요가 없다 (데이터가 고정된 JSON이므로)
+    const deals = useMemo(() => bestDeals(10), []);
+    const fresh = useMemo(() => newArrivals(10), []);
+    const gear = useMemo(() => gearPicks(8), []);
+    const topDeal = deals[0];
 
-    const doubledStoreItems = [...STORE_ITEMS.slice(0, 8), ...STORE_ITEMS.slice(0, 8)];
+    const goStore = () => setPage('store');
 
-    const animateScroll = () => {
-        if (!storeContainerRef.current || !scrollContentRef.current || isDraggingRef.current) {
-            animationFrameRef.current = requestAnimationFrame(animateScroll);
-            return;
-        }
-        if (scrollAmountRef.current >= contentWidthRef.current) {
-            scrollAmountRef.current -= contentWidthRef.current;
-            lastScrollPosRef.current = scrollAmountRef.current;
-        } else if (scrollAmountRef.current < 0) {
-            scrollAmountRef.current += contentWidthRef.current;
-            lastScrollPosRef.current = scrollAmountRef.current;
-        } else {
-            scrollAmountRef.current += 0.5;
-            if (Math.abs(lastScrollPosRef.current - scrollAmountRef.current) > 1) {
-                lastScrollPosRef.current += (scrollAmountRef.current - lastScrollPosRef.current) * 0.1;
-            } else {
-                lastScrollPosRef.current = scrollAmountRef.current;
-            }
-        }
-        storeContainerRef.current.scrollLeft = lastScrollPosRef.current;
-        animationFrameRef.current = requestAnimationFrame(animateScroll);
-    };
-
-    useEffect(() => {
-        if (loading || !scrollContentRef.current) return;
-        contentWidthRef.current = scrollContentRef.current.scrollWidth / 2;
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = requestAnimationFrame(animateScroll);
-        return () => cancelAnimationFrame(animationFrameRef.current);
-    }, [loading]);
-
-    const handleStoreDragStart = (e) => {
-        e.preventDefault();
-        isDraggingRef.current = true;
-        dragStartXRef.current = e.clientX || e.touches[0].clientX;
-        scrollLeftRef.current = storeContainerRef.current.scrollLeft;
-        storeContainerRef.current.style.cursor = 'grabbing';
-    };
-    const handleStoreDragMove = (e) => {
-        if (!isDraggingRef.current) return;
-        e.preventDefault();
-        const currentX = e.clientX || e.touches[0].clientX;
-        const dx = currentX - dragStartXRef.current;
-        scrollAmountRef.current = scrollLeftRef.current - dx;
-        lastScrollPosRef.current = scrollAmountRef.current;
-        storeContainerRef.current.scrollLeft = scrollAmountRef.current;
-    };
-    const handleStoreDragEnd = () => {
-        isDraggingRef.current = false;
-        if (storeContainerRef.current) storeContainerRef.current.style.cursor = 'grab';
-    };
-
-    useEffect(() => {
-        const container = storeContainerRef.current;
-        if (!container) return;
-        const onTouchStart = (e) => handleStoreDragStart(e);
-        const onTouchMove = (e) => handleStoreDragMove(e);
-        const onTouchEnd = (e) => handleStoreDragEnd(e);
-        container.addEventListener('touchstart', onTouchStart, { passive: false });
-        container.addEventListener('touchmove', onTouchMove, { passive: false });
-        container.addEventListener('touchend', onTouchEnd, { passive: true });
-        container.addEventListener('touchcancel', onTouchEnd, { passive: true });
-        return () => {
-            container.removeEventListener('touchstart', onTouchStart);
-            container.removeEventListener('touchmove', onTouchMove);
-            container.removeEventListener('touchend', onTouchEnd);
-            container.removeEventListener('touchcancel', onTouchEnd);
-        };
-    }, [storeContainerRef.current]);
+    /** 가로로 넘겨 보는 상품 줄 */
+    const ProductRow = ({ items }) => (
+        <div className="flex gap-3 overflow-x-auto hide-scrollbar -mx-5 px-5 pb-1" style={{ overscrollBehaviorX: 'contain' }}>
+            {loading
+                ? [...Array(4)].map((_, i) => <SkeletonStoreCard key={i} />)
+                : items.map(p => <ProductCardH key={p.idx} product={p} />)}
+        </div>
+    );
 
     return (
         <div className="flex-grow p-5 space-y-9 bg-ink">
@@ -1030,19 +991,37 @@ function HomePage({ user, setPage }) {
 
             <MainBanner onNavigate={setPage} />
 
-            <NoerrorSponsorBanner />
-
+            {/* 카테고리 바로가기 — 사진 타일이라 뭐가 있는지 바로 보인다 */}
             <section>
-                <SectionHeader title="노에러 신상 스토어" sub="Gear Up · NOERROR" onMoreClick={() => setPage('store')} />
-                <div ref={storeContainerRef} className="w-full overflow-x-auto hide-scrollbar cursor-grab" style={{ overscrollBehaviorX: 'contain', touchAction: 'pan-x' }}
-                    onMouseDown={handleStoreDragStart} onMouseMove={handleStoreDragMove} onMouseUp={handleStoreDragEnd} onMouseLeave={handleStoreDragEnd}>
-                    <div ref={scrollContentRef} className="flex">
-                        {loading ? ([...Array(4)].map((_, i) => <SkeletonStoreCard key={i} />)) : (
-                            doubledStoreItems.map((item, index) => <StoreCard key={index} item={item} />)
-                        )}
-                        <div className="flex-shrink-0 w-1 h-1"></div>
-                    </div>
+                <SectionHeader title="뭐 찾으세요?" sub="Shop by Category" onMoreClick={goStore} />
+                <div className="grid grid-cols-4 gap-2.5">
+                    {['라켓', '의류', '신발', '가방'].map(c => (
+                        <CategoryTile key={c} cat={c} onClick={goStore} />
+                    ))}
                 </div>
+            </section>
+
+            {/* 오늘의 특가 — 제일 크게 한 장 + 나머지는 가로 줄 */}
+            {topDeal && (
+                <section>
+                    <SectionHeader title="놓치면 후회할 특가" sub={`Outlet · 최대 ${topDeal.discountRate}%`} onMoreClick={goStore} />
+                    <div className="space-y-3">
+                        {loading ? <SkeletonCard /> : <ProductCardWide product={topDeal} />}
+                        <ProductRow items={deals.slice(1)} />
+                    </div>
+                </section>
+            )}
+
+            {/* 신상 */}
+            <section>
+                <SectionHeader title="노에러 신상" sub="New Arrivals · 2026 S/S" onMoreClick={goStore} />
+                <ProductRow items={fresh} />
+            </section>
+
+            {/* 장비 — 옷만 계속 나오지 않도록 라켓·신발·가방·셔틀콕을 따로 모았다 */}
+            <section>
+                <SectionHeader title="장비 바꿀 때 됐다면" sub="Rackets · Shoes · Bags" onMoreClick={goStore} />
+                <ProductRow items={gear} />
             </section>
 
             <section>
@@ -1069,6 +1048,8 @@ function HomePage({ user, setPage }) {
                     )}
                 </div>
             </section>
+
+            <NoerrorSponsorBanner onOpenStore={goStore} />
         </div>
     );
 }
@@ -1078,8 +1059,31 @@ function HomePage({ user, setPage }) {
 // ===================================================================================
 function StorePage() {
     const [cat, setCat] = useState('전체');
-    const cats = ['전체', '라켓', '의류', '신발', '가방', '셔틀콕', '그립', '용품'];
-    const filtered = STORE_ITEMS.filter(i => cat === '전체' ? true : i.cat === cat);
+    const [sort, setSort] = useState('추천');
+
+    const cats = useMemo(() => ['전체', ...CATEGORIES], []);
+    const maxRate = useMemo(() => Math.max(0, ...PRODUCTS.map(p => p.discountRate)), []);
+
+    // 정렬 기준. '추천'은 받아온 순서(= 최신 등록 순)를 그대로 쓴다.
+    const SORTS = {
+        '추천': null,
+        '할인율': (a, b) => b.discountRate - a.discountRate,
+        '낮은가격': (a, b) => a.price - b.price,
+        '높은가격': (a, b) => b.price - a.price,
+    };
+
+    const filtered = useMemo(() => {
+        const list = byCategory(cat);
+        const cmp = SORTS[sort];
+        // 품절은 항상 뒤로 — 살 수 없는 상품이 맨 앞에 있으면 헛걸음이 된다
+        const withStockFirst = (a, b) => Number(a.soldOut) - Number(b.soldOut);
+        return [...list].sort((a, b) => withStockFirst(a, b) || (cmp ? cmp(a, b) : 0));
+    }, [cat, sort]);
+
+    // 데이터를 언제 받아왔는지 — '실시간 재고가 아니다'를 솔직하게 알린다
+    const fetchedLabel = FETCHED_AT
+        ? new Date(FETCHED_AT).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
+        : null;
 
     return (
         <div className="min-h-full bg-ink pb-6">
@@ -1093,55 +1097,65 @@ function StorePage() {
                         <span className="text-[11px] font-black label text-volt">Official Store</span>
                     </div>
                     <h1 className="font-display display-italic text-3xl leading-[0.95] text-txt">노에러 스토어</h1>
-                    <p className="text-dim text-sm font-bold mt-2">박주봉 코치가 만든 배드민턴 퍼포먼스 브랜드.<br/>콕스타 회원 전용 혜택으로 만나보세요.</p>
-                    <button onClick={() => window.open(NOERROR_URL, '_blank')} className="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 bg-volt text-ink font-black rounded-full text-xs label active:scale-95 transition-transform">
+                    <p className="text-dim text-sm font-bold mt-2">
+                        박주봉 코치가 만든 배드민턴 퍼포먼스 브랜드.<br />
+                        <span className="text-txt">상품 {PRODUCTS.length}종</span> · 최대 <span className="text-coral">{maxRate}%</span> 할인 중
+                    </p>
+                    <button onClick={() => window.open(NOERROR_URL, '_blank', 'noopener,noreferrer')} className="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 bg-volt text-ink font-black rounded-full text-xs label active:scale-95 transition-transform">
                         공식몰 바로가기 <ArrowUpRight size={14} />
                     </button>
                 </div>
                 <TrophyIcon className="absolute -right-6 -bottom-8 w-40 h-40 text-volt/10" strokeWidth={1} />
             </div>
 
-            {/* 카테고리 칩 */}
-            <div className="flex gap-2 overflow-x-auto hide-scrollbar px-5 py-4 sticky top-0 glass z-10">
-                {cats.map(c => (
-                    <button key={c} onClick={() => setCat(c)} className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-black transition-all whitespace-nowrap ${cat === c ? 'bg-volt text-ink' : 'bg-white/5 text-dim border border-white/10'}`}>
-                        {c}
-                    </button>
-                ))}
+            {/* 카테고리 + 정렬 (스크롤해도 위에 붙어 있다) */}
+            <div className="sticky top-0 glass z-10 border-b border-white/[0.06]">
+                <div className="flex gap-2 overflow-x-auto hide-scrollbar px-5 pt-4 pb-3">
+                    {cats.map(c => (
+                        <button key={c} onClick={() => setCat(c)}
+                            className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-black transition-all whitespace-nowrap ${cat === c ? 'bg-volt text-ink' : 'bg-white/5 text-dim border border-white/10'}`}>
+                            {c}
+                        </button>
+                    ))}
+                </div>
+                <div className="flex items-center justify-between px-5 pb-3">
+                    <span className="text-[11px] font-black text-muted tabular">{filtered.length}개</span>
+                    <div className="flex gap-1">
+                        {Object.keys(SORTS).map(s => (
+                            <button key={s} onClick={() => setSort(s)}
+                                className={`px-2.5 py-1 rounded-full text-[11px] font-black transition-colors ${sort === s ? 'text-volt bg-volt/10' : 'text-muted'}`}>
+                                {s}
+                            </button>
+                        ))}
+                    </div>
+                </div>
             </div>
 
             {/* 상품 그리드 */}
-            <div className="px-5 grid grid-cols-2 gap-3">
-                {filtered.map((item, idx) => {
-                    const isNoerror = item.brand === 'NOERROR';
-                    return (
-                        <button key={idx} onClick={() => window.open(NOERROR_URL, '_blank')} className="text-left active:scale-[0.97] transition-transform">
-                            <div className="rounded-2xl overflow-hidden bg-card border border-white/[0.06]">
-                                <div className={`relative w-full h-36 bg-gradient-to-br ${brandTint[item.brand] || 'from-zinc-600/20 via-card to-card'} grain overflow-hidden flex items-end p-3`}>
-                                    <span className={`font-display display-italic text-xl leading-none relative z-10 ${isNoerror ? 'text-volt' : 'text-txt'}`}>{item.brand}</span>
-                                    {item.tag && <span className={`absolute top-2.5 right-2.5 text-[9px] font-black px-2 py-0.5 rounded-full z-10 ${isNoerror ? 'bg-volt text-ink' : 'bg-white/15 text-txt'}`}>{item.tag}</span>}
-                                    <span className="absolute top-2.5 left-2.5 text-[9px] font-black px-2 py-0.5 rounded-full bg-white/10 text-dim z-10">{item.cat}</span>
-                                    <ShoppingBag className="absolute -right-3 -top-3 w-24 h-24 text-white/[0.05]" strokeWidth={1} />
-                                </div>
-                                <div className="p-3">
-                                    <p className="font-black text-sm text-txt truncate kern-tight">{item.name}</p>
-                                    <div className="flex items-center justify-between mt-1.5">
-                                        <p className="text-sm text-volt font-black tabular">₩{item.price}</p>
-                                        {isNoerror && <span className="text-[9px] font-black text-coral label">-20%</span>}
-                                    </div>
-                                </div>
-                            </div>
-                        </button>
-                    );
-                })}
-            </div>
+            {filtered.length > 0 ? (
+                <div className="px-5 pt-4 grid grid-cols-2 gap-3">
+                    {filtered.map(p => <ProductCardGrid key={p.idx} product={p} />)}
+                </div>
+            ) : (
+                <div className="px-5 py-16 text-center">
+                    <p className="text-sm text-dim font-bold">이 분류에는 상품이 없습니다.</p>
+                </div>
+            )}
 
             {/* 하단 스폰서 배너 (noerror.png) */}
             <div className="px-5 mt-6">
-                <button onClick={() => window.open(NOERROR_URL, '_blank')} className="w-full rounded-2xl overflow-hidden border border-white/[0.06] active:scale-[0.99] transition-transform">
+                <button onClick={() => window.open(NOERROR_URL, '_blank', 'noopener,noreferrer')} className="w-full rounded-2xl overflow-hidden border border-white/[0.06] active:scale-[0.99] transition-transform">
                     <img src={noErrorBanner} alt="NOERROR 광고 배너" className="w-full h-auto object-cover" />
                 </button>
-                <p className="text-center text-[11px] text-muted font-bold mt-3">본 스토어는 콕스타 공식 파트너 <span className="text-volt">NOERROR</span> 와 함께합니다.</p>
+                <p className="text-center text-[11px] text-muted font-bold mt-3">
+                    본 스토어는 콕스타 공식 파트너 <span className="text-volt">NOERROR</span> 와 함께합니다.
+                </p>
+                {/* 가격·재고는 받아온 시점의 값이라 실시간이 아니다. 숨기지 말고 밝혀 둔다. */}
+                {fetchedLabel && (
+                    <p className="text-center text-[10px] text-muted/70 font-bold mt-1">
+                        가격 정보 기준 {fetchedLabel} · 실제 가격과 재고는 공식몰에서 확인하세요
+                    </p>
+                )}
             </div>
         </div>
     );
@@ -1150,7 +1164,7 @@ function StorePage() {
 // ===================================================================================
 // 경기 로비 페이지
 // ===================================================================================
-function GamePage({ user, userData, onLoginClick, sharedRoomId }) {
+function GamePage({ user, userData, onLoginClick, sharedRoomId, onNavigate }) {
     const [currentView, setCurrentView] = useState(sharedRoomId ? 'room' : 'lobby');
     const [selectedRoomId, setSelectedRoomId] = useState(sharedRoomId || null);
     const [rooms, setRooms] = useState([]);
@@ -1264,7 +1278,7 @@ function GamePage({ user, userData, onLoginClick, sharedRoomId }) {
     }
 
     if (currentView === 'room') {
-        return <GameRoomView roomId={selectedRoomId} user={user} userData={userData} onExitRoom={() => { setSelectedRoomId(null); setCurrentView('lobby'); }} roomsCollectionRef={roomsCollectionRef} />;
+        return <GameRoomView roomId={selectedRoomId} user={user} userData={userData} onExitRoom={() => { setSelectedRoomId(null); setCurrentView('lobby'); }} roomsCollectionRef={roomsCollectionRef} onNavigate={onNavigate} />;
     }
 
     return (
@@ -1995,12 +2009,119 @@ function CourtSelectionModal({ isOpen, onClose, courts, onSelect }) {
     );
 }
 
-// NOERROR 광고 배너 (로컬 이미지)
-function GameBanner() {
+// ===================================================================================
+// 게임방 상단 배너 (5장 자동 회전)
+// -----------------------------------------------------------------------------------
+// 예전에는 고정 이미지 한 장이었다. 경기방은 사람들이 저녁 내내 켜두는 화면이라
+// 앱에서 노출 시간이 가장 긴 자리인데, 한 장짜리 그림은 몇 분 지나면 아무도 안 본다.
+//
+// 그래서 다섯 장을 돌린다.
+//   · 노에러 상품 3장 — 실제 상품 사진·이름·가격을 쓴다. 누르면 그 상품 페이지로 간다.
+//     (지어낸 카피 문구보다 "얼마짜리 뭐"가 훨씬 잘 눌린다)
+//   · 홈 유도 1장 · 콕맵 유도 1장 — 경기방에만 머무는 사람을 다른 화면으로 데려간다.
+//
+// 배너 구성 원칙: 광고 3 + 앱 안내 2. 전부 광고로 채우면 사용자가 이 띠를 통째로
+// 무시하게 되어 결국 광고 효과까지 사라진다.
+// ===================================================================================
+function GameBanner({ onNavigate }) {
+    const [i, setI] = useState(0);
+
+    // 배너로 쓸 상품 3개 — 옷 2 + 라켓 1로 섞어서 매번 같은 종류만 보이지 않게 한다
+    const promoItems = useMemo(() => {
+        const deals = bestDeals(6);
+        const racket = gearPicks(6).find(g => g.cat === '라켓');
+        return [deals[0], deals[1], racket || deals[2]].filter(Boolean);
+    }, []);
+
+    const maxRate = useMemo(() => Math.max(0, ...PRODUCTS.map(p => p.discountRate)), []);
+
+    const slides = useMemo(() => [
+        ...promoItems.map(p => ({ kind: 'product', product: p })),
+        {
+            kind: 'nav', to: 'home',
+            kicker: 'COCKSTAR', title: '오늘 뭐 살지 고민된다면',
+            sub: `노에러 상품 ${PRODUCTS.length}종 · 최대 ${maxRate}%`,
+            cta: '홈으로', accent: 'volt', art: HomeIcon,
+        },
+        {
+            kind: 'nav', to: 'kokMap',
+            kicker: 'KOK MAP', title: '내 주변 체육관 찾기',
+            sub: '지도에서 오늘 열린 경기방 확인',
+            cta: '콕맵 열기', accent: 'coral', art: KokMap,
+        },
+    ], [promoItems, maxRate]);
+
+    // 6초마다 다음 장. 5장이면 한 바퀴 30초 — 경기 한 판보다 짧다.
+    useEffect(() => {
+        if (slides.length <= 1) return;
+        const t = setTimeout(() => setI(v => (v + 1) % slides.length), 6000);
+        return () => clearTimeout(t);
+    }, [i, slides.length]);
+
+    if (slides.length === 0) return null;
+    const s = slides[i];
+
+    const handleClick = () => {
+        if (s.kind === 'product') openProduct(s.product);
+        else onNavigate?.(s.to);
+    };
+
     return (
-        <div className="w-full aspect-[5/1] flex-shrink-0 relative overflow-hidden bg-ink border-b border-white/[0.06] z-10">
-            <div className="w-full h-full cursor-pointer" onClick={() => window.open(NOERROR_URL, '_blank')}>
-                <img src={noErrorBanner} alt="NOERROR 광고 배너" className="w-full h-full object-cover" />
+        <div className="w-full flex-shrink-0 relative overflow-hidden bg-ink border-b border-white/[0.06] z-10">
+            <button onClick={handleClick} className="w-full text-left active:opacity-90 transition-opacity">
+                {s.kind === 'product' ? (
+                    // ── 상품 배너 — 왼쪽에 실제 상품 사진, 오른쪽에 이름·가격 ──
+                    <div className="flex items-stretch h-20">
+                        <div className="w-20 shrink-0 bg-[#F3F4F6]">
+                            <ProductImage src={s.product.image} alt={s.product.name} className="w-full h-full" />
+                        </div>
+                        <div className="flex-1 min-w-0 px-3.5 flex flex-col justify-center">
+                            <span className="text-[9px] font-black label text-volt">NOERROR · 공식 파트너</span>
+                            <p className="text-[13px] font-black text-txt truncate kern-tight leading-tight mt-0.5">
+                                {s.product.name}
+                            </p>
+                            <div className="flex items-baseline gap-1.5 mt-0.5">
+                                {s.product.discountRate > 0 && (
+                                    <span className="text-xs font-black text-coral tabular">{s.product.discountRate}%</span>
+                                )}
+                                <span className="text-sm font-black text-volt tabular">{formatPrice(s.product.price)}원</span>
+                                {s.product.originalPrice > s.product.price && (
+                                    <span className="text-[10px] text-muted font-bold tabular line-through">
+                                        {formatPrice(s.product.originalPrice)}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <div className="pr-3 flex items-center">
+                            <ArrowUpRight size={18} className="text-muted" />
+                        </div>
+                    </div>
+                ) : (
+                    // ── 앱 안내 배너 — 홈 / 콕맵으로 데려간다 ──
+                    <div className={`relative h-20 grain court-lines flex flex-col justify-center px-4 overflow-hidden ${s.accent === 'coral' ? 'bg-coral/[0.07]' : 'bg-volt/[0.06]'}`}>
+                        <span className={`text-[9px] font-black label relative z-10 ${s.accent === 'coral' ? 'text-coral' : 'text-volt'}`}>{s.kicker}</span>
+                        <p className="text-[14px] font-black text-txt kern-tight leading-tight mt-0.5 relative z-10">{s.title}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5 relative z-10 min-w-0">
+                            <span className="text-[10px] font-bold text-dim truncate">{s.sub}</span>
+                            <span className={`text-[10px] font-black shrink-0 flex items-center gap-0.5 ${s.accent === 'coral' ? 'text-coral' : 'text-volt'}`}>
+                                {s.cta} <ChevronRight size={11} />
+                            </span>
+                        </div>
+                        <s.art className={`absolute -right-3 -bottom-4 w-24 h-24 ${s.accent === 'coral' ? 'text-coral/10' : 'text-volt/10'}`} strokeWidth={1} />
+                    </div>
+                )}
+            </button>
+
+            {/* 진행 점 — 몇 장짜리인지 알려주고, 눌러서 바로 넘길 수도 있다 */}
+            <div className="absolute bottom-1.5 right-3 flex gap-1 z-10">
+                {slides.map((_, k) => (
+                    <button
+                        key={k}
+                        onClick={(e) => { e.stopPropagation(); setI(k); }}
+                        aria-label={`${k + 1}번째 배너`}
+                        className={`h-1 rounded-full transition-all ${i === k ? 'w-4 bg-volt' : 'w-1 bg-white/25'}`}
+                    />
+                ))}
             </div>
         </div>
     );
@@ -2224,7 +2345,7 @@ function AutoMatchSection({
     );
 }
 
-function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }) {
+function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef, onNavigate }) {
     const [roomData, setRoomData] = useState(null);
     const [players, setPlayers] = useState({});
     const [loading, setLoading] = useState(true);
@@ -3231,7 +3352,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                 </div>
             </header>
 
-            <GameBanner />
+            <GameBanner onNavigate={onNavigate} />
 
             <div className="flex bg-surface px-2 border-b border-white/[0.06]">
                 {[{ key: 'matching', label: '매칭 대기' }, { key: 'inProgress', label: '경기 진행' }].map(tab => (
@@ -3403,26 +3524,50 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 // ===================================================================================
 // 콕맵 (Kakao Map)
 // ===================================================================================
-function KokMapPage() {
+// ===================================================================================
+// 콕맵 — 내 주변 체육관 · 경기방 · 동호회
+// -----------------------------------------------------------------------------------
+// 예전에는 콕스타에 만들어진 '경기방'만 지도에 찍혔다. 방이 없는 동네에서는 지도가
+// 텅 비어서 쓸 이유가 없었다. 이제 경기도 체육관 1,000여 곳을 함께 깔아서,
+// 방이 하나도 없어도 "우리 동네에 어디서 칠 수 있나"를 볼 수 있게 했다.
+//
+// 표시하는 것
+//   · 체육관 — 카카오 로컬 API로 모은 경기도 31개 시·군 (공설/사설/학교 추정 구분)
+//   · 경기방 — 콕스타에 실제로 열린 방. 우리만 가진 정보라 기본 필터로 둔다.
+//   · 동호회 — 소모임에 등록된 배드민턴 모임 (지역이 맞는 것만, 일부)
+//
+// ⚠️ 운영시간·요금은 넣지 않았다. 카카오 로컬 API가 주지 않는 값이라 지어낼 수밖에
+//    없는데, 틀린 시간을 보고 헛걸음한 사람이 한 명이라도 생기면 지도 전체를 못 믿게 된다.
+//    대신 '카카오맵에서 보기'로 넘긴다.
+//
+// 성능 메모: 체육관이 1,000곳이 넘어서 마커를 그냥 찍으면 지도가 버벅인다.
+//    카카오 클러스터러(index.html 에서 libraries=clusterer 로 이미 불러온다)로 묶는다.
+// ===================================================================================
+function KokMapPage({ onNavigate }) {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
+    const clustererRef = useRef(null);
+    const roomObjectsRef = useRef([]);
+
     const [rooms, setRooms] = useState([]);
     const [isMapReady, setIsMapReady] = useState(false);
-    const [mapObjects, setMapObjects] = useState([]);
     const [selectedRoom, setSelectedRoom] = useState(null);
-    const [activeFilter, setActiveFilter] = useState('전체');
+    const [selectedGym, setSelectedGym] = useState(null);
+    const [activeFilter, setActiveFilter] = useState('room');
     const [searchText, setSearchText] = useState('');
+    const [center, setCenter] = useState({ lat: 37.2636, lng: 127.0286 }); // 수원시청 (경기도 한복판)
     const ps = useRef(null);
     const geocoder = useRef(null);
 
+    // ── 콕스타 경기방 ──
     useEffect(() => {
-        const q = query(collection(db, "rooms"));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            setRooms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const unsubscribe = onSnapshot(query(collection(db, "rooms")), (snapshot) => {
+            setRooms(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
         });
         return () => unsubscribe();
     }, []);
 
+    // ── 지도 만들기 ──
     useEffect(() => {
         const container = mapRef.current;
         if (!container) return;
@@ -3443,19 +3588,42 @@ function KokMapPage() {
                     content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
                     border-width: 5px 5px 0; border-style: solid; border-color: #CDFB47 transparent transparent transparent;
                 }
+                /* 체육관 핀 — 경기방(라임)과 헷갈리지 않게 종류별로 색을 나눈다 */
+                .gym-pin {
+                    width: 13px; height: 13px; border-radius: 50%;
+                    border: 2px solid #08090C; box-shadow: 0 2px 6px rgba(0,0,0,.5);
+                    cursor: pointer;
+                }
+                .gym-pin.badminton { background: #CDFB47; }
+                .gym-pin.public    { background: #60A5FA; }
+                .gym-pin.private   { background: #F3F5F8; }
+                .gym-pin.school    { background: #8C93A1; }
             `;
             document.head.appendChild(style);
         }
         const initMap = () => {
             if (mapInstance.current) { setIsMapReady(true); return true; }
-            if (window.kakao && window.kakao.maps && window.kakao.maps.load) {
+            if (window.kakao?.maps?.load) {
                 window.kakao.maps.load(() => {
-                    const options = { center: new window.kakao.maps.LatLng(37.5665, 126.9780), level: 5 };
-                    const map = new window.kakao.maps.Map(container, options);
+                    const map = new window.kakao.maps.Map(container, {
+                        center: new window.kakao.maps.LatLng(center.lat, center.lng),
+                        level: 6,
+                    });
                     mapInstance.current = map;
                     ps.current = new window.kakao.maps.services.Places();
                     geocoder.current = new window.kakao.maps.services.Geocoder();
-                    window.kakao.maps.event.addListener(map, 'click', () => setSelectedRoom(null));
+                    // 1,000개가 넘는 체육관 핀을 묶어준다. minLevel 이하로 확대하면 개별 핀이 보인다.
+                    clustererRef.current = new window.kakao.maps.MarkerClusterer({
+                        map, averageCenter: true, minLevel: 5, disableClickZoom: false,
+                    });
+                    window.kakao.maps.event.addListener(map, 'click', () => {
+                        setSelectedRoom(null); setSelectedGym(null);
+                    });
+                    // 지도를 옮기면 '가까운 체육관' 목록도 따라 바뀌어야 한다
+                    window.kakao.maps.event.addListener(map, 'idle', () => {
+                        const c = map.getCenter();
+                        setCenter({ lat: c.getLat(), lng: c.getLng() });
+                    });
                     setIsMapReady(true);
                 });
                 return true;
@@ -3463,132 +3631,325 @@ function KokMapPage() {
             return false;
         };
         if (!initMap()) {
-            const intervalId = setInterval(() => { if (initMap()) clearInterval(intervalId); }, 100);
-            return () => clearInterval(intervalId);
+            const id = setInterval(() => { if (initMap()) clearInterval(id); }, 100);
+            return () => clearInterval(id);
         }
     }, []);
 
-    const handleMapSearch = () => {
-        if (!searchText.trim() || !mapInstance.current || !window.kakao) return;
+    // ── 체육관 핀 (클러스터) ──
+    useEffect(() => {
+        if (!isMapReady || !clustererRef.current || !window.kakao) return;
+        const clusterer = clustererRef.current;
+        clusterer.clear();
+
+        const list = filterGyms(activeFilter);
+        if (list.length === 0) return;
+
+        const markers = list.map(gym => {
+            const pos = new window.kakao.maps.LatLng(gym.lat, gym.lng);
+            const kind = gym.isBadminton ? 'badminton' : gym.ownership;
+            const overlay = new window.kakao.maps.CustomOverlay({
+                position: pos,
+                content: `<div class="gym-pin ${kind}" title="${gym.name}"></div>`,
+                yAnchor: 0.5,
+                clickable: true,
+            });
+            // CustomOverlay 는 클러스터러에 못 넣으므로, 클릭 판정용 투명 마커를 함께 쓴다
+            const marker = new window.kakao.maps.Marker({ position: pos, opacity: 0.01 });
+            window.kakao.maps.event.addListener(marker, 'click', () => {
+                mapInstance.current.panTo(pos);
+                setSelectedGym(gym);
+                setSelectedRoom(null);
+            });
+            marker.__overlay = overlay;
+            return marker;
+        });
+
+        clusterer.addMarkers(markers);
+        // 확대 단계에 따라 색 점을 보였다 숨긴다 (클러스터로 묶인 상태에선 점이 방해된다)
+        const syncOverlays = () => {
+            const show = mapInstance.current.getLevel() < 5;
+            markers.forEach(m => m.__overlay.setMap(show ? mapInstance.current : null));
+        };
+        syncOverlays();
+        window.kakao.maps.event.addListener(mapInstance.current, 'zoom_changed', syncOverlays);
+
+        return () => {
+            markers.forEach(m => m.__overlay.setMap(null));
+            clusterer.clear();
+            window.kakao.maps.event.removeListener(mapInstance.current, 'zoom_changed', syncOverlays);
+        };
+    }, [isMapReady, activeFilter]);
+
+    // ── 경기방 핀 (항상 표시 — 콕스타만 가진 정보라 숨기지 않는다) ──
+    useEffect(() => {
+        if (!isMapReady || !window.kakao) return;
         const map = mapInstance.current;
-        geocoder.current.addressSearch(searchText, (result, status) => {
+        roomObjectsRef.current.forEach(o => { o.marker.setMap(null); o.overlay.setMap(null); });
+        const next = [];
+        rooms.forEach(room => {
+            if (!room.coords?.lat || !room.coords?.lng) return;
+            const pos = new window.kakao.maps.LatLng(room.coords.lat, room.coords.lng);
+            const marker = new window.kakao.maps.Marker({ position: pos, map, clickable: true });
+            const overlay = new window.kakao.maps.CustomOverlay({
+                position: pos, content: `<div class="room-label">${room.name}</div>`, map, yAnchor: 1,
+            });
+            window.kakao.maps.event.addListener(marker, 'click', () => {
+                map.panTo(pos); setSelectedRoom(room); setSelectedGym(null);
+            });
+            next.push({ marker, overlay });
+        });
+        roomObjectsRef.current = next;
+        return () => next.forEach(o => { o.marker.setMap(null); o.overlay.setMap(null); });
+    }, [rooms, isMapReady]);
+
+    // ── 검색 ──
+    const handleMapSearch = () => {
+        const q = searchText.trim();
+        if (!q || !mapInstance.current || !window.kakao) return;
+        const map = mapInstance.current;
+
+        // 우리가 가진 체육관 목록에서 먼저 찾는다 — 지도 API보다 빠르고 정확하다
+        const hit = searchGyms(q, 1)[0];
+        if (hit) {
+            map.panTo(new window.kakao.maps.LatLng(hit.lat, hit.lng));
+            map.setLevel(3);
+            setSelectedGym(hit);
+            return;
+        }
+        geocoder.current.addressSearch(q, (result, status) => {
             if (status === window.kakao.maps.services.Status.OK) {
                 map.panTo(new window.kakao.maps.LatLng(result[0].y, result[0].x));
             } else {
-                ps.current.keywordSearch(searchText, (data, status) => {
-                    if (status === window.kakao.maps.services.Status.OK) {
+                ps.current.keywordSearch(q, (data, st) => {
+                    if (st === window.kakao.maps.services.Status.OK) {
                         map.panTo(new window.kakao.maps.LatLng(data[0].y, data[0].x));
                     } else { toast('검색 결과가 없습니다.', 'error'); }
                 });
             }
         });
     };
-
     const handleKeyDown = (e) => { if (e.key === 'Enter') handleMapSearch(); };
 
-    useEffect(() => {
-        if (!isMapReady || !mapInstance.current || !window.kakao) return;
-        const map = mapInstance.current;
-        mapObjects.forEach(obj => { obj.marker.setMap(null); obj.overlay.setMap(null); });
-        const newMapObjects = [];
-        const filteredRooms = rooms.filter(r => activeFilter === '전체' ? true : (r.name?.includes(activeFilter) || r.description?.includes(activeFilter)));
-        filteredRooms.forEach(room => {
-            if (room.coords?.lat && room.coords?.lng) {
-                const markerPosition = new window.kakao.maps.LatLng(room.coords.lat, room.coords.lng);
-                const marker = new window.kakao.maps.Marker({ position: markerPosition, map: map, clickable: true });
-                const overlay = new window.kakao.maps.CustomOverlay({ position: markerPosition, content: `<div class="room-label">${room.name}</div>`, map: map, yAnchor: 1 });
-                window.kakao.maps.event.addListener(marker, 'click', () => { map.panTo(markerPosition); setSelectedRoom(room); });
-                newMapObjects.push({ marker, overlay });
-            }
-        });
-        setMapObjects(newMapObjects);
-    }, [rooms, isMapReady, activeFilter]);
-
     const handleMyLoc = () => {
-        if (!mapInstance.current) return;
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition((position) => {
-                mapInstance.current.panTo(new window.kakao.maps.LatLng(position.coords.latitude, position.coords.longitude));
-            });
-        } else { toast("위치 정보를 사용할 수 없습니다.", 'error'); }
+        if (!mapInstance.current || !navigator.geolocation) {
+            toast("위치 정보를 사용할 수 없습니다.", 'error');
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (pos) => mapInstance.current.panTo(new window.kakao.maps.LatLng(pos.coords.latitude, pos.coords.longitude)),
+            () => toast("위치 권한이 필요합니다.", 'error')
+        );
     };
+    const zoomIn = () => mapInstance.current?.setLevel(mapInstance.current.getLevel() - 1, { animate: true });
+    const zoomOut = () => mapInstance.current?.setLevel(mapInstance.current.getLevel() + 1, { animate: true });
 
-    const zoomIn = () => mapInstance.current && mapInstance.current.setLevel(mapInstance.current.getLevel() - 1, {animate: true});
-    const zoomOut = () => mapInstance.current && mapInstance.current.setLevel(mapInstance.current.getLevel() + 1, {animate: true});
+    // ── 아래 목록: 검색 중이면 검색 결과, 아니면 지도 중심에서 가까운 순 ──
+    const listedGyms = useMemo(() => {
+        const q = searchText.trim();
+        if (q) return searchGyms(q, 30);
+        const pool = activeFilter === 'room' ? GYMS : filterGyms(activeFilter);
+        return nearestGyms(center.lat, center.lng, pool, 30);
+    }, [searchText, activeFilter, center.lat, center.lng]);
+
+    // 선택한 체육관이 있는 지역의 동호회
+    const nearbyClubs = useMemo(
+        () => (selectedGym ? clubsInRegion(selectedGym.region) : []),
+        [selectedGym]
+    );
+    // 선택한 체육관 근처(1km)에 열린 콕스타 경기방
+    const roomsAtGym = useMemo(() => {
+        if (!selectedGym) return [];
+        return rooms.filter(r => r.coords?.lat
+            && distanceKm(selectedGym.lat, selectedGym.lng, r.coords.lat, r.coords.lng) < 1);
+    }, [selectedGym, rooms]);
 
     return (
         <div className="relative h-full w-full flex flex-col bg-ink overflow-hidden">
+            {/* 검색 */}
             <div className="absolute top-0 left-0 right-0 z-20 px-4 pt-4 pb-2 pointer-events-none">
-                <div className="pointer-events-auto glass rounded-2xl shadow-deep border border-white/10 flex items-center p-2.5 pl-4 transition-all active:scale-[0.99]">
+                <div className="pointer-events-auto glass rounded-2xl shadow-deep border border-white/10 flex items-center p-2.5 pl-4">
                     <CockstarMark size={20} duotone className="text-txt mr-2.5 shrink-0" />
-                    <input type="text" value={searchText} onChange={(e) => setSearchText(e.target.value)} onKeyDown={handleKeyDown} placeholder="장소, 주소, 모임명 검색" className="flex-1 bg-transparent outline-none text-sm font-bold text-txt placeholder-muted" />
-                    {searchText ? (<button onClick={() => setSearchText('')} className="p-1 text-dim hover:text-txt"><X size={18} /></button>) : null}
-                    <button onClick={handleMapSearch} className="w-9 h-9 flex items-center justify-center rounded-xl bg-volt text-ink ml-1"><Search size={20} /></button>
+                    <input
+                        type="text" value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)} onKeyDown={handleKeyDown}
+                        placeholder="체육관, 지역, 주소 검색"
+                        className="flex-1 bg-transparent outline-none text-sm font-bold text-txt placeholder-muted min-w-0"
+                    />
+                    {searchText && (
+                        <button onClick={() => setSearchText('')} className="p-1 text-dim hover:text-txt"><X size={18} /></button>
+                    )}
+                    <button onClick={handleMapSearch} className="w-9 h-9 flex items-center justify-center rounded-xl bg-volt text-ink ml-1 shrink-0"><Search size={20} /></button>
                 </div>
             </div>
 
-            <div className="absolute top-[74px] left-0 right-0 z-20 overflow-x-auto hide-scrollbar px-4 pb-2 flex gap-2 pointer-events-auto">
-                {['전체', '배드민턴장', '모임', '레슨', '샵'].map((filter) => {
-                    const isActive = activeFilter === filter;
-                    return (
-                        <button key={filter} onClick={() => setActiveFilter(filter)} className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-black shadow-deep transition-all whitespace-nowrap ${isActive ? 'bg-volt text-ink' : 'glass text-txt border border-white/10'}`}>
-                            {filter}
-                        </button>
-                    );
-                })}
+            {/* 필터 */}
+            <div className="absolute top-[74px] left-0 right-0 z-20 overflow-x-auto hide-scrollbar px-4 pb-2 flex gap-2">
+                {MAP_FILTERS.map(f => (
+                    <button
+                        key={f.key} onClick={() => { setActiveFilter(f.key); setSelectedGym(null); }}
+                        className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-black shadow-deep transition-all whitespace-nowrap ${activeFilter === f.key ? 'bg-volt text-ink' : 'glass text-txt border border-white/10'}`}
+                    >
+                        {f.label}
+                    </button>
+                ))}
             </div>
 
             <div id="kakao-map" ref={mapRef} className="flex-grow w-full h-full bg-[#1a1c22] z-0" />
 
+            {/* 확대/축소 · 내 위치 */}
             <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2.5 z-20">
                 <div className="glass rounded-2xl shadow-deep border border-white/10 flex flex-col overflow-hidden">
-                    <button onClick={zoomIn} className="p-2.5 text-dim hover:text-txt active:bg-white/10 border-b border-white/10"><Plus size={20} /></button>
-                    <button onClick={zoomOut} className="p-2.5 text-dim hover:text-txt active:bg-white/10"><span className="block w-5 h-[2px] bg-current my-[9px]"></span></button>
+                    <button onClick={zoomIn} className="w-11 h-11 flex items-center justify-center text-txt font-black text-lg">+</button>
+                    <div className="h-px bg-white/10" />
+                    <button onClick={zoomOut} className="w-11 h-11 flex items-center justify-center text-txt font-black text-lg">−</button>
                 </div>
-                <button onClick={handleMyLoc} className="bg-volt p-3 rounded-full shadow-volt text-ink active:scale-95 transition-all"><MapPin size={22} /></button>
+                <button onClick={handleMyLoc} className="w-11 h-11 glass rounded-2xl shadow-deep border border-white/10 flex items-center justify-center text-volt">
+                    <MapPin size={20} />
+                </button>
             </div>
 
-            {selectedRoom && (
-                <div className="absolute bottom-0 left-0 right-0 z-30 bg-surface rounded-t-[28px] shadow-deep border-t border-white/[0.06] animate-slide-up pb-safe">
-                    <div className="w-full h-6 flex items-center justify-center" onClick={() => setSelectedRoom(null)}>
-                        <div className="w-10 h-1.5 bg-white/20 rounded-full cursor-pointer hover:bg-white/30 transition-colors"></div>
-                    </div>
-                    <div className="px-5 pb-6">
-                        <div className="flex justify-between items-start mb-1">
-                            <div>
-                                <h3 className="text-xl font-black text-txt kern-tight leading-tight mb-1">{selectedRoom.name}</h3>
-                                <div className="text-sm text-dim flex items-center gap-1 font-bold">
-                                    <MapPin size={13} className="text-muted" /><span className="truncate max-w-[200px]">{selectedRoom.address || selectedRoom.location}</span>
+            {/* ── 아래 시트 ── */}
+            <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none">
+                <div className="pointer-events-auto glass border-t border-white/10 rounded-t-3xl max-h-[52vh] overflow-y-auto hide-scrollbar pb-safe">
+
+                    {selectedGym ? (
+                        // ── 체육관 상세 ──
+                        <div className="p-5">
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${selectedGym.isBadminton ? 'bg-volt text-ink' : 'bg-white/10 text-dim'}`}>
+                                            {selectedGym.isBadminton ? '배드민턴' : selectedGym.ownershipLabel}
+                                        </span>
+                                        <span className="text-[10px] font-bold text-muted">{selectedGym.region}</span>
+                                    </div>
+                                    <h3 className="text-lg font-black text-txt kern-tight leading-tight">{selectedGym.name}</h3>
+                                    <p className="text-xs text-dim font-bold mt-1">{selectedGym.address}</p>
                                 </div>
+                                <button onClick={() => setSelectedGym(null)} className="p-1 text-dim shrink-0"><X size={20} /></button>
                             </div>
-                            <button onClick={() => setSelectedRoom(null)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-dim hover:text-txt"><X size={18} /></button>
+
+                            <div className="flex gap-2">
+                                {selectedGym.phone && (
+                                    <a href={`tel:${selectedGym.phone}`} className="flex-1 py-2.5 bg-white/5 text-txt font-black rounded-xl text-xs text-center border border-white/10">
+                                        📞 {selectedGym.phone}
+                                    </a>
+                                )}
+                                <a href={selectedGym.kakaoUrl} target="_blank" rel="noopener noreferrer"
+                                    className="flex-1 py-2.5 bg-volt text-ink font-black rounded-xl text-xs text-center">
+                                    카카오맵에서 보기
+                                </a>
+                            </div>
+                            {/* 운영시간을 지어내지 않고, 어디서 확인하는지 알려준다 */}
+                            <p className="text-[10px] text-muted font-bold mt-2 text-center">
+                                운영시간·이용료는 카카오맵 또는 전화로 확인해주세요
+                            </p>
+
+                            {roomsAtGym.length > 0 && (
+                                <div className="mt-5">
+                                    <h4 className="text-[11px] font-black label text-volt mb-2">여기 열린 경기방 {roomsAtGym.length}</h4>
+                                    <div className="space-y-2">
+                                        {roomsAtGym.map(r => (
+                                            <button key={r.id} onClick={() => onNavigate?.('game')}
+                                                className="w-full text-left p-3 bg-card rounded-xl border border-volt/30">
+                                                <p className="text-sm font-black text-txt truncate">{r.name}</p>
+                                                <p className="text-[11px] text-dim font-bold mt-0.5">{r.location} · {r.playerCount || 0}/{r.maxPlayers}명</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {nearbyClubs.length > 0 && (
+                                <div className="mt-5">
+                                    <h4 className="text-[11px] font-black label text-dim mb-2">
+                                        {selectedGym.region} 동호회 {nearbyClubs.length}
+                                    </h4>
+                                    <div className="space-y-2">
+                                        {nearbyClubs.slice(0, 5).map(c => (
+                                            <a key={c.id} href={c.url} target="_blank" rel="noopener noreferrer"
+                                                className="block p-3 bg-card rounded-xl border border-white/[0.06]">
+                                                <p className="text-sm font-black text-txt truncate">{c.name}</p>
+                                                {c.description && <p className="text-[11px] text-dim font-medium mt-0.5 line-clamp-2">{c.description}</p>}
+                                                <p className="text-[10px] text-muted font-bold mt-1">
+                                                    {c.region}{c.members ? ` · 멤버 ${c.members}` : ''} · 소모임
+                                                </p>
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                        <div className="flex items-center gap-2 mb-4 text-sm">
-                            <span className="font-black text-volt label text-xs bg-volt/15 px-2 py-0.5 rounded-full">영업 중</span>
-                            <span className="text-dim font-bold">현재 {selectedRoom.playerCount || 0}명 참여 중</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-2.5 mb-4">
-                            <a href={`https://map.kakao.com/link/to/${selectedRoom.name},${selectedRoom.coords.lat},${selectedRoom.coords.lng}`} target="_blank" rel="noreferrer" className="flex flex-col items-center justify-center gap-1 py-3 bg-volt rounded-2xl active:scale-95 transition-transform">
-                                <MapPin size={20} className="text-ink" /><span className="text-xs font-black text-ink">길찾기</span>
-                            </a>
-                            <a href={`https://map.naver.com/v5/?c=${selectedRoom.coords.lat},${selectedRoom.coords.lng},15,0,0,0,dh`} target="_blank" rel="noreferrer" className="flex flex-col items-center justify-center gap-1 py-3 bg-white/5 rounded-2xl active:scale-95 transition-transform">
-                                <span className="font-black text-base text-[#03C75A]">N</span><span className="text-xs font-black text-dim">네이버</span>
-                            </a>
-                            <button onClick={() => { navigator.clipboard.writeText(`${selectedRoom.name}\n${selectedRoom.address || selectedRoom.location}`); toast('주소가 복사되었습니다.'); }} className="flex flex-col items-center justify-center gap-1 py-3 bg-white/5 rounded-2xl active:scale-95 transition-transform">
-                                <Share2 size={20} className="text-dim" /><span className="text-xs font-black text-dim">공유</span>
+
+                    ) : selectedRoom ? (
+                        // ── 경기방 상세 ──
+                        <div className="p-5">
+                            <div className="flex items-start justify-between gap-3 mb-2">
+                                <div className="min-w-0">
+                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-volt text-ink">경기방</span>
+                                    <h3 className="text-lg font-black text-txt kern-tight leading-tight mt-1.5">{selectedRoom.name}</h3>
+                                    <p className="text-xs text-dim font-bold mt-1">{selectedRoom.location} · {selectedRoom.address}</p>
+                                </div>
+                                <button onClick={() => setSelectedRoom(null)} className="p-1 text-dim shrink-0"><X size={20} /></button>
+                            </div>
+                            <p className="text-xs text-dim font-medium leading-relaxed">{selectedRoom.description}</p>
+                            <button onClick={() => onNavigate?.('game')} className="w-full mt-4 py-3 bg-volt text-ink font-black rounded-full text-sm">
+                                경기방 보러가기
                             </button>
                         </div>
-                        <button onClick={() => toast('경기방 입장은 경기 탭에서 이용해주세요.')} className="w-full py-4 bg-volt text-ink font-black rounded-full text-base shadow-volt active:scale-[0.98] transition-transform label">
-                            이 곳의 경기방 확인하기
-                        </button>
-                    </div>
+
+                    ) : (
+                        // ── 목록 ──
+                        <div className="p-4">
+                            <div className="flex items-baseline justify-between mb-3 px-1">
+                                <h3 className="text-sm font-black text-txt">
+                                    {searchText.trim() ? '검색 결과' : '이 근처 체육관'}
+                                    <span className="text-volt tabular ml-1.5">{listedGyms.length}</span>
+                                </h3>
+                                <span className="text-[10px] font-bold text-muted">경기도 {GYM_COUNT}곳 수록</span>
+                            </div>
+
+                            {listedGyms.length === 0 ? (
+                                <p className="text-center text-sm text-dim font-bold py-8">
+                                    조건에 맞는 체육관이 없습니다.
+                                </p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {listedGyms.map(g => (
+                                        <button key={g.id}
+                                            onClick={() => {
+                                                setSelectedGym(g);
+                                                mapInstance.current?.panTo(new window.kakao.maps.LatLng(g.lat, g.lng));
+                                            }}
+                                            className="w-full text-left p-3 bg-card rounded-xl border border-white/[0.06] flex items-center gap-3 active:scale-[0.99] transition-transform">
+                                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${g.isBadminton ? 'bg-volt' : g.ownership === 'public' ? 'bg-blue-400' : g.ownership === 'school' ? 'bg-muted' : 'bg-txt'}`} />
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-sm font-black text-txt truncate">{g.name}</p>
+                                                <p className="text-[11px] text-dim font-bold truncate mt-0.5">{g.address}</p>
+                                            </div>
+                                            {g.distance !== undefined && (
+                                                <span className="text-[10px] font-black text-muted tabular shrink-0">
+                                                    {g.distance < 1 ? `${Math.round(g.distance * 1000)}m` : `${g.distance.toFixed(1)}km`}
+                                                </span>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* 데이터의 한계를 밝힌다 */}
+                            <p className="text-center text-[10px] text-muted/70 font-bold mt-4 leading-relaxed">
+                                체육관 정보 출처: 카카오맵 · 동호회 {CLUB_COUNT}개 출처: {CLUB_SOURCE}
+                                <br />공설/사설 구분은 이름 기준 추정이며, 등록되지 않은 곳은 표시되지 않습니다
+                            </p>
+                        </div>
+                    )}
                 </div>
-            )}
+            </div>
         </div>
     );
 }
-
-// 커뮤니티 페이지
 function CommunityPage() {
     return (
         <div className="relative h-full bg-ink">
@@ -3794,8 +4155,8 @@ function AppInner() {
             <main ref={mainRef} className="flex-grow overflow-y-auto hide-scrollbar bg-ink">
                 {page === 'home' && <HomePage user={user} setPage={handleTabClick} />}
                 {page === 'store' && <StorePage />}
-                {page === 'game' && (<GamePage user={user} userData={userData} sharedRoomId={sharedRoomId} onLoginClick={() => setIsAuthModalOpen(true)} />)}
-                {page === 'kokMap' && <KokMapPage />}
+                {page === 'game' && (<GamePage user={user} userData={userData} sharedRoomId={sharedRoomId} onLoginClick={() => setIsAuthModalOpen(true)} onNavigate={handleTabClick} />)}
+                {page === 'kokMap' && <KokMapPage onNavigate={handleTabClick} />}
                 {page === 'community' && <CommunityPage />}
                 {page === 'myInfo' && <MyInfoPage user={user} userData={userData} onLoginClick={() => setIsAuthModalOpen(true)} onLogout={() => signOut(auth)} setPage={handleTabClick} />}
             </main>
