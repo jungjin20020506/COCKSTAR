@@ -80,10 +80,10 @@ import { AUTOMATCH_GUIDE_KEY } from './tutorial/guideKeys';
 
 // ── 노에러 공식몰 실제 상품 데이터 (scripts/fetch-noerror-products.mjs 로 수집) ──
 import {
-    PRODUCTS, CATEGORIES, FETCHED_AT, formatPrice,
-    byCategory, uniqueByName, newArrivals, bestDeals, gearPicks, categoryThumb,
+    PRODUCTS, CATEGORIES, FETCHED_AT, formatPrice, openProduct,
+    byCategory, newArrivals, bestDeals, gearPicks, categoryThumb,
 } from './lib/products';
-import { ProductCardH, ProductCardGrid, ProductCardWide, ProductImage } from './components/ProductCards';
+import { ProductCardH, ProductCardGrid, ProductCardWide, ProductImage, NewDropHero } from './components/ProductCards';
 
 // ── 콕맵 데이터: 경기도 체육관(카카오 로컬 API) · 배드민턴 동호회(소모임) ──
 import {
@@ -895,6 +895,24 @@ function NoerrorSponsorBanner({ onOpenStore }) {
 }
 
 /**
+ * 가로로 넘겨 보는 상품 줄.
+ *
+ * ★ 이 컴포넌트는 반드시 최상위에 있어야 한다.
+ *   예전에는 HomePage 안에서 정의했는데, 그러면 HomePage 가 다시 그려질 때마다
+ *   '새로운 컴포넌트 종류'로 취급돼서 안쪽 상품 카드가 통째로 언마운트→재마운트된다.
+ *   이미지가 매번 다시 로드되고 스크롤 위치도 초기화된다.
+ */
+function ProductRow({ items, loading }) {
+    return (
+        <div className="flex gap-3 overflow-x-auto hide-scrollbar -mx-5 px-5 pb-1" style={{ overscrollBehaviorX: 'contain' }}>
+            {loading
+                ? [...Array(4)].map((_, i) => <SkeletonStoreCard key={i} />)
+                : items.map(p => <ProductCardH key={p.idx} product={p} />)}
+        </div>
+    );
+}
+
+/**
  * 카테고리 바로가기 타일 — 대표 상품 사진을 배경으로 깐다.
  * 글자만 있는 칩보다 "여기 뭐가 있는지"가 한눈에 들어온다.
  */
@@ -971,15 +989,6 @@ function HomePage({ user, setPage }) {
 
     const goStore = () => setPage('store');
 
-    /** 가로로 넘겨 보는 상품 줄 */
-    const ProductRow = ({ items }) => (
-        <div className="flex gap-3 overflow-x-auto hide-scrollbar -mx-5 px-5 pb-1" style={{ overscrollBehaviorX: 'contain' }}>
-            {loading
-                ? [...Array(4)].map((_, i) => <SkeletonStoreCard key={i} />)
-                : items.map(p => <ProductCardH key={p.idx} product={p} />)}
-        </div>
-    );
-
     return (
         <div className="flex-grow p-5 space-y-9 bg-ink">
             <section className="pt-1">
@@ -1001,27 +1010,27 @@ function HomePage({ user, setPage }) {
                 </div>
             </section>
 
+            {/* 신상 — 파트너 브랜드의 신상이 상품 구역 맨 앞이다 */}
+            <section>
+                <SectionHeader title="노에러 신상" sub="New Arrivals · 2026 S/S" onMoreClick={goStore} />
+                <ProductRow items={fresh} loading={loading} />
+            </section>
+
             {/* 오늘의 특가 — 제일 크게 한 장 + 나머지는 가로 줄 */}
             {topDeal && (
                 <section>
                     <SectionHeader title="놓치면 후회할 특가" sub={`Outlet · 최대 ${topDeal.discountRate}%`} onMoreClick={goStore} />
                     <div className="space-y-3">
                         {loading ? <SkeletonCard /> : <ProductCardWide product={topDeal} />}
-                        <ProductRow items={deals.slice(1)} />
+                        <ProductRow items={deals.slice(1)} loading={loading} />
                     </div>
                 </section>
             )}
 
-            {/* 신상 */}
-            <section>
-                <SectionHeader title="노에러 신상" sub="New Arrivals · 2026 S/S" onMoreClick={goStore} />
-                <ProductRow items={fresh} />
-            </section>
-
             {/* 장비 — 옷만 계속 나오지 않도록 라켓·신발·가방·셔틀콕을 따로 모았다 */}
             <section>
                 <SectionHeader title="장비 바꿀 때 됐다면" sub="Rackets · Shoes · Bags" onMoreClick={goStore} />
-                <ProductRow items={gear} />
+                <ProductRow items={gear} loading={loading} />
             </section>
 
             <section>
@@ -1055,7 +1064,18 @@ function HomePage({ user, setPage }) {
 }
 
 // ===================================================================================
-// NOERROR 스토어 페이지 (신규 — 'store' 라우트 빈 화면 버그 수정 + 광고)
+// NOERROR 스토어 — 전문 쇼핑몰 스타일
+// -----------------------------------------------------------------------------------
+// 구성 (위 → 아래): 신상이 무조건 제일 먼저다.
+//   ① 브랜드 헤더 (작게 — 상품이 주인공)
+//   ② NEW DROP 히어로 — 신상 5종을 잡지 화보처럼 큰 사진으로 자동 회전
+//   ③ 신상 전체 가로 줄
+//   ④ 카테고리 칩 + 정렬 (스크롤하면 위에 붙는다)
+//   ⑤ 상품 그리드 (2열)
+//   ⑥ 공식몰 배너 + 데이터 기준일
+//
+// 찜·장바구니·리뷰는 넣지 않았다. 결제가 공식몰에서 일어나는 구조라
+// 앱 안에 그 버튼이 있으면 눌러도 아무 일도 안 생긴다. 안 눌리는 버튼은 신뢰를 깎는다.
 // ===================================================================================
 function StorePage() {
     const [cat, setCat] = useState('전체');
@@ -1063,10 +1083,12 @@ function StorePage() {
 
     const cats = useMemo(() => ['전체', ...CATEGORIES], []);
     const maxRate = useMemo(() => Math.max(0, ...PRODUCTS.map(p => p.discountRate)), []);
+    const newDrops = useMemo(() => PRODUCTS.filter(p => p.cat === '신상'), []);
 
-    // 정렬 기준. '추천'은 받아온 순서(= 최신 등록 순)를 그대로 쓴다.
+    // 정렬 기준. '추천'은 기본 순서(신상 → 카테고리 순) 그대로.
     const SORTS = {
         '추천': null,
+        '신상순': (a, b) => b.idx - a.idx,
         '할인율': (a, b) => b.discountRate - a.discountRate,
         '낮은가격': (a, b) => a.price - b.price,
         '높은가격': (a, b) => b.price - a.price,
@@ -1076,54 +1098,75 @@ function StorePage() {
         const list = byCategory(cat);
         const cmp = SORTS[sort];
         // 품절은 항상 뒤로 — 살 수 없는 상품이 맨 앞에 있으면 헛걸음이 된다
-        const withStockFirst = (a, b) => Number(a.soldOut) - Number(b.soldOut);
-        return [...list].sort((a, b) => withStockFirst(a, b) || (cmp ? cmp(a, b) : 0));
+        const stockFirst = (a, b) => Number(a.soldOut) - Number(b.soldOut);
+        return [...list].sort((a, b) => stockFirst(a, b) || (cmp ? cmp(a, b) : 0));
     }, [cat, sort]);
 
-    // 데이터를 언제 받아왔는지 — '실시간 재고가 아니다'를 솔직하게 알린다
     const fetchedLabel = FETCHED_AT
         ? new Date(FETCHED_AT).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
         : null;
 
     return (
-        <div className="min-h-full bg-ink pb-6">
-            {/* 히어로 */}
-            <div className="relative bg-card grain court-lines px-5 pt-6 pb-6 overflow-hidden border-b border-white/[0.06]">
-                <div className="relative z-10">
-                    <div className="flex items-center gap-2 mb-3">
-                        <div className="w-9 h-9 rounded-xl bg-volt flex items-center justify-center">
-                            <span className="font-display text-ink text-sm leading-none">NE</span>
-                        </div>
-                        <span className="text-[11px] font-black label text-volt">Official Store</span>
+        <div className="min-h-full bg-ink pb-8">
+            {/* ── ① 브랜드 헤더 — 얇게. 상품이 주인공이다 ── */}
+            <div className="px-5 pt-5 pb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-volt flex items-center justify-center">
+                        <span className="font-display text-ink text-sm leading-none">NE</span>
                     </div>
-                    <h1 className="font-display display-italic text-3xl leading-[0.95] text-txt">노에러 스토어</h1>
-                    <p className="text-dim text-sm font-bold mt-2">
-                        박주봉 코치가 만든 배드민턴 퍼포먼스 브랜드.<br />
-                        <span className="text-txt">상품 {PRODUCTS.length}종</span> · 최대 <span className="text-coral">{maxRate}%</span> 할인 중
-                    </p>
-                    <button onClick={() => window.open(NOERROR_URL, '_blank', 'noopener,noreferrer')} className="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 bg-volt text-ink font-black rounded-full text-xs label active:scale-95 transition-transform">
-                        공식몰 바로가기 <ArrowUpRight size={14} />
-                    </button>
+                    <div>
+                        <h1 className="font-display display-italic text-xl leading-none text-txt">NOERROR STORE</h1>
+                        <p className="text-[10px] font-bold text-dim mt-1">
+                            공식 파트너 · {PRODUCTS.length}종 · 최대 <span className="text-coral">{maxRate}%</span>
+                        </p>
+                    </div>
                 </div>
-                <TrophyIcon className="absolute -right-6 -bottom-8 w-40 h-40 text-volt/10" strokeWidth={1} />
+                <button
+                    onClick={() => window.open(NOERROR_URL, '_blank', 'noopener,noreferrer')}
+                    className="flex items-center gap-1 px-3.5 py-2 rounded-full bg-white/5 border border-white/10 text-[11px] font-black text-dim active:scale-95 transition-transform"
+                >
+                    공식몰 <ArrowUpRight size={12} />
+                </button>
             </div>
 
-            {/* 카테고리 + 정렬 (스크롤해도 위에 붙어 있다) */}
-            <div className="sticky top-0 glass z-10 border-b border-white/[0.06]">
-                <div className="flex gap-2 overflow-x-auto hide-scrollbar px-5 pt-4 pb-3">
+            {/* ── ② NEW DROP 히어로 — 신상이 가장 먼저, 가장 크게 ── */}
+            <div className="px-5">
+                <NewDropHero products={newDrops} />
+            </div>
+
+            {/* ── ③ 신상 전체 한 줄 ── */}
+            <div className="mt-7 px-5">
+                <div className="flex items-baseline justify-between mb-3">
+                    <div>
+                        <span className="text-[10px] font-black label text-volt">2026 S/S Collection</span>
+                        <h2 className="text-lg font-black text-txt kern-tight leading-none mt-0.5">방금 나온 신상</h2>
+                    </div>
+                    <button onClick={() => { setCat('신상'); setSort('신상순'); }}
+                        className="text-[11px] font-black text-dim flex items-center label">
+                        전체 <ChevronRight size={14} />
+                    </button>
+                </div>
+                <div className="flex gap-3 overflow-x-auto hide-scrollbar -mx-5 px-5 pb-1" style={{ overscrollBehaviorX: 'contain' }}>
+                    {newDrops.map(p => <ProductCardH key={p.idx} product={p} />)}
+                </div>
+            </div>
+
+            {/* ── ④ 카테고리 + 정렬 (붙는 헤더) ── */}
+            <div className="sticky top-0 glass z-10 border-b border-white/[0.06] mt-7">
+                <div className="flex gap-2 overflow-x-auto hide-scrollbar px-5 pt-3.5 pb-2.5">
                     {cats.map(c => (
                         <button key={c} onClick={() => setCat(c)}
-                            className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-black transition-all whitespace-nowrap ${cat === c ? 'bg-volt text-ink' : 'bg-white/5 text-dim border border-white/10'}`}>
+                            className={`flex-shrink-0 px-4 py-2 rounded-full text-[13px] font-black transition-all whitespace-nowrap ${cat === c ? 'bg-volt text-ink' : 'bg-white/5 text-dim border border-white/10'}`}>
                             {c}
                         </button>
                     ))}
                 </div>
-                <div className="flex items-center justify-between px-5 pb-3">
-                    <span className="text-[11px] font-black text-muted tabular">{filtered.length}개</span>
-                    <div className="flex gap-1">
+                <div className="flex items-center justify-between px-5 pb-2.5">
+                    <span className="text-[11px] font-black text-muted tabular">{filtered.length}개 상품</span>
+                    <div className="flex gap-0.5">
                         {Object.keys(SORTS).map(s => (
                             <button key={s} onClick={() => setSort(s)}
-                                className={`px-2.5 py-1 rounded-full text-[11px] font-black transition-colors ${sort === s ? 'text-volt bg-volt/10' : 'text-muted'}`}>
+                                className={`px-2 py-1 rounded-full text-[11px] font-black transition-colors ${sort === s ? 'text-volt bg-volt/10' : 'text-muted'}`}>
                                 {s}
                             </button>
                         ))}
@@ -1131,7 +1174,7 @@ function StorePage() {
                 </div>
             </div>
 
-            {/* 상품 그리드 */}
+            {/* ── ⑤ 상품 그리드 ── */}
             {filtered.length > 0 ? (
                 <div className="px-5 pt-4 grid grid-cols-2 gap-3">
                     {filtered.map(p => <ProductCardGrid key={p.idx} product={p} />)}
@@ -1142,15 +1185,14 @@ function StorePage() {
                 </div>
             )}
 
-            {/* 하단 스폰서 배너 (noerror.png) */}
-            <div className="px-5 mt-6">
+            {/* ── ⑥ 공식몰 배너 + 데이터 기준 ── */}
+            <div className="px-5 mt-8">
                 <button onClick={() => window.open(NOERROR_URL, '_blank', 'noopener,noreferrer')} className="w-full rounded-2xl overflow-hidden border border-white/[0.06] active:scale-[0.99] transition-transform">
                     <img src={noErrorBanner} alt="NOERROR 광고 배너" className="w-full h-auto object-cover" />
                 </button>
                 <p className="text-center text-[11px] text-muted font-bold mt-3">
                     본 스토어는 콕스타 공식 파트너 <span className="text-volt">NOERROR</span> 와 함께합니다.
                 </p>
-                {/* 가격·재고는 받아온 시점의 값이라 실시간이 아니다. 숨기지 말고 밝혀 둔다. */}
                 {fetchedLabel && (
                     <p className="text-center text-[10px] text-muted/70 font-bold mt-1">
                         가격 정보 기준 {fetchedLabel} · 실제 가격과 재고는 공식몰에서 확인하세요
@@ -1628,6 +1670,21 @@ function EditGamesModal({ isOpen, onClose, player, onSave }) {
     );
 }
 
+/** 민감도 4단계 버튼 한 줄 (컴포넌트 안에 두면 매 렌더마다 재마운트된다 — 위 ProductRow 주석 참고) */
+function SensitivityRow({ value, onChange }) {
+    return (
+        <div className="grid grid-cols-4 gap-1.5">
+            {AUTO_MATCH_SENSITIVITIES.map(s => (
+                <button
+                    key={s.key}
+                    onClick={() => onChange(s.key)}
+                    className={`py-2 rounded-lg text-xs font-black transition-all ${value === s.key ? 'bg-volt text-ink' : 'bg-white/5 text-dim'}`}
+                >{s.label}</button>
+            ))}
+        </div>
+    );
+}
+
 // 환경 설정 모달
 function SettingsModal({ isOpen, onClose, roomData, onSave, onReset, onKickAll, players, onReplayGuide, isGhost, onToggleGhost }) {
     const [settings, setSettings] = useState({
@@ -1681,18 +1738,6 @@ function SettingsModal({ isOpen, onClose, roomData, onSave, onReset, onKickAll, 
         } finally { setSharing(false); }
     };
 
-    /** 민감도 4단계 버튼 한 줄 */
-    const SensitivityRow = ({ value, onChange }) => (
-        <div className="grid grid-cols-4 gap-1.5">
-            {AUTO_MATCH_SENSITIVITIES.map(s => (
-                <button
-                    key={s.key}
-                    onClick={() => onChange(s.key)}
-                    className={`py-2 rounded-lg text-xs font-black transition-all ${value === s.key ? 'bg-volt text-ink' : 'bg-white/5 text-dim'}`}
-                >{s.label}</button>
-            ))}
-        </div>
-    );
 
     const Stepper = ({ label, field }) => (
         <div>
@@ -2026,11 +2071,12 @@ function CourtSelectionModal({ isOpen, onClose, courts, onSelect }) {
 function GameBanner({ onNavigate }) {
     const [i, setI] = useState(0);
 
-    // 배너로 쓸 상품 3개 — 옷 2 + 라켓 1로 섞어서 매번 같은 종류만 보이지 않게 한다
+    // 배너로 쓸 상품 3개 — 신상을 최우선으로 앞에 세운다 (파트너 브랜드가 밀고 싶은 것).
+    // 신상 2장 + 최고 할인 1장. 신상이 모자라면 특가로 채운다.
     const promoItems = useMemo(() => {
-        const deals = bestDeals(6);
-        const racket = gearPicks(6).find(g => g.cat === '라켓');
-        return [deals[0], deals[1], racket || deals[2]].filter(Boolean);
+        const drops = newArrivals(4).filter(p => p.cat === '신상');
+        const deals = bestDeals(4).filter(p => !drops.some(d => d.idx === p.idx));
+        return [...drops.slice(0, 2), ...deals].slice(0, 3);
     }, []);
 
     const maxRate = useMemo(() => Math.max(0, ...PRODUCTS.map(p => p.discountRate)), []);
@@ -2182,7 +2228,11 @@ function AutoMatchSection({
     onStart, onDelete, onClearAll, onRemovePlayer,
 }) {
     const pressTimerRef = useRef(null);
-    const matchList = Object.entries(autoMatches || {}).sort((a, b) => Number(a[0]) - Number(b[0]));
+    // 값이 배열이 아닌 항목은 아예 걸러낸다.
+    // 예전 버전이 남긴 데이터나 손으로 고친 문서가 섞이면 아래 match.map 에서 화면이 통째로 죽는다.
+    const matchList = Object.entries(autoMatches || {})
+        .filter(([, m]) => Array.isArray(m))
+        .sort((a, b) => Number(a[0]) - Number(b[0]));
 
     // ── 경기 번호를 800ms 길게 누르면 그 경기 삭제 ──
     const handlePressStart = (matchIndex) => {
@@ -2378,6 +2428,13 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef, 
     const roomDocRef = useMemo(() => doc(db, "rooms", roomId), [roomId]);
     const playersCollectionRef = useMemo(() => collection(db, "rooms", roomId, "players"), [roomId]);
 
+    // ★ user 가 null 일 수 있다.
+    //   로그아웃 상태로 공유 링크(?roomId=...)를 열면 GamePage 가 이 화면을 흐릿하게 깔고
+    //   그 위에 로그인 안내를 띄운다. 그때 user 는 null 로 들어온다.
+    //   예전에는 화면 곳곳에서 user.uid 를 그냥 읽어서 그 경로가 통째로 흰 화면이었다.
+    //   (공유 링크를 받은 사람은 대부분 아직 로그인 전이라 오히려 흔한 경로다)
+    const myUid = user?.uid ?? null;
+
     const isAdmin = useMemo(() => {
         if (!roomData || !user) return false;
         if (isSuperAdmin(user) || user.uid === roomData.adminUid) return true;
@@ -2490,6 +2547,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef, 
      * 끄면 위 syncJoin이 다시 돌아 선수 카드를 만들어 준다.
      */
     const handleToggleGhost = async () => {
+        if (!user) return;
         const next = !isGhost;
         if (next && inProgressPlayerIds.has(user.uid)) {
             toast("경기 중에는 운영 모드로 바꿀 수 없습니다. 경기가 끝난 뒤 눌러주세요.", 'error');
@@ -2583,6 +2641,12 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef, 
             if (!won) return;
 
             // 이긴 기기만 선수 기록을 지운다. Firestore 배치 한계는 500이라 400씩 끊는다.
+            //
+            // ⚠️ 배치 하나가 실패해도 나머지는 계속 진행해야 한다.
+            //   batch.update 는 대상 문서가 없으면 배치 전체를 실패시키는데, 스냅샷을 찍은
+            //   직후 누가 방을 나가면 그 일이 실제로 일어난다. 위에서 운영일 키는 이미
+            //   선점한 뒤라, 여기서 통째로 중단되면 '방은 비워졌는데 선수 기록은 어제 그대로'인
+            //   상태가 되고 오늘은 다시 초기화되지 않는다.
             for (let i = 0; i < playersArray.length; i += 400) {
                 const batch = writeBatch(db);
                 playersArray.slice(i, i + 400).forEach(p => {
@@ -2593,7 +2657,11 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef, 
                         isResting: false,
                     });
                 });
-                await batch.commit();
+                try {
+                    await batch.commit();
+                } catch (e) {
+                    console.error(`일일 초기화 배치 실패 (${i}~${i + 400}) — 나머지는 계속합니다:`, e);
+                }
             }
         } catch (e) {
             console.error("일일 데이터 초기화 실패:", e);
@@ -2603,9 +2671,11 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef, 
     };
 
     useEffect(() => {
-        const unsubPlayers = onSnapshot(playersCollectionRef, async (snapshot) => {
+        const unsubPlayers = onSnapshot(playersCollectionRef, (snapshot) => {
             const playersArray = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            if (isAdmin && roomData) await runDailyResetIfDue(playersArray);
+            // 초기화는 뒤에서 돌게 두고 화면부터 그린다.
+            // await 로 기다리면 배치 커밋이 끝날 때까지(수백 명이면 몇 초) 대기 명단이 안 뜬다.
+            if (isAdmin && roomData) { runDailyResetIfDue(playersArray); }
             playersArray.sort((a, b) => (a.entryTime?.seconds || 0) - (b.entryTime?.seconds || 0));
             setPlayers(playersArray.reduce((acc, p) => ({ ...acc, [p.id]: p }), {}));
             setLoading(false);
@@ -3093,58 +3163,69 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef, 
 
     const handleEndMatch = async (courtIdx) => {
         if (!isAdmin || !confirm("경기를 종료하시겠습니까?")) return;
-        const court = roomData.inProgressCourts[courtIdx];
-        if (!court || !court.players) return;
         try {
-            const batch = writeBatch(db);
+            // ★ 반드시 트랜잭션으로, 그리고 '멱등'하게.
+            //   예전에는 화면에 보이는 코트 정보로 batch 를 만들었다. 그러면 관리자 둘이
+            //   거의 동시에 종료를 누를 때 둘 다 batch 를 커밋해서, 4명 모두 경기 수가
+            //   2씩 오르고 같은 기록이 두 줄 쌓였다. (밤새 몰래 진행되는 종류의 데이터 손상 —
+            //   다음 날 "나 3경기밖에 안 쳤는데 6경기래요"가 되어야 발견된다)
+            //   이제 트랜잭션 안에서 코트를 다시 읽고, 이미 비어 있으면 조용히 끝낸다.
+            //   늦게 누른 쪽은 아무 일도 하지 않는다.
+            await runTransaction(db, async (t) => {
+                const roomSnap = await t.get(roomDocRef);
+                if (!roomSnap.exists()) return;
+                const data = roomSnap.data();
+                const courts = [...(data.inProgressCourts || [])];
+                const court = courts[courtIdx];
+                if (!court || !Array.isArray(court.players)) return; // 이미 다른 관리자가 종료했다
 
-            // 기존 표시용 기록 (사람이 읽는 문자열) — 그대로 유지한다
-            const matchMembersString = court.players.map(pid => {
-                const p = players[pid];
-                if (!p) return '퇴장한 선수';
-                const levelMark = (p.level && p.level !== '미설정') ? p.level[0] : '';
-                return `${levelMark}${p.isBot ? `[Bot]${p.name}` : p.name}`;
-            }).join(', ');
+                // 선수 문서도 트랜잭션 안에서 읽는다 (읽기는 쓰기보다 먼저 전부 끝내야 한다)
+                const ids = court.players.filter(Boolean);
+                const snaps = await Promise.all(ids.map(pid => t.get(doc(playersCollectionRef, pid))));
+                const docsById = {};
+                snaps.forEach((snap, i) => { if (snap.exists()) docsById[ids[i]] = snap.data(); });
 
-            // ── [자동 매칭] 구조체 기록 ──
-            // 매칭 엔진은 "누가 누구와 몇 번 만났는지"를 세야 겹침을 피할 수 있는데,
-            // 위 문자열로는 그걸 계산할 수 없다. 그래서 구조체를 함께 쌓는다.
-            //
-            // ★ timestamp를 4명 모두에게 '똑같이' 넣는 게 핵심이다.
-            //   서로 다른 timestamp의 개수가 곧 '오늘 총 몇 경기'가 되고,
-            //   양쪽 선수 기록에서 같은 경기를 두 번 세지 않는 기준도 이 값이다.
-            //   각자 new Date()를 부르면 밀리초가 어긋나 둘 다 깨진다.
-            const timestamp = new Date().toISOString();
-            const teamA = [court.players[0], court.players[1]].filter(Boolean);
-            const teamB = [court.players[2], court.players[3]].filter(Boolean);
+                // 표시용 문자열 기록 (기존 화면과의 호환)
+                const matchMembersString = court.players.map(pid => {
+                    const p = docsById[pid];
+                    if (!p) return '퇴장한 선수';
+                    const levelMark = (p.level && p.level !== '미설정') ? p.level[0] : '';
+                    return `${levelMark}${p.isBot ? `[Bot]${p.name}` : p.name}`;
+                }).join(', ');
 
-            court.players.forEach(pid => {
-                const p = players[pid];
-                if (!pid || !p) return;
-                const roomPlayerRef = doc(playersCollectionRef, pid);
-                const currentHistory = Array.isArray(p.matchHistory) ? p.matchHistory : [];
-                const inA = teamA.includes(pid);
-                const structured = {
-                    timestamp,
-                    partners: (inA ? teamA : teamB).filter(x => x !== pid),
-                    opponents: inA ? teamB : teamA,
-                };
-                const prevStructured = Array.isArray(p.todayRecentGames) ? p.todayRecentGames : [];
-                batch.update(roomPlayerRef, {
-                    todayGames: (p.todayGames || 0) + 1,
-                    matchHistory: [matchMembersString, ...currentHistory].slice(0, 10),
-                    // 최신이 앞. 20개까지만 — 엔진이 보는 건 최근 몇 경기뿐이라 더 쌓아둘 이유가 없다
-                    todayRecentGames: [structured, ...prevStructured].slice(0, 20),
+                // ── [자동 매칭] 구조체 기록 ──
+                // ★ timestamp 를 4명 모두에게 '똑같이' 넣는 게 핵심이다.
+                //   서로 다른 timestamp 의 개수가 곧 '오늘 총 몇 경기'가 되고,
+                //   같은 경기를 두 번 세지 않는 기준도 이 값이다.
+                const timestamp = new Date().toISOString();
+                const teamA = [court.players[0], court.players[1]].filter(Boolean);
+                const teamB = [court.players[2], court.players[3]].filter(Boolean);
+
+                ids.forEach(pid => {
+                    const p = docsById[pid];
+                    if (!p) return; // 경기 중에 방을 나간 사람 — 기록할 문서가 없다
+                    const inA = teamA.includes(pid);
+                    const structured = {
+                        timestamp,
+                        partners: (inA ? teamA : teamB).filter(x => x !== pid),
+                        opponents: inA ? teamB : teamA,
+                    };
+                    const prevHistory = Array.isArray(p.matchHistory) ? p.matchHistory : [];
+                    const prevStructured = Array.isArray(p.todayRecentGames) ? p.todayRecentGames : [];
+                    t.update(doc(playersCollectionRef, pid), {
+                        todayGames: (p.todayGames || 0) + 1,
+                        matchHistory: [matchMembersString, ...prevHistory].slice(0, 10),
+                        // 최신이 앞. 20개까지만 — 엔진이 보는 건 최근 몇 경기뿐이다
+                        todayRecentGames: [structured, ...prevStructured].slice(0, 20),
+                    });
                 });
-            });
 
-            const newCourts = [...roomData.inProgressCourts];
-            newCourts[courtIdx] = null;
-            await batch.commit();
-            await updateDoc(roomDocRef, { inProgressCourts: newCourts });
+                courts[courtIdx] = null;
+                t.update(roomDocRef, { inProgressCourts: courts });
+            });
         } catch (e) {
             console.error("경기 종료 및 히스토리 저장 오류:", e);
-            toast("히스토리 저장 중 오류가 발생했습니다.", 'error');
+            toast("경기 종료 중 오류가 발생했습니다. 다시 시도해주세요.", 'error');
         }
     };
 
@@ -3231,6 +3312,11 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef, 
         let failReason = null;
         try {
             await runTransaction(db, async (t) => {
+                // ★ 재시도마다 초기화해야 한다.
+                //   Firestore 트랜잭션은 경합이 나면 이 함수를 처음부터 다시 돌린다.
+                //   첫 시도에서 "이미 예약됨"으로 표시해 뒀는데 두 번째 시도에서 성공하면,
+                //   실제로는 추가됐으면서 화면에는 실패 안내가 뜨는 모순이 생긴다.
+                failReason = null;
                 const snap = await t.get(roomDocRef);
                 if (!snap.exists()) throw "방이 존재하지 않습니다.";
                 const data = snap.data();
@@ -3253,7 +3339,11 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef, 
                     return;
                 }
 
-                autoMatches[String(Object.keys(autoMatches).length)] = [...option.ids];
+                // 새 경기 번호는 '개수'가 아니라 '최대 번호 + 1'로 정한다.
+                // 삭제 후 재인덱싱이 실패해 {0, 2} 처럼 구멍 난 상태가 되어도
+                // 기존 경기를 덮어쓰지 않는다. (개수로 하면 length=2 가 '2'번을 덮는다)
+                const nextIdx = Object.keys(autoMatches).reduce((m, k) => Math.max(m, Number(k) + 1), 0);
+                autoMatches[String(nextIdx)] = [...option.ids];
                 t.update(roomDocRef, { autoMatches });
             });
         } catch (e) {
@@ -3335,8 +3425,8 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef, 
                             👻 운영중
                         </span>
                     ) : (
-                        <button onClick={handleToggleRest} className={`h-9 px-3.5 rounded-full text-xs font-black transition-all flex items-center justify-center ${players[user.uid]?.isResting ? 'bg-white/10 text-dim' : 'bg-volt text-ink'}`}>
-                            {players[user.uid]?.isResting ? '복귀' : '휴식'}
+                        <button onClick={handleToggleRest} className={`h-9 px-3.5 rounded-full text-xs font-black transition-all flex items-center justify-center ${players[myUid]?.isResting ? 'bg-white/10 text-dim' : 'bg-volt text-ink'}`}>
+                            {players[myUid]?.isResting ? '복귀' : '휴식'}
                         </button>
                     )}
                     {isAdmin && (
@@ -3372,7 +3462,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef, 
                             </div>
                             <div className="grid grid-cols-4 gap-2">
                                 {maleWaiting.map(p => (
-                                    <PlayerCard key={p.id} player={p} isAdmin={isAdmin} isCurrentUser={user.uid === p.id} isSelected={selectedPlayerIds.includes(p.id)} isResting={p.isResting} onCardClick={handleCardClick} onDeleteClick={handleKickPlayer} onLongPress={(p) => setEditGamePlayer(p)} />
+                                    <PlayerCard key={p.id} player={p} isAdmin={isAdmin} isCurrentUser={myUid === p.id} isSelected={selectedPlayerIds.includes(p.id)} isResting={p.isResting} onCardClick={handleCardClick} onDeleteClick={handleKickPlayer} onLongPress={(p) => setEditGamePlayer(p)} />
                                 ))}
                             </div>
                             {maleWaiting.length > 0 && femaleWaiting.length > 0 && (
@@ -3383,7 +3473,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef, 
                             )}
                             <div className="grid grid-cols-4 gap-2">
                                 {femaleWaiting.map(p => (
-                                    <PlayerCard key={p.id} player={p} isAdmin={isAdmin} isCurrentUser={user.uid === p.id} isSelected={selectedPlayerIds.includes(p.id)} isResting={p.isResting} onCardClick={handleCardClick} onDeleteClick={handleKickPlayer} onLongPress={(p) => setEditGamePlayer(p)} />
+                                    <PlayerCard key={p.id} player={p} isAdmin={isAdmin} isCurrentUser={myUid === p.id} isSelected={selectedPlayerIds.includes(p.id)} isResting={p.isResting} onCardClick={handleCardClick} onDeleteClick={handleKickPlayer} onLongPress={(p) => setEditGamePlayer(p)} />
                                 ))}
                             </div>
                             {waitingPlayers.length === 0 && (
@@ -3400,7 +3490,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef, 
                             autoMatches={roomData.autoMatches}
                             players={players}
                             isAdmin={isAdmin}
-                            currentUserId={user.uid}
+                            currentUserId={myUid}
                             inProgressPlayerIds={inProgressPlayerIds}
                             courtIndexByPlayer={courtIndexByPlayer}
                             onGenerate={handleGenerateMatch}
@@ -3430,7 +3520,7 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef, 
                                         <div className="grid grid-cols-4 gap-2">
                                             {match.map((pid, sIdx) => {
                                                 if (pid && players[pid]) {
-                                                    return <PlayerCard key={pid} player={players[pid]} isAdmin={isAdmin} isCurrentUser={user.uid === pid} isSelected={selectedPlayerIds.includes(pid)} onCardClick={handleCardClick} onDeleteClick={() => handleRemoveFromSchedule(mIdx, sIdx)} onLongPress={(p) => setEditGamePlayer(p)} />;
+                                                    return <PlayerCard key={pid} player={players[pid]} isAdmin={isAdmin} isCurrentUser={myUid === pid} isSelected={selectedPlayerIds.includes(pid)} onCardClick={handleCardClick} onDeleteClick={() => handleRemoveFromSchedule(mIdx, sIdx)} onLongPress={(p) => setEditGamePlayer(p)} />;
                                                 } else if (pid && !players[pid]) {
                                                     return <LeftPlayerCard key={`left-${mIdx}-${sIdx}`} isAdmin={isAdmin} onClick={() => handleRemoveFromSchedule(mIdx, sIdx)} />;
                                                 } else {
@@ -3525,6 +3615,51 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef, 
 // 콕맵 (Kakao Map)
 // ===================================================================================
 // ===================================================================================
+// 콕맵 보조 함수 (컴포넌트 밖 — 매 렌더마다 다시 만들 이유가 없다)
+// ===================================================================================
+
+/**
+ * 지도 오버레이에 넣을 문자열을 안전하게 만든다.
+ * 경기방 이름은 사용자가 직접 지은 값이라, HTML 에 그대로 끼워 넣으면 태그가 실행된다.
+ * (지도를 보기만 해도 실행되므로 클릭조차 필요 없다)
+ */
+function escapeHtml(text) {
+    return String(text ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/**
+ * 체육관 종류별 색 점 마커 이미지.
+ *
+ * 카카오 MarkerImage 는 같은 객체를 여러 마커가 공유할 수 있어서, 종류마다 한 번만
+ * 만들어 두고 돌려 쓴다. 수백 개 마커를 찍어도 이미지 객체는 네 개뿐이다.
+ * SVG 를 data URI 로 넣으므로 네트워크 요청도 없다.
+ */
+const GYM_PIN_COLORS = {
+    badminton: '#CDFB47',   // 배드민턴 — 앱의 시그니처 색
+    public: '#60A5FA',      // 공설
+    private: '#F3F5F8',     // 사설
+    school: '#8C93A1',      // 학교
+};
+const gymPinCache = {};
+function gymPinImage(kind) {
+    const color = GYM_PIN_COLORS[kind] || GYM_PIN_COLORS.private;
+    if (gymPinCache[color]) return gymPinCache[color];
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="5.5" fill="${color}" stroke="#08090C" stroke-width="2"/></svg>`;
+    const img = new window.kakao.maps.MarkerImage(
+        `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
+        new window.kakao.maps.Size(16, 16),
+        { offset: new window.kakao.maps.Point(8, 8) }
+    );
+    gymPinCache[color] = img;
+    return img;
+}
+
+// ===================================================================================
 // 콕맵 — 내 주변 체육관 · 경기방 · 동호회
 // -----------------------------------------------------------------------------------
 // 예전에는 콕스타에 만들어진 '경기방'만 지도에 찍혔다. 방이 없는 동네에서는 지도가
@@ -3548,12 +3683,17 @@ function KokMapPage({ onNavigate }) {
     const mapInstance = useRef(null);
     const clustererRef = useRef(null);
     const roomObjectsRef = useRef([]);
+    const gymMarkersRef = useRef([]);
 
     const [rooms, setRooms] = useState([]);
     const [isMapReady, setIsMapReady] = useState(false);
     const [selectedRoom, setSelectedRoom] = useState(null);
     const [selectedGym, setSelectedGym] = useState(null);
-    const [activeFilter, setActiveFilter] = useState('room');
+    // 기본은 '배드민턴장'.
+    // 예전 기본값('경기방만')은 체육관 핀을 하나도 안 그려서, 방이 없는 동네에서는
+    // 콕맵을 열면 빈 지도가 떴다. 경기방 핀은 필터와 무관하게 항상 그려지므로
+    // 배드민턴장을 기본으로 두면 어느 동네에서든 볼 게 있다.
+    const [activeFilter, setActiveFilter] = useState('badminton');
     const [searchText, setSearchText] = useState('');
     const [center, setCenter] = useState({ lat: 37.2636, lng: 127.0286 }); // 수원시청 (경기도 한복판)
     const ps = useRef(null);
@@ -3588,16 +3728,6 @@ function KokMapPage({ onNavigate }) {
                     content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
                     border-width: 5px 5px 0; border-style: solid; border-color: #CDFB47 transparent transparent transparent;
                 }
-                /* 체육관 핀 — 경기방(라임)과 헷갈리지 않게 종류별로 색을 나눈다 */
-                .gym-pin {
-                    width: 13px; height: 13px; border-radius: 50%;
-                    border: 2px solid #08090C; box-shadow: 0 2px 6px rgba(0,0,0,.5);
-                    cursor: pointer;
-                }
-                .gym-pin.badminton { background: #CDFB47; }
-                .gym-pin.public    { background: #60A5FA; }
-                .gym-pin.private   { background: #F3F5F8; }
-                .gym-pin.school    { background: #8C93A1; }
             `;
             document.head.appendChild(style);
         }
@@ -3612,10 +3742,20 @@ function KokMapPage({ onNavigate }) {
                     mapInstance.current = map;
                     ps.current = new window.kakao.maps.services.Places();
                     geocoder.current = new window.kakao.maps.services.Geocoder();
-                    // 1,000개가 넘는 체육관 핀을 묶어준다. minLevel 이하로 확대하면 개별 핀이 보인다.
-                    clustererRef.current = new window.kakao.maps.MarkerClusterer({
-                        map, averageCenter: true, minLevel: 5, disableClickZoom: false,
-                    });
+                    // 체육관 핀 수백 개를 묶어준다. minLevel 이하로 확대하면 개별 핀이 보인다.
+                    // ⚠️ clusterer 라이브러리 로딩이 실패하면 여기서 예외가 나는데, 그대로 두면
+                    //    아래 setIsMapReady 가 실행되지 않아 '지도는 떴는데 아무것도 없는' 상태가
+                    //    조용히 만들어진다. 클러스터 없이라도 동작하도록 감싼다.
+                    try {
+                        if (window.kakao.maps.MarkerClusterer) {
+                            clustererRef.current = new window.kakao.maps.MarkerClusterer({
+                                map, averageCenter: true, minLevel: 5, disableClickZoom: false,
+                            });
+                        }
+                    } catch (e) {
+                        console.error('마커 클러스터러를 만들지 못했습니다:', e);
+                        clustererRef.current = null;
+                    }
                     window.kakao.maps.event.addListener(map, 'click', () => {
                         setSelectedRoom(null); setSelectedGym(null);
                     });
@@ -3636,48 +3776,46 @@ function KokMapPage({ onNavigate }) {
         }
     }, []);
 
-    // ── 체육관 핀 (클러스터) ──
+    // ── 체육관 핀 ──
+    // ★ 예전에는 핀마다 Marker + CustomOverlay 두 개를 만들었다. '전체 체육관'을 켜면
+    //   객체가 1,500개가 되고 CustomOverlay 는 DOM 요소를 하나씩 만들기 때문에
+    //   휴대폰에서 지도가 몇 초씩 멈췄다. 지금은 Marker 하나에 색 점 이미지를 입혀
+    //   객체를 절반으로 줄이고 DOM 을 아예 만들지 않는다. 확대/축소 때도 다시 그리지 않는다.
     useEffect(() => {
-        if (!isMapReady || !clustererRef.current || !window.kakao) return;
+        if (!isMapReady || !window.kakao) return;
+        const map = mapInstance.current;
         const clusterer = clustererRef.current;
-        clusterer.clear();
 
         const list = filterGyms(activeFilter);
+        if (clusterer) clusterer.clear();
+        gymMarkersRef.current.forEach(m => m.setMap(null));
+        gymMarkersRef.current = [];
         if (list.length === 0) return;
 
         const markers = list.map(gym => {
-            const pos = new window.kakao.maps.LatLng(gym.lat, gym.lng);
             const kind = gym.isBadminton ? 'badminton' : gym.ownership;
-            const overlay = new window.kakao.maps.CustomOverlay({
-                position: pos,
-                content: `<div class="gym-pin ${kind}" title="${gym.name}"></div>`,
-                yAnchor: 0.5,
+            const marker = new window.kakao.maps.Marker({
+                position: new window.kakao.maps.LatLng(gym.lat, gym.lng),
+                image: gymPinImage(kind),
+                title: gym.name,   // 마우스를 올리면 이름이 뜬다 (DOM 없이)
                 clickable: true,
             });
-            // CustomOverlay 는 클러스터러에 못 넣으므로, 클릭 판정용 투명 마커를 함께 쓴다
-            const marker = new window.kakao.maps.Marker({ position: pos, opacity: 0.01 });
             window.kakao.maps.event.addListener(marker, 'click', () => {
-                mapInstance.current.panTo(pos);
+                map.panTo(marker.getPosition());
                 setSelectedGym(gym);
                 setSelectedRoom(null);
             });
-            marker.__overlay = overlay;
             return marker;
         });
 
-        clusterer.addMarkers(markers);
-        // 확대 단계에 따라 색 점을 보였다 숨긴다 (클러스터로 묶인 상태에선 점이 방해된다)
-        const syncOverlays = () => {
-            const show = mapInstance.current.getLevel() < 5;
-            markers.forEach(m => m.__overlay.setMap(show ? mapInstance.current : null));
-        };
-        syncOverlays();
-        window.kakao.maps.event.addListener(mapInstance.current, 'zoom_changed', syncOverlays);
+        gymMarkersRef.current = markers;
+        if (clusterer) clusterer.addMarkers(markers);
+        else markers.forEach(m => m.setMap(map));   // 클러스터러가 없으면 그냥 다 찍는다
 
         return () => {
-            markers.forEach(m => m.__overlay.setMap(null));
-            clusterer.clear();
-            window.kakao.maps.event.removeListener(mapInstance.current, 'zoom_changed', syncOverlays);
+            if (clusterer) clusterer.clear();
+            markers.forEach(m => m.setMap(null));
+            gymMarkersRef.current = [];
         };
     }, [isMapReady, activeFilter]);
 
@@ -3692,7 +3830,9 @@ function KokMapPage({ onNavigate }) {
             const pos = new window.kakao.maps.LatLng(room.coords.lat, room.coords.lng);
             const marker = new window.kakao.maps.Marker({ position: pos, map, clickable: true });
             const overlay = new window.kakao.maps.CustomOverlay({
-                position: pos, content: `<div class="room-label">${room.name}</div>`, map, yAnchor: 1,
+                // ★ 방 이름은 사용자가 지은 값이다. HTML 에 그대로 넣으면 태그가 실행된다.
+                //   (예: 방 이름에 <img onerror=...> 를 넣어 만든 방을 지도에서 보기만 해도 실행)
+                position: pos, content: `<div class="room-label">${escapeHtml(room.name)}</div>`, map, yAnchor: 1,
             });
             window.kakao.maps.event.addListener(marker, 'click', () => {
                 map.panTo(pos); setSelectedRoom(room); setSelectedGym(null);
@@ -3792,6 +3932,16 @@ function KokMapPage({ onNavigate }) {
                     >
                         {f.label}
                     </button>
+                ))}
+            </div>
+
+            {/* 핀 색 범례 — 설명 없는 색 점은 장식일 뿐이다 */}
+            <div className="absolute top-[122px] left-4 z-20 glass rounded-xl border border-white/10 px-3 py-2 flex items-center gap-3 pointer-events-none">
+                {[['#CDFB47', '배드민턴'], ['#60A5FA', '공설'], ['#F3F5F8', '사설']].map(([c, l]) => (
+                    <span key={l} className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c }} />
+                        <span className="text-[10px] font-black text-dim">{l}</span>
+                    </span>
                 ))}
             </div>
 

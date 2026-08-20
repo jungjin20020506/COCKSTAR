@@ -12,7 +12,8 @@
     "fetch:gyms": "node scripts/fetch-gyms.mjs",
     "fetch:clubs": "node scripts/fetch-clubs.mjs",
     "test:matching": "node scripts/simulate-matching.mjs",
-    "test:matching:stress": "node scripts/stress-test-matching.mjs"
+    "test:matching:stress": "node scripts/stress-test-matching.mjs",
+    "test:integration": "node scripts/test-integration.mjs"
   },
   "dependencies": {
     "firebase": "^12.2.1",

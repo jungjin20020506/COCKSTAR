@@ -72,11 +72,18 @@ const QUOTA = {
 
 /**
  * 대표로 남길 상품을 고른다.
- * 같은 이름 중에서는 '살 수 있고, 더 싸고, 사진이 있는' 것을 대표로 삼는다.
+ * 같은 이름 중에서는 '살 수 있고, 사진이 있고, 할인 중인' 것을 대표로 삼되,
+ * 색상 변형들은 colorVariants 로 함께 담는다. (쇼핑몰 카드에 색상 도트로 보여준다)
  */
 function curate(list) {
     const best = new Map();
+    const variants = new Map();   // 이름 → 색상 목록
     for (const p of list) {
+        if (p.color) {
+            const arr = variants.get(p.name) || [];
+            if (!arr.includes(p.color)) arr.push(p.color);
+            variants.set(p.name, arr);
+        }
         const cur = best.get(p.name);
         if (!cur) { best.set(p.name, p); continue; }
         const score = (x) => (x.image ? 4 : 0) + (x.soldOut ? 0 : 2) + (x.discountRate > 0 ? 1 : 0);
@@ -89,15 +96,25 @@ function curate(list) {
         if (!limit) continue;
         const group = [...best.values()]
             .filter(p => p.cat === cat)
-            // 할인 폭이 큰 것 → 최근 등록 순. 화면에 '살 만한 것'이 먼저 오게 한다.
-            .sort((a, b) => b.discountRate - a.discountRate || b.idx - a.idx);
+            // ★ 신상 카테고리는 '최근 등록 순'을 우선한다 — 신상 코너의 존재 이유다.
+            //   나머지 카테고리는 할인 폭이 큰 것부터 (살 만한 것이 먼저 보이게).
+            .sort((a, b) => cat === '신상'
+                ? (b.idx - a.idx)
+                : (b.discountRate - a.discountRate || b.idx - a.idx));
         picked.push(...group.slice(0, limit));
     }
-    return picked;
+    return picked.map(p => ({ ...p, colorVariants: variants.get(p.name) || (p.color ? [p.color] : []) }));
 }
 
-/** 화면에 실제로 보여줄 대표 상품 */
+/** 화면에 실제로 보여줄 대표 상품 — 신상이 항상 맨 앞이다 (CATEGORY_ORDER 순서 그대로) */
 const PRODUCTS = curate(ALL_PRODUCTS);
+
+/** 상품에 붙일 뱃지. 신상엔 NEW, 40% 넘는 할인엔 BEST — 그 외엔 안 붙인다 (뱃지가 흔하면 안 보인다) */
+function badgeOf(p) {
+    if (p.cat === '신상') return 'NEW';
+    if (p.discountRate >= 40) return 'BEST';
+    return null;
+}
 
 /** 실제로 상품이 있는 카테고리만, 정해진 순서대로 */
 const CATEGORIES = CATEGORY_ORDER.filter(c => PRODUCTS.some(p => p.cat === c));
@@ -197,4 +214,5 @@ export {
     gearPicks,
     categoryThumb,
     openProduct,
+    badgeOf,
 };

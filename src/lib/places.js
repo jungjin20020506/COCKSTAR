@@ -51,7 +51,7 @@ const CLUB_SOURCE = clubData.source || '소모임';
  * '경기방'은 콕스타에 실제로 열린 방이다 — 다른 앱에는 없는, 우리만 가진 정보다.
  */
 const MAP_FILTERS = [
-    { key: 'room', label: '🏸 경기방' },
+    { key: 'room', label: '🏸 경기방만' },
     { key: 'badminton', label: '배드민턴장' },
     { key: 'public', label: '공설' },
     { key: 'private', label: '사설' },
