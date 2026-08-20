@@ -913,21 +913,24 @@ function ProductRow({ items, loading }) {
 }
 
 /**
- * 카테고리 바로가기 타일 — 대표 상품 사진을 배경으로 깐다.
- * 글자만 있는 칩보다 "여기 뭐가 있는지"가 한눈에 들어온다.
+ * 카테고리 바로가기 타일 — 대표 상품 사진 + 아래 라벨.
+ *
+ * ★ 처음에는 사진 '위에' 어두운 그라디언트를 깔고 글씨를 얹었는데, 4열 타일은
+ *   한 칸이 84px밖에 안 돼서 그라디언트가 사진 대부분을 덮었다. 결과적으로
+ *   "시커먼 네모 + 글씨"만 보이는 이상한 UI가 됐다 (실기기에서 확인).
+ *   지금은 사진을 밝은 타일에 그대로 두고 글씨는 타일 '밖' 아래에 둔다 —
+ *   쇼핑몰 앱들의 카테고리 아이콘과 같은 방식이라 한눈에 읽힌다.
  */
 function CategoryTile({ cat, onClick }) {
     const thumb = categoryThumb(cat);
     const count = PRODUCTS.filter(p => p.cat === cat).length;
     return (
-        <button onClick={onClick} className="relative rounded-2xl overflow-hidden border border-white/[0.06] aspect-[4/3] active:scale-[0.97] transition-transform">
-            <ProductImage src={thumb} alt={cat} className="absolute inset-0 w-full h-full" />
-            {/* 사진 위 글씨가 묻히지 않게 아래쪽을 어둡게 깐다 */}
-            <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/40 to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 p-2.5 text-left">
-                <p className="font-black text-sm text-txt kern-tight leading-none">{cat}</p>
-                <p className="text-[10px] text-dim font-bold mt-1 tabular">{count}종</p>
+        <button onClick={onClick} className="text-center active:scale-[0.95] transition-transform">
+            <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-[#F3F4F6] border border-white/[0.06]">
+                <ProductImage src={thumb} alt={cat} className="w-full h-full" />
             </div>
+            <p className="font-black text-xs text-txt mt-1.5 leading-none">{cat}</p>
+            <p className="text-[10px] text-muted font-bold tabular leading-none mt-1">{count}종</p>
         </button>
     );
 }
@@ -1040,19 +1043,6 @@ function HomePage({ user, setPage }) {
                         <>
                             <GameCard title="오산시 저녁 8시 · 초심 환영" tags={[{label: '초심'}, {label: '오산시'}]} location="OO 체육관" current={8} total={12} onClick={() => setPage('game')} />
                             <GameCard title="수원시 주말 40대 A조 모임" tags={[{label: 'A조'}, {label: '수원시'}, {label: '40대'}]} location="XX 체육관" current={10} total={16} onClick={() => setPage('game')} />
-                        </>
-                    )}
-                </div>
-            </section>
-
-            <section>
-                <SectionHeader title="커뮤니티 인기글" sub="Talk" onMoreClick={() => setPage('community')} />
-                <div className="space-y-2.5">
-                    {loading ? (<><SkeletonCard /><SkeletonCard /><SkeletonCard /></>) : (
-                        <>
-                            <CommunityPost category="Q&A" title="노에러 신상 라켓 써보신 분 후기 있으신가요?" likes={12} onClick={() => setPage('community')} />
-                            <CommunityPost category="자유글" title="C조 탈출하는 법.txt 공유합니다" likes={8} onClick={() => setPage('community')} />
-                            <CommunityPost category="중고" title="[판매] 노에러 투어 백팩 새상품 팝니다" likes={5} onClick={() => setPage('community')} />
                         </>
                     )}
                 </div>
@@ -3678,36 +3668,50 @@ function gymPinImage(kind) {
 // 성능 메모: 체육관이 1,000곳이 넘어서 마커를 그냥 찍으면 지도가 버벅인다.
 //    카카오 클러스터러(index.html 에서 libraries=clusterer 로 이미 불러온다)로 묶는다.
 // ===================================================================================
+// ===================================================================================
+// 콕맵 — 내 주변 체육관 · 경기방 · 동호회
+// -----------------------------------------------------------------------------------
+// 화면 구조 (위 → 아래)
+//   ① 검색창 + 필터 칩 (지도 위에 겹치지 않는 고정 헤더 — 지도를 가리지 않는다)
+//   ② 지도
+//   ③ 아래 시트 — 접었다 폈다 할 수 있다 (손잡이 탭)
+//        접힘: 손잡이 + "이 근처 체육관 N곳" 한 줄  → 지도가 화면의 주인공
+//        펼침: 목록(거리순) 또는 선택한 체육관/경기방 상세
+//
+// ★ 지도가 없어도 전부 동작한다.
+//   카카오 SDK 는 도메인 미등록·네트워크 문제로 안 뜰 수 있다. 예전에는 그 경우
+//   회색 빈 화면에서 무한 대기했다 — 사용자에게는 그냥 "고장난 콕맵"이다.
+//   지금은 8초 안에 못 뜨면 목록 전용 모드로 전환한다. 검색·목록·상세·전화·
+//   카카오맵 링크는 지도 없이도 다 된다. (지도는 장식이 아니라 뷰 중 하나일 뿐이다)
+// ===================================================================================
 function KokMapPage({ onNavigate }) {
     const mapRef = useRef(null);
     const mapInstance = useRef(null);
     const clustererRef = useRef(null);
     const roomObjectsRef = useRef([]);
     const gymMarkersRef = useRef([]);
+    const centerDebounceRef = useRef(null);
 
     const [rooms, setRooms] = useState([]);
     const [isMapReady, setIsMapReady] = useState(false);
+    const [mapFailed, setMapFailed] = useState(false);
     const [selectedRoom, setSelectedRoom] = useState(null);
     const [selectedGym, setSelectedGym] = useState(null);
-    // 기본은 '배드민턴장'.
-    // 예전 기본값('경기방만')은 체육관 핀을 하나도 안 그려서, 방이 없는 동네에서는
-    // 콕맵을 열면 빈 지도가 떴다. 경기방 핀은 필터와 무관하게 항상 그려지므로
-    // 배드민턴장을 기본으로 두면 어느 동네에서든 볼 게 있다.
     const [activeFilter, setActiveFilter] = useState('badminton');
     const [searchText, setSearchText] = useState('');
+    const [sheetOpen, setSheetOpen] = useState(false);   // 접힘이 기본 — 지도가 먼저 보인다
     const [center, setCenter] = useState({ lat: 37.2636, lng: 127.0286 }); // 수원시청 (경기도 한복판)
-    const ps = useRef(null);
     const geocoder = useRef(null);
 
     // ── 콕스타 경기방 ──
     useEffect(() => {
         const unsubscribe = onSnapshot(query(collection(db, "rooms")), (snapshot) => {
             setRooms(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
+        }, (e) => console.error('경기방 구독 실패:', e));
         return () => unsubscribe();
     }, []);
 
-    // ── 지도 만들기 ──
+    // ── 지도 만들기 (8초 안에 못 뜨면 목록 전용 모드) ──
     useEffect(() => {
         const container = mapRef.current;
         if (!container) return;
@@ -3717,7 +3721,6 @@ function KokMapPage({ onNavigate }) {
             style.innerHTML = `
                 #kakao-map img { max-width: none !important; height: auto !important; border: 0 !important; }
                 #kakao-map div { border: 0 !important; }
-                .custom-overlay { pointer-events: none; }
                 .room-label {
                     padding: 4px 9px; background-color: #08090C; border: 1.5px solid #CDFB47;
                     border-radius: 999px; font-size: 11px; font-weight: 900; color: #F3F5F8;
@@ -3731,56 +3734,65 @@ function KokMapPage({ onNavigate }) {
             `;
             document.head.appendChild(style);
         }
+
+        let cancelled = false;
         const initMap = () => {
             if (mapInstance.current) { setIsMapReady(true); return true; }
             if (window.kakao?.maps?.load) {
                 window.kakao.maps.load(() => {
-                    const map = new window.kakao.maps.Map(container, {
-                        center: new window.kakao.maps.LatLng(center.lat, center.lng),
-                        level: 6,
-                    });
-                    mapInstance.current = map;
-                    ps.current = new window.kakao.maps.services.Places();
-                    geocoder.current = new window.kakao.maps.services.Geocoder();
-                    // 체육관 핀 수백 개를 묶어준다. minLevel 이하로 확대하면 개별 핀이 보인다.
-                    // ⚠️ clusterer 라이브러리 로딩이 실패하면 여기서 예외가 나는데, 그대로 두면
-                    //    아래 setIsMapReady 가 실행되지 않아 '지도는 떴는데 아무것도 없는' 상태가
-                    //    조용히 만들어진다. 클러스터 없이라도 동작하도록 감싼다.
+                    if (cancelled) return;
                     try {
-                        if (window.kakao.maps.MarkerClusterer) {
-                            clustererRef.current = new window.kakao.maps.MarkerClusterer({
-                                map, averageCenter: true, minLevel: 5, disableClickZoom: false,
-                            });
-                        }
+                        const map = new window.kakao.maps.Map(container, {
+                            center: new window.kakao.maps.LatLng(37.2636, 127.0286),
+                            level: 7,
+                        });
+                        mapInstance.current = map;
+                        geocoder.current = window.kakao.maps.services
+                            ? new window.kakao.maps.services.Geocoder() : null;
+                        try {
+                            if (window.kakao.maps.MarkerClusterer) {
+                                clustererRef.current = new window.kakao.maps.MarkerClusterer({
+                                    map, averageCenter: true, minLevel: 5, disableClickZoom: false,
+                                });
+                            }
+                        } catch { clustererRef.current = null; }
+                        window.kakao.maps.event.addListener(map, 'click', () => {
+                            setSelectedRoom(null); setSelectedGym(null);
+                        });
+                        // 지도를 옮기면 목록도 따라온다. idle 은 드래그 중에도 계속 튀므로
+                        // 400ms 디바운스로 묶는다 — 안 그러면 지도만 만져도 화면 전체가 계속 다시 그려진다.
+                        window.kakao.maps.event.addListener(map, 'idle', () => {
+                            clearTimeout(centerDebounceRef.current);
+                            centerDebounceRef.current = setTimeout(() => {
+                                const c = map.getCenter();
+                                setCenter({ lat: c.getLat(), lng: c.getLng() });
+                            }, 400);
+                        });
+                        setIsMapReady(true);
                     } catch (e) {
-                        console.error('마커 클러스터러를 만들지 못했습니다:', e);
-                        clustererRef.current = null;
+                        console.error('지도 초기화 실패:', e);
+                        setMapFailed(true);
                     }
-                    window.kakao.maps.event.addListener(map, 'click', () => {
-                        setSelectedRoom(null); setSelectedGym(null);
-                    });
-                    // 지도를 옮기면 '가까운 체육관' 목록도 따라 바뀌어야 한다
-                    window.kakao.maps.event.addListener(map, 'idle', () => {
-                        const c = map.getCenter();
-                        setCenter({ lat: c.getLat(), lng: c.getLng() });
-                    });
-                    setIsMapReady(true);
                 });
                 return true;
             }
             return false;
         };
+
         if (!initMap()) {
             const id = setInterval(() => { if (initMap()) clearInterval(id); }, 100);
-            return () => clearInterval(id);
+            // ★ 8초가 지나도 SDK 가 안 오면 포기를 선언한다.
+            //   예전에는 이 인터벌이 영원히 돌아서 회색 화면 앞에서 기다리게 했다.
+            const giveUp = setTimeout(() => {
+                clearInterval(id);
+                if (!mapInstance.current) setMapFailed(true);
+            }, 8000);
+            return () => { cancelled = true; clearInterval(id); clearTimeout(giveUp); };
         }
+        return () => { cancelled = true; };
     }, []);
 
-    // ── 체육관 핀 ──
-    // ★ 예전에는 핀마다 Marker + CustomOverlay 두 개를 만들었다. '전체 체육관'을 켜면
-    //   객체가 1,500개가 되고 CustomOverlay 는 DOM 요소를 하나씩 만들기 때문에
-    //   휴대폰에서 지도가 몇 초씩 멈췄다. 지금은 Marker 하나에 색 점 이미지를 입혀
-    //   객체를 절반으로 줄이고 DOM 을 아예 만들지 않는다. 확대/축소 때도 다시 그리지 않는다.
+    // ── 체육관 핀 (공유 MarkerImage — DOM 없음) ──
     useEffect(() => {
         if (!isMapReady || !window.kakao) return;
         const map = mapInstance.current;
@@ -3797,20 +3809,21 @@ function KokMapPage({ onNavigate }) {
             const marker = new window.kakao.maps.Marker({
                 position: new window.kakao.maps.LatLng(gym.lat, gym.lng),
                 image: gymPinImage(kind),
-                title: gym.name,   // 마우스를 올리면 이름이 뜬다 (DOM 없이)
+                title: gym.name,
                 clickable: true,
             });
             window.kakao.maps.event.addListener(marker, 'click', () => {
                 map.panTo(marker.getPosition());
                 setSelectedGym(gym);
                 setSelectedRoom(null);
+                setSheetOpen(true);   // 핀을 눌렀으면 상세를 보여준다
             });
             return marker;
         });
 
         gymMarkersRef.current = markers;
         if (clusterer) clusterer.addMarkers(markers);
-        else markers.forEach(m => m.setMap(map));   // 클러스터러가 없으면 그냥 다 찍는다
+        else markers.forEach(m => m.setMap(map));
 
         return () => {
             if (clusterer) clusterer.clear();
@@ -3819,7 +3832,7 @@ function KokMapPage({ onNavigate }) {
         };
     }, [isMapReady, activeFilter]);
 
-    // ── 경기방 핀 (항상 표시 — 콕스타만 가진 정보라 숨기지 않는다) ──
+    // ── 경기방 핀 (항상 표시) ──
     useEffect(() => {
         if (!isMapReady || !window.kakao) return;
         const map = mapInstance.current;
@@ -3830,12 +3843,11 @@ function KokMapPage({ onNavigate }) {
             const pos = new window.kakao.maps.LatLng(room.coords.lat, room.coords.lng);
             const marker = new window.kakao.maps.Marker({ position: pos, map, clickable: true });
             const overlay = new window.kakao.maps.CustomOverlay({
-                // ★ 방 이름은 사용자가 지은 값이다. HTML 에 그대로 넣으면 태그가 실행된다.
-                //   (예: 방 이름에 <img onerror=...> 를 넣어 만든 방을 지도에서 보기만 해도 실행)
+                // 방 이름은 사용자 입력이다 — HTML 로 그대로 넣으면 태그가 실행된다
                 position: pos, content: `<div class="room-label">${escapeHtml(room.name)}</div>`, map, yAnchor: 1,
             });
             window.kakao.maps.event.addListener(marker, 'click', () => {
-                map.panTo(pos); setSelectedRoom(room); setSelectedGym(null);
+                map.panTo(pos); setSelectedRoom(room); setSelectedGym(null); setSheetOpen(true);
             });
             next.push({ marker, overlay });
         });
@@ -3843,48 +3855,54 @@ function KokMapPage({ onNavigate }) {
         return () => next.forEach(o => { o.marker.setMap(null); o.overlay.setMap(null); });
     }, [rooms, isMapReady]);
 
-    // ── 검색 ──
+    // ── 검색: 우리 목록 먼저, 안 되면 주소 검색 (지도 없이도 동작) ──
     const handleMapSearch = () => {
         const q = searchText.trim();
-        if (!q || !mapInstance.current || !window.kakao) return;
-        const map = mapInstance.current;
-
-        // 우리가 가진 체육관 목록에서 먼저 찾는다 — 지도 API보다 빠르고 정확하다
+        if (!q) return;
         const hit = searchGyms(q, 1)[0];
         if (hit) {
-            map.panTo(new window.kakao.maps.LatLng(hit.lat, hit.lng));
-            map.setLevel(3);
-            setSelectedGym(hit);
+            setSelectedGym(hit); setSelectedRoom(null); setSheetOpen(true);
+            if (mapInstance.current && window.kakao?.maps) {
+                mapInstance.current.panTo(new window.kakao.maps.LatLng(hit.lat, hit.lng));
+                mapInstance.current.setLevel(4);
+            }
             return;
         }
-        geocoder.current.addressSearch(q, (result, status) => {
-            if (status === window.kakao.maps.services.Status.OK) {
-                map.panTo(new window.kakao.maps.LatLng(result[0].y, result[0].x));
-            } else {
-                ps.current.keywordSearch(q, (data, st) => {
-                    if (st === window.kakao.maps.services.Status.OK) {
-                        map.panTo(new window.kakao.maps.LatLng(data[0].y, data[0].x));
-                    } else { toast('검색 결과가 없습니다.', 'error'); }
-                });
-            }
-        });
+        // 우리 목록에 없으면 주소로 지도 이동 (지도가 살아 있을 때만)
+        if (geocoder.current && mapInstance.current) {
+            geocoder.current.addressSearch(q, (result, status) => {
+                if (status === window.kakao.maps.services.Status.OK) {
+                    const pos = new window.kakao.maps.LatLng(result[0].y, result[0].x);
+                    mapInstance.current.panTo(pos);
+                    setCenter({ lat: Number(result[0].y), lng: Number(result[0].x) });
+                    setSheetOpen(true);
+                } else { toast('검색 결과가 없습니다.', 'error'); }
+            });
+        } else {
+            // 지도 없는 모드: 목록 필터로만 검색된다
+            setSheetOpen(true);
+            if (searchGyms(q, 1).length === 0) toast('이름·주소에 일치하는 체육관이 없습니다.', 'error');
+        }
     };
     const handleKeyDown = (e) => { if (e.key === 'Enter') handleMapSearch(); };
 
     const handleMyLoc = () => {
-        if (!mapInstance.current || !navigator.geolocation) {
-            toast("위치 정보를 사용할 수 없습니다.", 'error');
-            return;
-        }
+        if (!navigator.geolocation) { toast("위치 정보를 사용할 수 없습니다.", 'error'); return; }
         navigator.geolocation.getCurrentPosition(
-            (pos) => mapInstance.current.panTo(new window.kakao.maps.LatLng(pos.coords.latitude, pos.coords.longitude)),
+            (pos) => {
+                const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                setCenter(p);   // 지도 없는 모드에서도 '가까운 순' 목록이 내 위치 기준이 된다
+                if (mapInstance.current && window.kakao?.maps) {
+                    mapInstance.current.panTo(new window.kakao.maps.LatLng(p.lat, p.lng));
+                    mapInstance.current.setLevel(5);
+                }
+                setSheetOpen(true);
+            },
             () => toast("위치 권한이 필요합니다.", 'error')
         );
     };
-    const zoomIn = () => mapInstance.current?.setLevel(mapInstance.current.getLevel() - 1, { animate: true });
-    const zoomOut = () => mapInstance.current?.setLevel(mapInstance.current.getLevel() + 1, { animate: true });
 
-    // ── 아래 목록: 검색 중이면 검색 결과, 아니면 지도 중심에서 가까운 순 ──
+    // ── 목록: 검색 중이면 검색 결과, 아니면 (지도 중심 or 내 위치) 가까운 순 ──
     const listedGyms = useMemo(() => {
         const q = searchText.trim();
         if (q) return searchGyms(q, 30);
@@ -3892,214 +3910,265 @@ function KokMapPage({ onNavigate }) {
         return nearestGyms(center.lat, center.lng, pool, 30);
     }, [searchText, activeFilter, center.lat, center.lng]);
 
-    // 선택한 체육관이 있는 지역의 동호회
     const nearbyClubs = useMemo(
         () => (selectedGym ? clubsInRegion(selectedGym.region) : []),
         [selectedGym]
     );
-    // 선택한 체육관 근처(1km)에 열린 콕스타 경기방
     const roomsAtGym = useMemo(() => {
         if (!selectedGym) return [];
         return rooms.filter(r => r.coords?.lat
             && distanceKm(selectedGym.lat, selectedGym.lng, r.coords.lat, r.coords.lng) < 1);
     }, [selectedGym, rooms]);
 
+    // 체육관 상세 뷰 — 지도 모드의 아래 시트와 '지도 실패' 목록 모드 양쪽에서 그대로 쓴다.
+    // 한쪽에만 두면 다른 쪽에서 목록을 눌러도 아무 일도 안 일어나는 버그가 된다 (실제로 있었다).
+    const gymDetailView = selectedGym && (
+                                <div>
+                                    <div className="flex items-start justify-between gap-3 mb-3">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-1.5 mb-1">
+                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${selectedGym.isBadminton ? 'bg-volt text-ink' : 'bg-white/10 text-dim'}`}>
+                                                    {selectedGym.isBadminton ? '배드민턴' : selectedGym.ownershipLabel}
+                                                </span>
+                                                <span className="text-[10px] font-bold text-muted">{selectedGym.region}</span>
+                                            </div>
+                                            <h3 className="text-lg font-black text-txt kern-tight leading-tight">{selectedGym.name}</h3>
+                                            <p className="text-xs text-dim font-bold mt-1">{selectedGym.address}</p>
+                                        </div>
+                                        <button onClick={() => setSelectedGym(null)} className="p-1 text-dim shrink-0"><X size={20} /></button>
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                        {selectedGym.phone && (
+                                            <a href={`tel:${selectedGym.phone}`} className="flex-1 py-2.5 bg-white/5 text-txt font-black rounded-xl text-xs text-center border border-white/10">
+                                                📞 전화
+                                            </a>
+                                        )}
+                                        <a href={selectedGym.kakaoUrl} target="_blank" rel="noopener noreferrer"
+                                            className="flex-[2] py-2.5 bg-volt text-ink font-black rounded-xl text-xs text-center">
+                                            카카오맵에서 상세 보기
+                                        </a>
+                                    </div>
+                                    <p className="text-[10px] text-muted font-bold mt-2 text-center">
+                                        운영시간·이용료는 카카오맵 또는 전화로 확인해주세요
+                                    </p>
+
+                                    {roomsAtGym.length > 0 && (
+                                        <div className="mt-5">
+                                            <h4 className="text-[11px] font-black label text-volt mb-2">여기 열린 경기방 {roomsAtGym.length}</h4>
+                                            <div className="space-y-2">
+                                                {roomsAtGym.map(r => (
+                                                    <button key={r.id} onClick={() => onNavigate?.('game')}
+                                                        className="w-full text-left p-3 bg-card rounded-xl border border-volt/30">
+                                                        <p className="text-sm font-black text-txt truncate">{r.name}</p>
+                                                        <p className="text-[11px] text-dim font-bold mt-0.5">{r.location} · {r.playerCount || 0}/{r.maxPlayers}명</p>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {nearbyClubs.length > 0 && (
+                                        <div className="mt-5">
+                                            <h4 className="text-[11px] font-black label text-dim mb-2">
+                                                {selectedGym.region} 동호회 {nearbyClubs.length}
+                                            </h4>
+                                            <div className="space-y-2">
+                                                {nearbyClubs.slice(0, 5).map(c => (
+                                                    <a key={c.id} href={c.url} target="_blank" rel="noopener noreferrer"
+                                                        className="block p-3 bg-card rounded-xl border border-white/[0.06]">
+                                                        <p className="text-sm font-black text-txt truncate">{c.name}</p>
+                                                        {c.description && <p className="text-[11px] text-dim font-medium mt-0.5 line-clamp-2">{c.description}</p>}
+                                                        <p className="text-[10px] text-muted font-bold mt-1">
+                                                            {c.region}{c.members ? ` · 멤버 ${c.members}` : ''} · 소모임
+                                                        </p>
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+    );
+
+    const hasDetail = !!(selectedGym || selectedRoom);
+
+    /** 목록 아이템 (공용) — 컴포넌트가 아니라 렌더 함수다. 내부 컴포넌트는 매 렌더마다 재마운트된다 */
+    const renderGymRow = (g) => (
+        <button
+            onClick={() => {
+                setSelectedGym(g); setSelectedRoom(null); setSheetOpen(true);
+                if (mapInstance.current && window.kakao?.maps) {
+                    mapInstance.current.panTo(new window.kakao.maps.LatLng(g.lat, g.lng));
+                }
+            }}
+            key={g.id}
+            className="w-full text-left p-3 bg-card rounded-xl border border-white/[0.06] flex items-center gap-3 active:scale-[0.99] transition-transform">
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${g.isBadminton ? 'bg-volt' : g.ownership === 'public' ? 'bg-blue-400' : g.ownership === 'school' ? 'bg-muted' : 'bg-txt'}`} />
+            <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-black text-txt truncate">{g.name}</p>
+                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-white/5 text-muted shrink-0">{g.ownershipLabel}</span>
+                </div>
+                <p className="text-[11px] text-dim font-bold truncate mt-0.5">{g.address}</p>
+            </div>
+            {g.distance !== undefined && (
+                <span className="text-[10px] font-black text-muted tabular shrink-0">
+                    {g.distance < 1 ? `${Math.round(g.distance * 1000)}m` : `${g.distance.toFixed(1)}km`}
+                </span>
+            )}
+        </button>
+    );
+
     return (
         <div className="relative h-full w-full flex flex-col bg-ink overflow-hidden">
-            {/* 검색 */}
-            <div className="absolute top-0 left-0 right-0 z-20 px-4 pt-4 pb-2 pointer-events-none">
-                <div className="pointer-events-auto glass rounded-2xl shadow-deep border border-white/10 flex items-center p-2.5 pl-4">
-                    <CockstarMark size={20} duotone className="text-txt mr-2.5 shrink-0" />
+
+            {/* ── ① 고정 헤더: 검색 + 필터 (지도와 겹치지 않는다) ── */}
+            <div className="flex-shrink-0 bg-surface border-b border-white/[0.06] px-4 pt-3 pb-2.5 z-20">
+                <div className="bg-card rounded-2xl border border-white/10 flex items-center p-2 pl-3.5">
+                    <Search size={17} className="text-muted mr-2 shrink-0" />
                     <input
                         type="text" value={searchText}
                         onChange={(e) => setSearchText(e.target.value)} onKeyDown={handleKeyDown}
-                        placeholder="체육관, 지역, 주소 검색"
+                        placeholder="체육관 이름·주소 검색"
                         className="flex-1 bg-transparent outline-none text-sm font-bold text-txt placeholder-muted min-w-0"
                     />
                     {searchText && (
-                        <button onClick={() => setSearchText('')} className="p-1 text-dim hover:text-txt"><X size={18} /></button>
+                        <button onClick={() => setSearchText('')} className="p-1 text-dim"><X size={16} /></button>
                     )}
-                    <button onClick={handleMapSearch} className="w-9 h-9 flex items-center justify-center rounded-xl bg-volt text-ink ml-1 shrink-0"><Search size={20} /></button>
+                    <button onClick={handleMapSearch} className="px-3.5 py-1.5 rounded-xl bg-volt text-ink text-xs font-black ml-1 shrink-0">검색</button>
+                </div>
+                <div className="flex gap-1.5 overflow-x-auto hide-scrollbar mt-2.5 -mx-4 px-4">
+                    {MAP_FILTERS.map(f => (
+                        <button
+                            key={f.key}
+                            onClick={() => { setActiveFilter(f.key); setSelectedGym(null); setSelectedRoom(null); }}
+                            className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${activeFilter === f.key ? 'bg-volt text-ink' : 'bg-white/5 text-dim border border-white/10'}`}
+                        >
+                            {f.label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            {/* 필터 */}
-            <div className="absolute top-[74px] left-0 right-0 z-20 overflow-x-auto hide-scrollbar px-4 pb-2 flex gap-2">
-                {MAP_FILTERS.map(f => (
-                    <button
-                        key={f.key} onClick={() => { setActiveFilter(f.key); setSelectedGym(null); }}
-                        className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-black shadow-deep transition-all whitespace-nowrap ${activeFilter === f.key ? 'bg-volt text-ink' : 'glass text-txt border border-white/10'}`}
-                    >
-                        {f.label}
-                    </button>
-                ))}
-            </div>
-
-            {/* 핀 색 범례 — 설명 없는 색 점은 장식일 뿐이다 */}
-            <div className="absolute top-[122px] left-4 z-20 glass rounded-xl border border-white/10 px-3 py-2 flex items-center gap-3 pointer-events-none">
-                {[['#CDFB47', '배드민턴'], ['#60A5FA', '공설'], ['#F3F5F8', '사설']].map(([c, l]) => (
-                    <span key={l} className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c }} />
-                        <span className="text-[10px] font-black text-dim">{l}</span>
-                    </span>
-                ))}
-            </div>
-
-            <div id="kakao-map" ref={mapRef} className="flex-grow w-full h-full bg-[#1a1c22] z-0" />
-
-            {/* 확대/축소 · 내 위치 */}
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2.5 z-20">
-                <div className="glass rounded-2xl shadow-deep border border-white/10 flex flex-col overflow-hidden">
-                    <button onClick={zoomIn} className="w-11 h-11 flex items-center justify-center text-txt font-black text-lg">+</button>
-                    <div className="h-px bg-white/10" />
-                    <button onClick={zoomOut} className="w-11 h-11 flex items-center justify-center text-txt font-black text-lg">−</button>
-                </div>
-                <button onClick={handleMyLoc} className="w-11 h-11 glass rounded-2xl shadow-deep border border-white/10 flex items-center justify-center text-volt">
-                    <MapPin size={20} />
-                </button>
-            </div>
-
-            {/* ── 아래 시트 ── */}
-            <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none">
-                <div className="pointer-events-auto glass border-t border-white/10 rounded-t-3xl max-h-[52vh] overflow-y-auto hide-scrollbar pb-safe">
-
-                    {selectedGym ? (
-                        // ── 체육관 상세 ──
-                        <div className="p-5">
-                            <div className="flex items-start justify-between gap-3 mb-3">
-                                <div className="min-w-0">
-                                    <div className="flex items-center gap-1.5 mb-1">
-                                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${selectedGym.isBadminton ? 'bg-volt text-ink' : 'bg-white/10 text-dim'}`}>
-                                            {selectedGym.isBadminton ? '배드민턴' : selectedGym.ownershipLabel}
-                                        </span>
-                                        <span className="text-[10px] font-bold text-muted">{selectedGym.region}</span>
-                                    </div>
-                                    <h3 className="text-lg font-black text-txt kern-tight leading-tight">{selectedGym.name}</h3>
-                                    <p className="text-xs text-dim font-bold mt-1">{selectedGym.address}</p>
+            {/* ── ② 지도 (실패하면 목록 전용 모드) ── */}
+            <div className="relative flex-grow min-h-0">
+                {mapFailed ? (
+                    // 지도 없이도 콕맵은 죽지 않는다 — 목록이 본체다.
+                    // ★ 상세도 여기서 직접 그린다. 아래 시트는 지도 모드에서만 렌더되므로,
+                    //   여기서 안 그리면 목록을 눌러도 아무 일도 안 일어난다.
+                    <div className="absolute inset-0 overflow-y-auto hide-scrollbar bg-ink px-4 pt-3 pb-24">
+                        {selectedGym ? gymDetailView : (
+                            <>
+                                <div className="mb-3 p-3 rounded-xl bg-coral/10 border border-coral/30">
+                                    <p className="text-xs font-black text-coral">지도를 불러오지 못했습니다</p>
+                                    <p className="text-[11px] text-dim font-bold mt-1 leading-relaxed">
+                                        네트워크 상태를 확인해주세요. 체육관 검색과 목록은 그대로 쓸 수 있습니다.
+                                    </p>
                                 </div>
-                                <button onClick={() => setSelectedGym(null)} className="p-1 text-dim shrink-0"><X size={20} /></button>
+                                <div className="space-y-2">
+                                    {listedGyms.map(renderGymRow)}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                ) : (
+                    <>
+                        <div id="kakao-map" ref={mapRef} className="absolute inset-0 bg-[#1a1c22]" />
+                        {!isMapReady && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-ink/60">
+                                <span className="text-xs font-black label text-muted animate-pulse">지도를 불러오는 중…</span>
                             </div>
-
-                            <div className="flex gap-2">
-                                {selectedGym.phone && (
-                                    <a href={`tel:${selectedGym.phone}`} className="flex-1 py-2.5 bg-white/5 text-txt font-black rounded-xl text-xs text-center border border-white/10">
-                                        📞 {selectedGym.phone}
-                                    </a>
-                                )}
-                                <a href={selectedGym.kakaoUrl} target="_blank" rel="noopener noreferrer"
-                                    className="flex-1 py-2.5 bg-volt text-ink font-black rounded-xl text-xs text-center">
-                                    카카오맵에서 보기
-                                </a>
-                            </div>
-                            {/* 운영시간을 지어내지 않고, 어디서 확인하는지 알려준다 */}
-                            <p className="text-[10px] text-muted font-bold mt-2 text-center">
-                                운영시간·이용료는 카카오맵 또는 전화로 확인해주세요
-                            </p>
-
-                            {roomsAtGym.length > 0 && (
-                                <div className="mt-5">
-                                    <h4 className="text-[11px] font-black label text-volt mb-2">여기 열린 경기방 {roomsAtGym.length}</h4>
-                                    <div className="space-y-2">
-                                        {roomsAtGym.map(r => (
-                                            <button key={r.id} onClick={() => onNavigate?.('game')}
-                                                className="w-full text-left p-3 bg-card rounded-xl border border-volt/30">
-                                                <p className="text-sm font-black text-txt truncate">{r.name}</p>
-                                                <p className="text-[11px] text-dim font-bold mt-0.5">{r.location} · {r.playerCount || 0}/{r.maxPlayers}명</p>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {nearbyClubs.length > 0 && (
-                                <div className="mt-5">
-                                    <h4 className="text-[11px] font-black label text-dim mb-2">
-                                        {selectedGym.region} 동호회 {nearbyClubs.length}
-                                    </h4>
-                                    <div className="space-y-2">
-                                        {nearbyClubs.slice(0, 5).map(c => (
-                                            <a key={c.id} href={c.url} target="_blank" rel="noopener noreferrer"
-                                                className="block p-3 bg-card rounded-xl border border-white/[0.06]">
-                                                <p className="text-sm font-black text-txt truncate">{c.name}</p>
-                                                {c.description && <p className="text-[11px] text-dim font-medium mt-0.5 line-clamp-2">{c.description}</p>}
-                                                <p className="text-[10px] text-muted font-bold mt-1">
-                                                    {c.region}{c.members ? ` · 멤버 ${c.members}` : ''} · 소모임
-                                                </p>
-                                            </a>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                    ) : selectedRoom ? (
-                        // ── 경기방 상세 ──
-                        <div className="p-5">
-                            <div className="flex items-start justify-between gap-3 mb-2">
-                                <div className="min-w-0">
-                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-volt text-ink">경기방</span>
-                                    <h3 className="text-lg font-black text-txt kern-tight leading-tight mt-1.5">{selectedRoom.name}</h3>
-                                    <p className="text-xs text-dim font-bold mt-1">{selectedRoom.location} · {selectedRoom.address}</p>
-                                </div>
-                                <button onClick={() => setSelectedRoom(null)} className="p-1 text-dim shrink-0"><X size={20} /></button>
-                            </div>
-                            <p className="text-xs text-dim font-medium leading-relaxed">{selectedRoom.description}</p>
-                            <button onClick={() => onNavigate?.('game')} className="w-full mt-4 py-3 bg-volt text-ink font-black rounded-full text-sm">
-                                경기방 보러가기
+                        )}
+                        {/* 지도 조작 버튼 — 오른쪽 아래 한 곳에 모은다 */}
+                        <div className="absolute right-3.5 bottom-3.5 flex flex-col gap-2 z-10">
+                            <button onClick={() => mapInstance.current?.setLevel(mapInstance.current.getLevel() - 1, { animate: true })}
+                                className="w-10 h-10 glass rounded-xl border border-white/10 flex items-center justify-center text-txt font-black text-lg shadow-deep">+</button>
+                            <button onClick={() => mapInstance.current?.setLevel(mapInstance.current.getLevel() + 1, { animate: true })}
+                                className="w-10 h-10 glass rounded-xl border border-white/10 flex items-center justify-center text-txt font-black text-lg shadow-deep">−</button>
+                            <button onClick={handleMyLoc}
+                                className="w-10 h-10 glass rounded-xl border border-white/10 flex items-center justify-center text-volt shadow-deep">
+                                <MapPin size={18} />
                             </button>
                         </div>
+                    </>
+                )}
+            </div>
 
-                    ) : (
-                        // ── 목록 ──
-                        <div className="p-4">
-                            <div className="flex items-baseline justify-between mb-3 px-1">
-                                <h3 className="text-sm font-black text-txt">
-                                    {searchText.trim() ? '검색 결과' : '이 근처 체육관'}
-                                    <span className="text-volt tabular ml-1.5">{listedGyms.length}</span>
-                                </h3>
-                                <span className="text-[10px] font-bold text-muted">경기도 {GYM_COUNT}곳 수록</span>
+            {/* ── ③ 아래 시트 (지도 모드에서만 — 목록 전용 모드는 본문이 곧 목록이다) ── */}
+            {!mapFailed && (
+                <div className={`flex-shrink-0 bg-surface border-t border-white/10 rounded-t-3xl z-20 transition-all duration-300 flex flex-col ${sheetOpen ? 'h-[58vh]' : 'h-auto'}`}>
+                    {/* 손잡이 — 누르면 접었다 폈다 */}
+                    <button
+                        onClick={() => { if (sheetOpen && hasDetail) { setSelectedGym(null); setSelectedRoom(null); } setSheetOpen(!sheetOpen); }}
+                        className="flex-shrink-0 w-full pt-2.5 pb-2 flex flex-col items-center"
+                    >
+                        <span className="w-10 h-1 rounded-full bg-white/20" />
+                        {!sheetOpen && (
+                            <div className="flex items-center gap-2 mt-2 pb-1">
+                                <span className="text-sm font-black text-txt">이 근처 체육관 <span className="text-volt tabular">{listedGyms.length}</span></span>
+                                <span className="text-[10px] font-bold text-muted">눌러서 열기</span>
                             </div>
+                        )}
+                    </button>
 
-                            {listedGyms.length === 0 ? (
-                                <p className="text-center text-sm text-dim font-bold py-8">
-                                    조건에 맞는 체육관이 없습니다.
-                                </p>
+                    {sheetOpen && (
+                        <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar px-4 pb-6">
+                            {selectedGym ? gymDetailView : selectedRoom ? (
+                                /* ── 경기방 상세 ── */
+                                <div>
+                                    <div className="flex items-start justify-between gap-3 mb-2">
+                                        <div className="min-w-0">
+                                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-volt text-ink">경기방</span>
+                                            <h3 className="text-lg font-black text-txt kern-tight leading-tight mt-1.5">{selectedRoom.name}</h3>
+                                            <p className="text-xs text-dim font-bold mt-1">{selectedRoom.location} · {selectedRoom.address}</p>
+                                        </div>
+                                        <button onClick={() => setSelectedRoom(null)} className="p-1 text-dim shrink-0"><X size={20} /></button>
+                                    </div>
+                                    <p className="text-xs text-dim font-medium leading-relaxed">{selectedRoom.description}</p>
+                                    <button onClick={() => onNavigate?.('game')} className="w-full mt-4 py-3 bg-volt text-ink font-black rounded-full text-sm">
+                                        경기방 보러가기
+                                    </button>
+                                </div>
+
                             ) : (
-                                <div className="space-y-2">
-                                    {listedGyms.map(g => (
-                                        <button key={g.id}
-                                            onClick={() => {
-                                                setSelectedGym(g);
-                                                mapInstance.current?.panTo(new window.kakao.maps.LatLng(g.lat, g.lng));
-                                            }}
-                                            className="w-full text-left p-3 bg-card rounded-xl border border-white/[0.06] flex items-center gap-3 active:scale-[0.99] transition-transform">
-                                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${g.isBadminton ? 'bg-volt' : g.ownership === 'public' ? 'bg-blue-400' : g.ownership === 'school' ? 'bg-muted' : 'bg-txt'}`} />
-                                            <div className="min-w-0 flex-1">
-                                                <p className="text-sm font-black text-txt truncate">{g.name}</p>
-                                                <p className="text-[11px] text-dim font-bold truncate mt-0.5">{g.address}</p>
-                                            </div>
-                                            {g.distance !== undefined && (
-                                                <span className="text-[10px] font-black text-muted tabular shrink-0">
-                                                    {g.distance < 1 ? `${Math.round(g.distance * 1000)}m` : `${g.distance.toFixed(1)}km`}
+                                /* ── 목록 ── */
+                                <div>
+                                    <div className="flex items-center justify-between mb-2.5">
+                                        <h3 className="text-sm font-black text-txt">
+                                            {searchText.trim() ? '검색 결과' : '가까운 체육관'}
+                                            <span className="text-volt tabular ml-1.5">{listedGyms.length}</span>
+                                        </h3>
+                                        {/* 핀 색 안내는 목록 안에 — 지도를 가리지 않는다 */}
+                                        <div className="flex items-center gap-2">
+                                            {[['bg-volt', '배드민턴'], ['bg-blue-400', '공설'], ['bg-txt', '사설']].map(([c, l]) => (
+                                                <span key={l} className="flex items-center gap-1">
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${c}`} />
+                                                    <span className="text-[9px] font-black text-muted">{l}</span>
                                                 </span>
-                                            )}
-                                        </button>
-                                    ))}
+                                            ))}
+                                        </div>
+                                    </div>
+                                    {listedGyms.length === 0 ? (
+                                        <p className="text-center text-sm text-dim font-bold py-8">조건에 맞는 체육관이 없습니다.</p>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {listedGyms.map(renderGymRow)}
+                                        </div>
+                                    )}
+                                    <p className="text-center text-[10px] text-muted/70 font-bold mt-4 leading-relaxed">
+                                        경기도 {GYM_COUNT}곳 · 출처 카카오맵 | 동호회 {CLUB_COUNT}개 · 출처 {CLUB_SOURCE}
+                                        <br />공설/사설은 이름 기준 추정입니다
+                                    </p>
                                 </div>
                             )}
-
-                            {/* 데이터의 한계를 밝힌다 */}
-                            <p className="text-center text-[10px] text-muted/70 font-bold mt-4 leading-relaxed">
-                                체육관 정보 출처: 카카오맵 · 동호회 {CLUB_COUNT}개 출처: {CLUB_SOURCE}
-                                <br />공설/사설 구분은 이름 기준 추정이며, 등록되지 않은 곳은 표시되지 않습니다
-                            </p>
                         </div>
                     )}
                 </div>
-            </div>
+            )}
         </div>
     );
 }
+
 function CommunityPage() {
     return (
         <div className="relative h-full bg-ink">
@@ -4295,7 +4364,8 @@ function AppInner() {
     );
 
     const showHomeHeader = page === 'home';
-    const subTitle = page === 'store' ? '스토어' : null;
+    // 스토어가 하단 탭이 되면서 '← 스토어' 뒤로가기 헤더는 뺐다 — 페이지 안에 자체 헤더가 있다
+    const subTitle = null;
 
     return (
         <div className="flex flex-col h-screen bg-ink max-w-md mx-auto shadow-2xl overflow-hidden relative font-sans text-txt">
@@ -4307,7 +4377,6 @@ function AppInner() {
                 {page === 'store' && <StorePage />}
                 {page === 'game' && (<GamePage user={user} userData={userData} sharedRoomId={sharedRoomId} onLoginClick={() => setIsAuthModalOpen(true)} onNavigate={handleTabClick} />)}
                 {page === 'kokMap' && <KokMapPage onNavigate={handleTabClick} />}
-                {page === 'community' && <CommunityPage />}
                 {page === 'myInfo' && <MyInfoPage user={user} userData={userData} onLoginClick={() => setIsAuthModalOpen(true)} onLogout={() => signOut(auth)} setPage={handleTabClick} />}
             </main>
 
@@ -4315,7 +4384,9 @@ function AppInner() {
                 <TabButton icon={Home} label="홈" isActive={page === 'home'} onClick={() => handleTabClick('home')} />
                 <TabButton icon={Trophy} label="경기" isActive={page === 'game'} onClick={() => handleTabClick('game')} />
                 <TabButton icon={KokMap} label="콕맵" isActive={page === 'kokMap'} onClick={() => handleTabClick('kokMap')} />
-                <TabButton icon={MessageSquare} label="커뮤니티" isActive={page === 'community'} onClick={() => handleTabClick('community')} />
+                {/* 커뮤니티 탭을 스토어로 교체 — 커뮤니티는 아직 글이 없는 빈 방이었고,
+                    스토어는 홈 깊숙한 버튼으로만 들어갈 수 있어서 서로 자리를 바꾸는 게 맞다 */}
+                <TabButton icon={ShoppingBag} label="스토어" isActive={page === 'store'} onClick={() => handleTabClick('store')} />
                 <TabButton icon={User} label="정보" isActive={page === 'myInfo'} onClick={() => handleTabClick('myInfo')} />
             </nav>
 
