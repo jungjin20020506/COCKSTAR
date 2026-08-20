@@ -61,6 +61,23 @@ import {
     Timer as TimerIcon
 } from 'lucide-react';
 
+// ===================================================================================
+// [이식] 콕스라이팅 자동 매칭 — 매칭을 '수동 배정'에서 '엔진 추천 + 관리자 선택'으로
+// -----------------------------------------------------------------------------------
+// matching.js는 프레임워크·DB를 전혀 모르는 순수 함수 덩어리라 거의 그대로 옮겨왔고,
+// 콕스타의 데이터(방 구조·Firestore Timestamp·S~E조 급수)를 엔진이 아는 모양으로
+// 번역하는 일은 matchQueues.js가 맡는다. 자세한 사정은 두 파일의 머리 주석 참고.
+// ===================================================================================
+import {
+    buildMatchContext, buildCandidatePool, generateMatchOptions,
+    getSensitivity, AUTO_MATCH_SENSITIVITIES,
+} from './lib/matching';
+import { buildEngineInput, repairMatchQueues } from './lib/matchQueues';
+import { computeDailySummary, shareSummaryCard } from './lib/summaryCard';
+import { MatchOptionsModal } from './components/MatchOptionsModal';
+import { AutoMatchGuide } from './tutorial/AutoMatchGuide';
+import { AUTOMATCH_GUIDE_KEY } from './tutorial/guideKeys';
+
 const createIcon = (Icon) => (props) => <Icon strokeWidth={2} {...props} />;
 
 const Share2 = createIcon(Share2Icon);
@@ -150,6 +167,29 @@ const getLevelColor = (level) => {
     }
 };
 const PLAYERS_PER_MATCH = 4;
+
+// ===================================================================================
+// [이식] 하루 초기화 — '운영일 키'
+// -----------------------------------------------------------------------------------
+// 원래 코드는 new Date().toISOString().split('T')[0] 로 날짜를 만들었는데,
+// 그건 UTC 날짜라서 한국 시간 기준 '오전 9시'에 하루가 바뀐다.
+// 운동은 저녁에 하니까, 아침 9시에 갑자기 오늘 경기 수가 0이 되는 셈이다.
+//
+// 그래서 콕스라이팅과 같은 '운영일 키'를 쓴다. 새벽 2시에 하루가 바뀐다.
+//   ① +9시간  → 한국 시간으로 맞춘다
+//   ② −2시간  → 새벽 2시 이전은 '어제'로 친다
+//   합쳐서 +7시간을 더한 뒤 UTC 날짜를 읽는다.
+//
+// UTC 필드(getUTCFullYear 등)로 읽는 게 핵심이다. 기기의 표준시 설정이 무엇이든
+// 같은 결과가 나온다 — 해외에 있는 사람이 접속해도 한국 기준 운영일로 맞춰진다.
+// ===================================================================================
+const getDailyResetKey = (now = new Date()) => {
+    const shifted = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+    const y = shifted.getUTCFullYear();
+    const m = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(shifted.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
 
 // NOERROR 광고 파트너 (콕스타 공식 스폰서)
 const NOERROR_URL = 'https://www.pjbsports.com/';
@@ -593,6 +633,9 @@ function CreateRoomModal({ isOpen, onClose, onSubmit, user, userData }) {
             maxPlayers: parseInt(maxPlayers), password: usePassword ? password : '',
             adminUid: user.uid, adminName: userData?.name || '방장', createdAt: serverTimestamp(),
             playerCount: 0, numScheduledMatches: 4, numInProgressCourts: 2, scheduledMatches: {}, inProgressCourts: [],
+            // [자동 매칭] 새 방의 기본값. 민감도 '보통' = 경기중인 선수를 1명까지 미리 예약한다.
+            autoMatches: {},
+            autoMatchConfig: { sensitivity: 'normal', perGenderSensitivity: false, maleSensitivity: 'normal', femaleSensitivity: 'normal' },
         };
         try {
             await onSubmit(newRoomData);
@@ -1572,14 +1615,70 @@ function EditGamesModal({ isOpen, onClose, player, onSave }) {
 }
 
 // 환경 설정 모달
-function SettingsModal({ isOpen, onClose, roomData, onSave, onReset, onKickAll }) {
-    const [settings, setSettings] = useState({ mode: 'admin', numScheduledMatches: 4, numInProgressCourts: 2 });
+function SettingsModal({ isOpen, onClose, roomData, onSave, onReset, onKickAll, players, onReplayGuide, isGhost, onToggleGhost }) {
+    const [settings, setSettings] = useState({
+        mode: 'admin', numScheduledMatches: 4, numInProgressCourts: 2,
+        // [자동 매칭] 민감도 = "경기중인 선수를 몇 명까지 미리 예약할지"
+        autoMatchConfig: { sensitivity: 'normal', perGenderSensitivity: false, maleSensitivity: 'normal', femaleSensitivity: 'normal' },
+    });
+    const [sharing, setSharing] = useState(false);
+
     useEffect(() => {
-        if (roomData) setSettings({ mode: roomData.mode || 'admin', numScheduledMatches: roomData.numScheduledMatches || 4, numInProgressCourts: roomData.numInProgressCourts || 2 });
+        if (!roomData) return;
+        const cfg = roomData.autoMatchConfig || {};
+        setSettings({
+            mode: roomData.mode || 'admin',
+            numScheduledMatches: roomData.numScheduledMatches || 4,
+            numInProgressCourts: roomData.numInProgressCourts || 2,
+            autoMatchConfig: {
+                sensitivity: cfg.sensitivity || 'normal',
+                perGenderSensitivity: !!cfg.perGenderSensitivity,
+                maleSensitivity: cfg.maleSensitivity || cfg.sensitivity || 'normal',
+                femaleSensitivity: cfg.femaleSensitivity || cfg.sensitivity || 'normal',
+            },
+        });
     }, [roomData]);
     if (!isOpen) return null;
     const handleSave = () => { onSave(settings); onClose(); };
     const adjustCount = (field, delta) => setSettings(prev => ({ ...prev, [field]: Math.max(1, prev[field] + delta) }));
+
+    const setAuto = (patch) => setSettings(prev => ({ ...prev, autoMatchConfig: { ...prev.autoMatchConfig, ...patch } }));
+    const activeSensKey = settings.autoMatchConfig.sensitivity;
+
+    // 지금 활성 인원 (휴식 제외) — 민감도를 고를 때 판단 근거가 된다
+    const activeList = Object.values(players || {}).filter(p => !p.isResting);
+    const activeMale = activeList.filter(p => p.gender === '남').length;
+    const activeFemale = activeList.length - activeMale;
+
+    const handleShareSummary = async () => {
+        if (sharing) return;
+        setSharing(true);
+        try {
+            const summary = computeDailySummary(players, roomData?.name);
+            if (summary.attendees.length === 0) {
+                toast("아직 참석한 선수가 없습니다.", 'error');
+                return;
+            }
+            const how = await shareSummaryCard(summary);
+            toast(how === 'shared' ? "요약 카드를 공유했습니다." : "요약 카드를 저장했습니다.");
+        } catch (e) {
+            console.error("요약 카드 실패:", e);
+            toast("요약 카드를 만들지 못했습니다.", 'error');
+        } finally { setSharing(false); }
+    };
+
+    /** 민감도 4단계 버튼 한 줄 */
+    const SensitivityRow = ({ value, onChange }) => (
+        <div className="grid grid-cols-4 gap-1.5">
+            {AUTO_MATCH_SENSITIVITIES.map(s => (
+                <button
+                    key={s.key}
+                    onClick={() => onChange(s.key)}
+                    className={`py-2 rounded-lg text-xs font-black transition-all ${value === s.key ? 'bg-volt text-ink' : 'bg-white/5 text-dim'}`}
+                >{s.label}</button>
+            ))}
+        </div>
+    );
 
     const Stepper = ({ label, field }) => (
         <div>
@@ -1614,6 +1713,77 @@ function SettingsModal({ isOpen, onClose, roomData, onSave, onReset, onKickAll }
                         <Stepper label="경기 예정 수" field="numScheduledMatches" />
                         <Stepper label="코트 수" field="numInProgressCourts" />
                     </div>
+
+                    {/* ── [자동 매칭] 민감도 ──
+                        점수 커트라인이 아니다. "경기중인 선수를 얼마나 적극적으로 다음 경기에
+                        미리 예약할지"를 정한다. 낮음일수록 바로 시작할 수 있는 조합만,
+                        높음일수록 덜 친 사람을 챙기지만 코트가 끝나기를 기다려야 한다. */}
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="text-[11px] font-black label text-dim">🤖 자동 매칭 민감도</label>
+                            <span className="text-[10px] font-black text-muted tabular">활성 남 {activeMale} · 여 {activeFemale}</span>
+                        </div>
+                        <SensitivityRow value={activeSensKey} onChange={(k) => setAuto({ sensitivity: k })} />
+                        <p className="text-[11px] leading-relaxed text-emerald-400/90 font-medium mt-2">
+                            {getSensitivity(activeSensKey).desc}
+                        </p>
+
+                        <label className="flex items-center gap-2 mt-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={settings.autoMatchConfig.perGenderSensitivity}
+                                onChange={(e) => setAuto({ perGenderSensitivity: e.target.checked })}
+                                className="w-4 h-4 accent-[#CDFB47]"
+                            />
+                            <span className="text-xs font-bold text-dim">남/여 따로 정하기</span>
+                        </label>
+                        {settings.autoMatchConfig.perGenderSensitivity && (
+                            <div className="mt-2 space-y-2">
+                                <div>
+                                    <span className="text-[10px] font-black label text-muted block mb-1">남자</span>
+                                    <SensitivityRow value={settings.autoMatchConfig.maleSensitivity} onChange={(k) => setAuto({ maleSensitivity: k })} />
+                                </div>
+                                <div>
+                                    <span className="text-[10px] font-black label text-muted block mb-1">여자</span>
+                                    <SensitivityRow value={settings.autoMatchConfig.femaleSensitivity} onChange={(k) => setAuto({ femaleSensitivity: k })} />
+                                </div>
+                                <p className="text-[10px] text-muted font-medium">혼복은 위 기본값을 씁니다.</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ── 오늘의 운동 요약 · 안내 다시 보기 ── */}
+                    <div>
+                        <label className="text-[11px] font-black label text-dim mb-2 block">오늘의 운동</label>
+                        <div className="space-y-2">
+                            <button onClick={handleShareSummary} disabled={sharing} className="w-full py-3 bg-volt/10 text-volt font-black rounded-xl text-sm hover:bg-volt/20 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">
+                                📸 {sharing ? '만드는 중...' : '하루 요약 카드 만들기'}
+                            </button>
+                            <button onClick={onReplayGuide} className="w-full py-3 bg-white/5 text-dim font-black rounded-xl text-sm hover:bg-white/10 transition-colors flex justify-center items-center gap-2">
+                                🤖 자동매칭 안내 다시 보기
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* ── 👻 운영 전용 모드 ──
+                        코치·총무처럼 운동은 안 하고 방만 굴리는 사람을 위한 모드.
+                        켜면 선수 명단·인원 수·매칭 후보에서 완전히 빠진다. 기기에만 저장되므로
+                        방마다 따로 정할 수 있다. */}
+                    <div>
+                        <label className="text-[11px] font-black label text-dim mb-2 block">내 참여 방식</label>
+                        <button
+                            onClick={onToggleGhost}
+                            className={`w-full py-3 font-black rounded-xl text-sm transition-colors flex justify-center items-center gap-2 ${isGhost ? 'bg-volt/15 text-volt' : 'bg-white/5 text-dim hover:bg-white/10'}`}
+                        >
+                            👻 {isGhost ? '운영 전용 모드 끄기 (다시 선수로 참여)' : '운영만 하기 (선수 명단에서 빠짐)'}
+                        </button>
+                        <p className="text-[11px] leading-relaxed text-muted font-medium mt-2">
+                            {isGhost
+                                ? '지금은 선수 명단·인원 수·매칭 후보에 잡히지 않습니다.'
+                                : '경기는 안 뛰고 운영만 할 때 켜세요. 매칭 후보에서 빠집니다.'}
+                        </p>
+                    </div>
+
                     <div>
                         <label className="text-[11px] font-black label text-dim mb-2 block">고급 기능</label>
                         <div className="space-y-2">
@@ -1870,6 +2040,190 @@ function TestLabModal({ isOpen, onClose, onCreateBots, isAutoPlay, setIsAutoPlay
     );
 }
 
+// ===================================================================================
+// [자동 매칭] 대기열 섹션
+// -----------------------------------------------------------------------------------
+// '경기 배정(수동)' 섹션과 나란히 놓이는 두 번째 대기열이다. 둘은 정책이 다르다.
+//
+//              자동 매칭                      경기 배정 (기존)
+//   만드는 법   버튼 → 후보 6개 중 선택        관리자가 슬롯을 눌러 손으로 채움
+//   항목       항상 4명 꽉 찬 배열            null이 섞일 수 있는 4칸
+//   개수       가변 (추가한 만큼)             고정 (numScheduledMatches)
+//   고장났을 때  경기 통째로 해체              해당 슬롯만 비움 (관리자 의도 존중)
+//
+// PlayerCard·EmptySlot이 이 파일 안에 있어서 컴포넌트도 여기 뒀다.
+// (별도 파일로 빼면 App.jsx ↔ 섹션 사이에 순환 import가 생긴다)
+// ===================================================================================
+function AutoMatchSection({
+    autoMatches, players, isAdmin, currentUserId,
+    inProgressPlayerIds, courtIndexByPlayer,
+    onGenerate, generatingGender,
+    onStart, onDelete, onClearAll, onRemovePlayer,
+}) {
+    const pressTimerRef = useRef(null);
+    const matchList = Object.entries(autoMatches || {}).sort((a, b) => Number(a[0]) - Number(b[0]));
+
+    // ── 경기 번호를 800ms 길게 누르면 그 경기 삭제 ──
+    const handlePressStart = (matchIndex) => {
+        if (!isAdmin) return;
+        if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+        pressTimerRef.current = setTimeout(() => onDelete(matchIndex), 800);
+    };
+    const handlePressEnd = () => {
+        if (pressTimerRef.current) { clearTimeout(pressTimerRef.current); pressTimerRef.current = null; }
+    };
+
+    // ── [연출] 새로 만들어진 매칭에만 카드가 착착 꽂히는 애니메이션을 준다 ──
+    // 기준을 '경기 번호'가 아니라 '선수 구성 시그니처'로 잡는 게 요령이다.
+    // 번호로 기억하면 경기를 시작해 번호가 당겨질 때마다 남은 경기들이 전부
+    // '새것'으로 보여서 애니메이션이 우수수 다시 재생된다.
+    const dealSeenRef = useRef(new Set());
+    const isFirstRenderRef = useRef(true);
+    const matchSig = (match) => (match || []).filter(Boolean).join('|');
+    if (isFirstRenderRef.current) {
+        // 늦게 들어온 사람에게 기존 매칭이 우르르 쏟아지지 않도록 첫 렌더는 전부 '본 것'으로 처리
+        matchList.forEach(([, m]) => { const s = matchSig(m); if (s) dealSeenRef.current.add(s); });
+        isFirstRenderRef.current = false;
+    }
+    const newDealSigs = new Set(
+        matchList.map(([, m]) => matchSig(m)).filter(s => s && !dealSeenRef.current.has(s))
+    );
+    useEffect(() => {
+        matchList.forEach(([, m]) => { const s = matchSig(m); if (s) dealSeenRef.current.add(s); });
+    });
+
+    const nameOf = (id) => players[id]?.name || '나간 선수';
+
+    return (
+        <section className="space-y-3">
+            <div className="flex justify-between items-center ml-1">
+                <h2 className="text-xs font-black label text-dim">🤖 자동 매칭 · Auto</h2>
+                {isAdmin && matchList.length > 0 && (
+                    <button
+                        onClick={onClearAll}
+                        className="text-[11px] font-black text-coral bg-coral/10 border border-coral/30 rounded-full px-3 py-1"
+                    >전체 삭제</button>
+                )}
+            </div>
+
+            {/* 매칭 만들기 — 누를 때마다 후보 6개를 계산해 보여준다 */}
+            {isAdmin && (
+                <div className="auto-make-row">
+                    {[
+                        { key: '남', cls: 'male', label: '👨 남자 매칭' },
+                        { key: '여', cls: 'female', label: '👩 여자 매칭' },
+                        { key: '혼복', cls: 'mixed', label: '💑 혼복 매칭' },
+                    ].map(b => (
+                        <button
+                            key={b.key}
+                            type="button"
+                            className={`auto-make-btn ${b.cls}`}
+                            onClick={() => onGenerate(b.key)}
+                            disabled={!!generatingGender}
+                        >
+                            {generatingGender === b.key ? '계산 중...' : b.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            {matchList.length === 0 && (
+                <div className="bg-card rounded-2xl p-5 border border-white/[0.06] text-center">
+                    <p className="text-sm text-dim font-bold">만들어진 자동 매칭이 없습니다.</p>
+                    <p className="text-xs text-muted mt-1.5 font-medium leading-relaxed">
+                        {isAdmin
+                            ? <>위 버튼을 누르면 후보 6개를 이유와 함께 보여줍니다.<br />마음에 드는 조합을 고르면 여기에 추가돼요.</>
+                            : <>관리자가 매칭을 만들면 여기에 표시됩니다.</>}
+                    </p>
+                </div>
+            )}
+
+            {matchList.map(([matchIndex, match]) => {
+                const ids = (match || []).filter(Boolean);
+
+                // 이 경기를 지금 시작할 수 있는지 판단한다.
+                //  · onCourt : 아직 코트에서 뛰는 중 (그 경기가 끝나야 시작 가능)
+                //  · broken  : 나갔거나 휴식으로 바뀜 (자리를 채우거나 경기를 지워야 함)
+                const onCourtIds = ids.filter(id => inProgressPlayerIds.has(id));
+                const brokenIds = ids.filter(id => !players[id] || players[id].isResting);
+                const canStart = ids.length === PLAYERS_PER_MATCH && onCourtIds.length === 0 && brokenIds.length === 0;
+
+                const waitCourts = [...new Set(
+                    onCourtIds.map(id => courtIndexByPlayer[id]).filter(i => i !== undefined)
+                )].sort((a, b) => a - b);
+
+                // 왜 아직 못 시작하는지 한 줄로 알려준다 (안 알려주면 버튼이 고장난 줄 안다)
+                let note = null;
+                if (brokenIds.length > 0) {
+                    note = { broken: true, text: `${brokenIds.map(nameOf).join('·')} 빠짐 — 곧 자동으로 정리됩니다` };
+                } else if (onCourtIds.length > 0) {
+                    const courtText = waitCourts.length ? `${waitCourts.map(c => c + 1).join('·')}번 코트` : '진행 중인 경기';
+                    note = { broken: false, text: `${courtText}가 끝나면 시작 — 경기중: ${onCourtIds.map(nameOf).join('·')}` };
+                }
+
+                const isNewDeal = newDealSigs.has(matchSig(match));
+
+                return (
+                    <div key={`auto-${matchIndex}`} className={`auto-row ${isNewDeal ? 'auto-deal' : ''}`}>
+                        {note && (
+                            <div className={`auto-wait-note ${note.broken ? 'broken' : ''}`}>
+                                <span>{note.broken ? '⚠️' : '⏳'}</span>
+                                <span className="truncate">{note.text}</span>
+                            </div>
+                        )}
+                        <div className="flex items-center w-full gap-1.5">
+                            <div
+                                className="flex-shrink-0 w-7 text-center select-none cursor-pointer"
+                                onMouseDown={() => handlePressStart(matchIndex)}
+                                onMouseUp={handlePressEnd} onMouseLeave={handlePressEnd}
+                                onTouchStart={() => handlePressStart(matchIndex)}
+                                onTouchEnd={handlePressEnd} onTouchCancel={handlePressEnd}
+                                title={isAdmin ? '길게 누르면 이 경기가 삭제됩니다' : undefined}
+                            >
+                                <p className="font-black text-lg text-txt tabular">{Number(matchIndex) + 1}</p>
+                            </div>
+                            <div className="grid grid-cols-4 gap-1.5 flex-1 min-w-0">
+                                {match.map((pid, sIdx) => {
+                                    if (pid && players[pid]) {
+                                        return (
+                                            <PlayerCard
+                                                key={`${pid}-${matchIndex}-${sIdx}`}
+                                                player={players[pid]}
+                                                isAdmin={isAdmin}
+                                                isCurrentUser={currentUserId === pid}
+                                                isPlaying={inProgressPlayerIds.has(pid)}
+                                                isResting={players[pid].isResting}
+                                                onDeleteClick={() => onRemovePlayer(matchIndex, sIdx)}
+                                            />
+                                        );
+                                    }
+                                    return <LeftPlayerCard key={`auto-left-${matchIndex}-${sIdx}`} isAdmin={false} />;
+                                })}
+                            </div>
+                            <div className="flex-shrink-0 w-16">
+                                {isAdmin ? (
+                                    <button
+                                        type="button"
+                                        className={`auto-start-btn ${canStart ? 'go' : (brokenIds.length > 0 ? 'fix' : 'wait')}`}
+                                        disabled={!canStart}
+                                        onClick={() => onStart(matchIndex)}
+                                    >
+                                        {brokenIds.length > 0 ? '정리중' : (onCourtIds.length > 0 ? '대기' : '경기 시작')}
+                                    </button>
+                                ) : (
+                                    <span className="block text-center text-[10px] font-black text-muted">
+                                        {canStart ? '시작 대기' : '진행 대기'}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            })}
+        </section>
+    );
+}
+
 function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }) {
     const [roomData, setRoomData] = useState(null);
     const [players, setPlayers] = useState({});
@@ -1887,7 +2241,18 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
     const [editGamePlayer, setEditGamePlayer] = useState(null);
     const [courtModalOpen, setCourtModalOpen] = useState(false);
     const [pendingMatchIndex, setPendingMatchIndex] = useState(null);
+    // 코트 선택 모달에서 시작할 때, 그 경기가 어느 대기열에서 왔는지 기억해 둔다
+    // ('auto'와 'schedule'은 시작 후 목록을 정리하는 방식이 다르다)
+    const [pendingMatchSource, setPendingMatchSource] = useState('schedule');
     const [availableCourts, setAvailableCourts] = useState([]);
+
+    // ── [자동 매칭] ──
+    const [matchOptions, setMatchOptions] = useState(null); // { gender, genderLabel, result }
+    const [generatingGender, setGeneratingGender] = useState(null);
+    const isGeneratingRef = useRef(false);
+    const isRepairingRef = useRef(false);
+    const [isGuideOpen, setIsGuideOpen] = useState(false);
+    const guideTriedRef = useRef(false);
 
     const roomDocRef = useMemo(() => doc(db, "rooms", roomId), [roomId]);
     const playersCollectionRef = useMemo(() => collection(db, "rooms", roomId, "players"), [roomId]);
@@ -1903,9 +2268,26 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 
     const inProgressPlayerIds = useMemo(() => new Set((roomData?.inProgressCourts || []).flatMap(c => c?.players || []).filter(Boolean)), [roomData]);
     const scheduledPlayerIds = useMemo(() => new Set(Object.values(roomData?.scheduledMatches || {}).flatMap(m => m || []).filter(Boolean)), [roomData]);
-    const waitingPlayers = useMemo(() => Object.values(players).filter(p => !inProgressPlayerIds.has(p.id) && !scheduledPlayerIds.has(p.id)), [players, inProgressPlayerIds, scheduledPlayerIds]);
+    // [자동 매칭] 자동 매칭 목록에 올라간 사람도 '대기 중'이 아니다.
+    // 여기서 안 빼면 같은 사람이 대기 명단에도 보여서 두 경기에 동시 배정된다.
+    const autoMatchPlayerIds = useMemo(() => new Set(Object.values(roomData?.autoMatches || {}).flatMap(m => m || []).filter(Boolean)), [roomData]);
+    const waitingPlayers = useMemo(
+        () => Object.values(players).filter(p =>
+            !inProgressPlayerIds.has(p.id) && !scheduledPlayerIds.has(p.id) && !autoMatchPlayerIds.has(p.id)
+        ),
+        [players, inProgressPlayerIds, scheduledPlayerIds, autoMatchPlayerIds]
+    );
     const maleWaiting = useMemo(() => waitingPlayers.filter(p => p.gender === '남'), [waitingPlayers]);
     const femaleWaiting = useMemo(() => waitingPlayers.filter(p => p.gender !== '남'), [waitingPlayers]);
+
+    // 선수 → 지금 뛰고 있는 코트 번호 (자동 매칭 줄에 "3번 코트가 끝나면 시작"을 적으려면 필요)
+    const courtIndexByPlayer = useMemo(() => {
+        const map = {};
+        (roomData?.inProgressCourts || []).forEach((court, idx) => {
+            (court?.players || []).forEach(pid => { if (pid) map[pid] = idx; });
+        });
+        return map;
+    }, [roomData]);
 
     const handleShare = async () => {
         const shareUrl = `${window.location.origin}?roomId=${roomId}`;
@@ -1929,8 +2311,38 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         return () => unsubRoom();
     }, [roomDocRef]);
 
+    // ===============================================================================
+    // [이식] 👻 운영 전용 모드 (콕스라이팅의 '유령 관리자')
+    // -------------------------------------------------------------------------------
+    // 코치·총무처럼 '운영만 하고 경기는 안 뛰는 사람'을 위한 모드다.
+    // 켜면 선수 카드가 없어져서 대기 명단·인원 수·매칭 후보에 아예 잡히지 않는다.
+    // 관리자 기능은 그대로 쓴다.
+    //
+    // 이게 없으면 운영자가 대기 명단에 계속 남아 매칭 후보에 뽑히고, 관리자가 매번
+    // 그 카드를 빼줘야 한다. 인원 수도 한 명씩 부풀어 보인다.
+    //
+    // 원본은 이름을 '관리자'로 입장하면 켜졌지만, 콕스타는 로그인이 있어서 그럴 필요가
+    // 없다. 대신 방마다 따로 켜고 끈다 — 어떤 방에서는 뛰고 어떤 방에서는 운영만 할 수
+    // 있어야 하기 때문이다. 그래서 기기에만 저장한다(방 문서를 건드리지 않는다).
+    // ===============================================================================
+    const ghostKey = `cockstar-ghost-admin-${roomId}`;
+    // ★ localStorage를 useState 초기화 함수에서 바로 읽는다 (useEffect로 나중에 읽으면 안 된다).
+    //   effect로 읽으면 첫 렌더에서 잠깐 false가 되는데, 그 사이에 방 정보가 캐시에서
+    //   즉시 올라오면 아래 입장 처리가 먼저 돌아 선수 문서를 만들어 버린다.
+    //   운영 전용 모드로 들어왔는데 매번 선수 카드가 한 번씩 생겼다 사라지게 된다.
+    const [isGhost, setIsGhost] = useState(() => {
+        try { return localStorage.getItem(ghostKey) === '1'; }
+        catch { return false; }
+    });
+
+    // 관리자가 아니면 이 모드는 무시한다 —
+    // 일반 회원이 켜면 자기만 현황판에서 사라져서 매칭에 영영 안 들어간다.
+    const ghostActive = isGhost && isAdmin;
+
     useEffect(() => {
         if (!user || !userData || !roomData || loading) return;
+        // 운영 전용 모드면 선수 문서를 만들지 않는다
+        if (ghostActive) return;
         const playerRef = doc(db, "rooms", roomId, "players", user.uid);
         const syncJoin = async () => {
             try {
@@ -1949,23 +2361,130 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
             } catch (e) { console.error("입장 실패:", e); }
         };
         syncJoin();
-    }, [user?.uid, !!userData, !!roomData, loading, roomId]);
+    }, [user?.uid, !!userData, !!roomData, loading, roomId, ghostActive]);
+
+    /**
+     * 운영 전용 모드 켜고 끄기.
+     * 켤 때는 선수 문서를 지운다 — 그래야 대기 명단과 인원 수에서 사라진다.
+     * 끄면 위 syncJoin이 다시 돌아 선수 카드를 만들어 준다.
+     */
+    const handleToggleGhost = async () => {
+        const next = !isGhost;
+        if (next && inProgressPlayerIds.has(user.uid)) {
+            toast("경기 중에는 운영 모드로 바꿀 수 없습니다. 경기가 끝난 뒤 눌러주세요.", 'error');
+            return;
+        }
+        try { localStorage.setItem(ghostKey, next ? '1' : '0'); } catch { /* 저장 실패는 무시 */ }
+        setIsGhost(next);
+        if (!next) return;
+        try {
+            // 잡혀 있던 다음 경기에서 먼저 빼낸 뒤 선수 문서를 지운다.
+            // (순서가 반대면 대기열에 '나간 선수' 자리가 잠깐 남는다)
+            await runTransaction(db, async (t) => {
+                const snap = await t.get(roomDocRef);
+                if (!snap.exists()) return;
+                const data = snap.data();
+                const rest = { ...players };
+                delete rest[user.uid];
+                const { changed, newState } = repairMatchQueues(
+                    { autoMatches: data.autoMatches || {}, scheduledMatches: data.scheduledMatches || {} },
+                    rest
+                );
+                if (!changed) return;
+                t.update(roomDocRef, { autoMatches: newState.autoMatches, scheduledMatches: newState.scheduledMatches });
+            });
+            await deleteDoc(doc(playersCollectionRef, user.uid));
+            toast("운영 전용 모드로 바꿨습니다. 선수 명단에서 빠집니다.");
+        } catch (e) {
+            console.error("운영 모드 전환 실패:", e);
+            toast("모드 전환에 실패했습니다.", 'error');
+        }
+    };
+
+    // ===============================================================================
+    // [이식] 하루 초기화 — 리더 선출로 한 번만 실행
+    // -------------------------------------------------------------------------------
+    // 예전에는 관리자 화면이 "날짜가 다르네?" 하면 곧바로 초기화를 실행했다.
+    // 관리자가 두 명 이상 접속해 있으면 둘 다 실행해서 초기화가 겹칠 수 있었다.
+    //
+    // 이제는 트랜잭션 안에서 운영일 키를 먼저 선점하고(= 리더 선출),
+    // 이긴 기기 하나만 선수 기록을 지운다. 진 기기는 조용히 아무것도 안 한다.
+    //
+    // ⚠️ 남은 한계 — 기기 시계를 완전히 믿지는 못한다.
+    //    원본(콕스라이팅)은 서버 시각을 따로 읽어와 한 번 더 확인하지만, 그러려면
+    //    전용 문서가 필요하고 이 앱의 보안 규칙에서 그 문서가 허용되는지 확인할 수
+    //    없어서 넣지 않았다. 대신 두 가지 방어를 뒀다.
+    //      ① 키는 앞으로만 간다 (>= 이면 중단) — 시계가 틀린 기기가 어제 날짜로
+    //         되돌려 초기화를 반복시키는 '핑퐁'을 막는다.
+    //      ② 기기 시각이 마지막 초기화 서버 시각보다 과거면 시계가 틀린 것이므로 중단.
+    //    시계가 '미래'로 크게 어긋난 기기 하나는 여전히 하루를 앞당길 수 있다.
+    //    (그 경우 다음 날 실제 날짜가 따라잡을 때까지 초기화가 한 번 건너뛰어진다)
+    // ===============================================================================
+    const dailyResetInFlightRef = useRef(false);
+
+    const runDailyResetIfDue = async (playersArray) => {
+        if (dailyResetInFlightRef.current) return;
+        const todayKey = getDailyResetKey();
+
+        // 화면 데이터로 싸게 확인 — 이미 오늘 돌았으면 트랜잭션을 열지도 않는다
+        const storedKey = roomData.lastDailyResetKey || roomData.lastResetDate;
+        if (storedKey && storedKey >= todayKey) return;
+
+        dailyResetInFlightRef.current = true;
+        try {
+            const won = await runTransaction(db, async (t) => {
+                const snap = await t.get(roomDocRef);
+                if (!snap.exists()) return false;
+                const data = snap.data();
+
+                const key = data.lastDailyResetKey || data.lastResetDate;
+                if (key && key >= todayKey) return false; // 다른 기기가 이미 선점했다
+
+                // 기기 시계가 마지막 초기화(서버 시각)보다 과거면 시계가 틀린 것이다
+                const lastAt = data.lastDailyResetAt;
+                if (lastAt?.toDate && Date.now() < lastAt.toDate().getTime()) {
+                    console.warn('기기 시계가 서버보다 과거입니다 — 하루 초기화를 건너뜁니다.');
+                    return false;
+                }
+
+                // 이긴 기기가 같은 쓰기에서 방(코트·대기열)까지 비운다
+                t.update(roomDocRef, {
+                    lastDailyResetKey: todayKey,
+                    lastResetDate: todayKey,   // 예전 필드도 같이 맞춰 둔다 (구버전 호환)
+                    lastDailyResetAt: serverTimestamp(),
+                    inProgressCourts: Array(data.numInProgressCourts || 2).fill(null),
+                    scheduledMatches: {},
+                    autoMatches: {},
+                });
+                return true;
+            });
+
+            if (!won) return;
+
+            // 이긴 기기만 선수 기록을 지운다. Firestore 배치 한계는 500이라 400씩 끊는다.
+            for (let i = 0; i < playersArray.length; i += 400) {
+                const batch = writeBatch(db);
+                playersArray.slice(i, i + 400).forEach(p => {
+                    batch.update(doc(playersCollectionRef, p.id), {
+                        todayGames: 0,
+                        matchHistory: [],
+                        todayRecentGames: [],   // [자동 매칭] 구조체 기록도 함께 초기화
+                        isResting: false,
+                    });
+                });
+                await batch.commit();
+            }
+        } catch (e) {
+            console.error("일일 데이터 초기화 실패:", e);
+        } finally {
+            dailyResetInFlightRef.current = false;
+        }
+    };
 
     useEffect(() => {
         const unsubPlayers = onSnapshot(playersCollectionRef, async (snapshot) => {
             const playersArray = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            if (isAdmin && roomData) {
-                const now = new Date();
-                const todayStr = now.toISOString().split('T')[0];
-                if (roomData.lastResetDate !== todayStr) {
-                    try {
-                        const batch = writeBatch(db);
-                        playersArray.forEach(p => { batch.update(doc(playersCollectionRef, p.id), { todayGames: 0, matchHistory: [] }); });
-                        batch.update(roomDocRef, { lastResetDate: todayStr });
-                        await batch.commit();
-                    } catch (e) { console.error("일일 데이터 초기화 실패:", e); }
-                }
-            }
+            if (isAdmin && roomData) await runDailyResetIfDue(playersArray);
             playersArray.sort((a, b) => (a.entryTime?.seconds || 0) - (b.entryTime?.seconds || 0));
             setPlayers(playersArray.reduce((acc, p) => ({ ...acc, [p.id]: p }), {}));
             setLoading(false);
@@ -2013,6 +2532,97 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         return () => clearInterval(simulationInterval);
     }, [isAutoPlay, roomData, waitingPlayers, isAdmin]);
 
+    // ===============================================================================
+    // [자동 매칭] 시작할 수 없게 된 예약 경기 자동 정리
+    // -------------------------------------------------------------------------------
+    // 예약해 둔 경기의 선수가 방을 나가거나 휴식으로 바뀌면 그 경기는 영원히 시작할 수
+    // 없다. 그런데 그 사람들은 여전히 '다음 경기가 잡힌 사람'으로 분류되어 새 매칭
+    // 후보에서도 빠지기 때문에, 그대로 두면 매칭이 통째로 멈춰버린다.
+    // (콕스라이팅 시뮬레이션에서 2시간 32경기 나올 상황이 10경기로 폭락했다)
+    //
+    // 그래서 관리자 화면이 이걸 감지하면 스스로 정리한다. 아무도 안 눌러도 풀린다.
+    //
+    // ⚠️ 관리자가 한 명도 접속해 있지 않으면 정리되지 않는다. (원본과 같은 한계)
+    //    관리자만 방 문서를 쓸 수 있게 하려는 의도이므로 그대로 뒀다.
+    // ===============================================================================
+    useEffect(() => {
+        if (!isAdmin || !roomData || isRepairingRef.current) return;
+        // 선수 스냅샷이 아직 안 온 상태에서 돌리면 '전원 나간 것'으로 오인해 목록을 전부 지운다
+        if (Object.keys(players).length === 0) return;
+
+        const queueOf = (src) => ({
+            autoMatches: src.autoMatches || {},
+            scheduledMatches: src.scheduledMatches || {},
+        });
+
+        // 먼저 화면 데이터로 싸게 확인하고, 고칠 게 있을 때만 트랜잭션을 연다
+        if (!repairMatchQueues(queueOf(roomData), players).changed) return;
+
+        isRepairingRef.current = true;
+        runTransaction(db, async (t) => {
+            const snap = await t.get(roomDocRef);
+            if (!snap.exists()) return;
+            // 트랜잭션 안에서 최신 상태로 한 번 더 계산한다 (여러 관리자가 동시에 있어도 수렴한다)
+            const { changed, newState } = repairMatchQueues(queueOf(snap.data()), players);
+            if (!changed) return;
+            t.update(roomDocRef, {
+                autoMatches: newState.autoMatches,
+                scheduledMatches: newState.scheduledMatches,
+            });
+        })
+            .catch(e => console.error('예약 경기 자동 정리 실패:', e))
+            .finally(() => { isRepairingRef.current = false; });
+    }, [isAdmin, roomData, players, roomDocRef]);
+
+    // ===============================================================================
+    // [자동 매칭] 관리자 게임형 안내
+    // -------------------------------------------------------------------------------
+    // 기록은 users/{uid}.tutorialSeen(권위) + localStorage(오프라인 대비) 두 곳에 남기고,
+    // 읽을 때는 둘을 합쳐서 본다. 한쪽만 보면 기기를 바꿨을 때 또 뜨거나,
+    // 반대로 Firestore 쓰기가 실패했는데 안 뜨는 일이 생긴다.
+    // ===============================================================================
+    const guideLocalKey = user ? `cockstar-tutorial-seen-${user.uid}` : null;
+    const hasSeenGuide = useMemo(() => {
+        if (userData?.tutorialSeen?.[AUTOMATCH_GUIDE_KEY]) return true;
+        if (!guideLocalKey) return false;
+        try {
+            const raw = JSON.parse(localStorage.getItem(guideLocalKey) || '{}');
+            return !!raw[AUTOMATCH_GUIDE_KEY];
+        } catch { return false; }
+    }, [userData, guideLocalKey]);
+
+    useEffect(() => {
+        if (loading || !isAdmin || hasSeenGuide) return;
+        if (isGuideOpen || guideTriedRef.current) return;
+        // 다른 창이 떠 있으면 기다린다 (겹쳐 뜨면 둘 다 못 쓴다)
+        if (isSettingsOpen || isEditInfoOpen || courtModalOpen || showShareModal) return;
+        const t = setTimeout(() => { guideTriedRef.current = true; setIsGuideOpen(true); }, 600);
+        return () => clearTimeout(t);
+    }, [loading, isAdmin, hasSeenGuide, isGuideOpen, isSettingsOpen, isEditInfoOpen, courtModalOpen, showShareModal]);
+
+    /**
+     * 안내를 끝까지 본 경우에만 '봤음'으로 기록한다.
+     * 중간에 닫으면(나중에 할게요) 기록하지 않아 다음 접속 때 다시 뜬다.
+     * — 스킵해도 기록하는 보통 튜토리얼과 정반대다. 꼭 봐야 하는 내용이라 일부러 이렇게 했다.
+     */
+    const markGuideSeen = async () => {
+        setIsGuideOpen(false);
+        const stamp = new Date().toISOString();
+        if (guideLocalKey) {
+            try {
+                const raw = JSON.parse(localStorage.getItem(guideLocalKey) || '{}');
+                localStorage.setItem(guideLocalKey, JSON.stringify({ ...raw, [AUTOMATCH_GUIDE_KEY]: stamp }));
+            } catch { /* 사파리 프라이빗 모드 등 — 로컬 저장 실패는 무시한다 */ }
+        }
+        if (!user) return;
+        try {
+            await setDoc(doc(db, "users", user.uid), { tutorialSeen: { [AUTOMATCH_GUIDE_KEY]: stamp } }, { merge: true });
+        } catch (e) {
+            // 로컬에는 남았으므로 이 기기에서는 다시 안 뜬다. 조용히 넘어간다.
+            console.error('안내 시청 기록 실패:', e);
+        }
+    };
+
     if (loading) return <LoadingSpinner text="ENTERING" />;
 
     if (roomData?.password && !isAuthorized) {
@@ -2030,9 +2640,34 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 
     const handleToggleRest = async () => {
         if (!user || !players[user.uid]) return;
+        const goingToRest = !players[user.uid].isResting;
         try {
             const playerRef = doc(playersCollectionRef, user.uid);
-            await updateDoc(playerRef, { isResting: !players[user.uid].isResting });
+            await updateDoc(playerRef, { isResting: goingToRest });
+
+            // [자동 매칭] 휴식을 켤 때는 잡혀 있던 다음 경기에서 먼저 빼낸다.
+            // 안 빼면 그 경기는 영원히 시작 못 하는 상태로 목록에 남고, 본인은 계속
+            // '다음 경기가 잡힌 사람'으로 분류되어 새 매칭 후보에서도 빠진다.
+            // (관리자 화면의 자동 정리가 결국 치워주지만, 관리자가 없을 수도 있으므로
+            //  본인이 누른 이 순간에 스스로 정리하는 게 확실하다)
+            //
+            // 지금 코트에서 뛰는 중이라면 코트에서는 빼지 않는다 —
+            // 관리자가 경기 종료를 눌러 기록을 남길 수 있어야 하기 때문이다.
+            if (!goingToRest) return;
+            await runTransaction(db, async (t) => {
+                const snap = await t.get(roomDocRef);
+                if (!snap.exists()) return;
+                const data = snap.data();
+                const { changed, newState } = repairMatchQueues(
+                    { autoMatches: data.autoMatches || {}, scheduledMatches: data.scheduledMatches || {} },
+                    { ...players, [user.uid]: { ...players[user.uid], isResting: true } }
+                );
+                if (!changed) return;
+                t.update(roomDocRef, {
+                    autoMatches: newState.autoMatches,
+                    scheduledMatches: newState.scheduledMatches,
+                });
+            });
         } catch (e) {
             console.error("휴식 상태 변경 실패:", e);
             toast("상태 변경에 실패했습니다.", 'error');
@@ -2172,7 +2807,9 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
             }
             await updateDoc(roomDocRef, {
                 mode: newSettings.mode, numScheduledMatches: newSettings.numScheduledMatches,
-                numInProgressCourts: newSettings.numInProgressCourts, inProgressCourts: newCourts
+                numInProgressCourts: newSettings.numInProgressCourts, inProgressCourts: newCourts,
+                // [자동 매칭] 민감도는 방마다 다르게 둘 수 있다 (동호회마다 운영 성향이 다르므로)
+                autoMatchConfig: newSettings.autoMatchConfig,
             });
             toast("설정이 저장되었습니다.");
         } catch (e) { toast("설정 저장 실패: " + e.message, 'error'); }
@@ -2200,7 +2837,11 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
 
     const handleSystemReset = async () => {
         if(!window.confirm("모든 경기 기록을 초기화하시겠습니까? (선수 목록은 유지)")) return;
-        await updateDoc(roomDocRef, { scheduledMatches: {}, inProgressCourts: Array(roomData.numInProgressCourts).fill(null) });
+        await updateDoc(roomDocRef, {
+            scheduledMatches: {},
+            autoMatches: {},
+            inProgressCourts: Array(roomData.numInProgressCourts).fill(null),
+        });
         toast("경기 기록이 초기화되었습니다.");
     };
 
@@ -2210,13 +2851,36 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         Object.keys(players).forEach(pid => { batch.delete(doc(playersCollectionRef, pid)); });
         const emptyCourts = Array(roomData.numInProgressCourts).fill(null);
         await batch.commit();
-        await updateDoc(roomDocRef, { inProgressCourts: emptyCourts, scheduledMatches: {} });
+        await updateDoc(roomDocRef, { inProgressCourts: emptyCourts, scheduledMatches: {}, autoMatches: {} });
     };
 
     const handleSaveGames = async (playerId, newCount) => {
         try {
             const roomPlayerRef = doc(playersCollectionRef, playerId);
-            await updateDoc(roomPlayerRef, { todayGames: newCount });
+            const player = players[playerId];
+            const count = Math.max(0, Math.floor(newCount || 0));
+
+            // [자동 매칭] 구조체 기록도 함께 맞춘다.
+            // 안 맞추면 카드에는 5G인데 엔진은 3경기로 계산하는 상태가 되어,
+            // 그 사람이 계속 '덜 친 사람'으로 우선 배정된다.
+            //
+            // 늘릴 때는 isManual 표시가 붙은 빈 기록을 넣는다 — 엔진은 이걸 경기 수에는
+            // 세지만 '누구와 만났나'에는 넣지 않는다. 없는 만남을 지어내지 않으려는 것이다.
+            // 줄일 때는 최신 기록부터 뺀다 (방금 잘못 누른 걸 되돌리는 경우가 대부분이므로).
+            const history = Array.isArray(player?.todayRecentGames) ? [...player.todayRecentGames] : [];
+            const diff = count - history.length;
+            let nextHistory = history;
+            if (diff > 0) {
+                const stamp = new Date().toISOString();
+                nextHistory = [
+                    ...Array.from({ length: diff }, () => ({ timestamp: stamp, partners: [], opponents: [], isManual: true })),
+                    ...history,
+                ].slice(0, 20);
+            } else if (diff < 0) {
+                nextHistory = history.slice(-diff);
+            }
+
+            await updateDoc(roomPlayerRef, { todayGames: count, todayRecentGames: nextHistory });
             toast("경기 수가 저장되었습니다.");
             setEditGamePlayer(null);
         } catch (e) { console.error("게임 수 수정 실패:", e); toast("수정 실패: " + e.message, 'error'); }
@@ -2236,32 +2900,68 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         } catch (e) { console.error("봇 생성 실패:", e); toast("봇 생성 오류", 'error'); }
     };
 
-    const handleStartClick = (matchIndex) => {
+    /**
+     * @param {number|string} matchIndex 대기열 안의 경기 번호
+     * @param {'schedule'|'auto'} source 어느 대기열에서 시작하는지
+     */
+    const handleStartClick = (matchIndex, source = 'schedule') => {
         if (!isAdmin) return toast("관리자만 가능합니다.", 'error');
         const emptyCourts = [];
         const currentCourts = roomData.inProgressCourts || [];
         for (let i = 0; i < roomData.numInProgressCourts; i++) { if (!currentCourts[i]) emptyCourts.push(i); }
         if (emptyCourts.length === 0) return toast("빈 코트가 없습니다.", 'error');
-        if (emptyCourts.length === 1) processStartMatch(matchIndex, emptyCourts[0]);
-        else { setPendingMatchIndex(matchIndex); setAvailableCourts(emptyCourts); setCourtModalOpen(true); }
+        if (emptyCourts.length === 1) processStartMatch(matchIndex, emptyCourts[0], source);
+        else {
+            setPendingMatchIndex(matchIndex);
+            setPendingMatchSource(source);
+            setAvailableCourts(emptyCourts);
+            setCourtModalOpen(true);
+        }
     };
 
-    const processStartMatch = async (matchIdx, courtIdx) => {
+    /**
+     * 경기를 코트로 보낸다.
+     *
+     * 시작 후 목록을 정리하는 방식이 대기열마다 다르다.
+     *  · 경기 배정(수동) : 뒤 경기를 앞으로 당긴다 (기존 동작 그대로)
+     *  · 자동 매칭      : 지우고 "0","1",… 로 조밀하게 다시 번호를 매긴다
+     * 결과는 같아 보이지만, 자동 매칭은 항상 4명 꽉 찬 배열이고 경기 예정은 빈 칸이
+     * 섞일 수 있어서 코드가 갈린다.
+     */
+    const processStartMatch = async (matchIdx, courtIdx, source = 'schedule') => {
         try {
             await runTransaction(db, async (t) => {
                 const rd = await t.get(roomDocRef);
                 if (!rd.exists()) throw "방이 존재하지 않습니다.";
                 const data = rd.data();
-                const schedule = { ...data.scheduledMatches };
-                const matchPlayers = schedule[matchIdx];
+                const isAuto = source === 'auto';
+                const queue = { ...(isAuto ? data.autoMatches : data.scheduledMatches) };
+                const matchPlayers = queue[matchIdx];
                 const currentCourts = [...(data.inProgressCourts || [])];
+
                 if (currentCourts[courtIdx] !== null) throw "이미 다른 관리자가 해당 코트에서 경기를 시작했습니다.";
                 if (!matchPlayers || matchPlayers.filter(Boolean).length < 4) throw "경기 인원이 변경되었거나 이미 시작된 경기입니다.";
+
+                // [이중 시작 방지] 모달을 보는 사이 상황이 바뀔 수 있으므로 트랜잭션 안에서 다시 확인한다.
+                // 이 검사가 없으면 한 사람이 두 코트에서 동시에 뛰는 상태가 만들어진다.
+                const onCourtNow = new Set(currentCourts.flatMap(c => c?.players || []).filter(Boolean));
+                if (matchPlayers.some(pid => pid && onCourtNow.has(pid))) {
+                    throw "선택한 선수가 이미 다른 코트에서 경기 중입니다.";
+                }
+
                 currentCourts[courtIdx] = { players: matchPlayers, startTime: new Date().toISOString() };
-                const scheduleValues = Object.entries(schedule).filter(([key]) => parseInt(key) !== matchIdx).map(([_, value]) => value);
-                const reorderedSchedule = {};
-                scheduleValues.forEach((val, i) => { reorderedSchedule[i] = val; });
-                t.update(roomDocRef, { scheduledMatches: reorderedSchedule, inProgressCourts: currentCourts });
+
+                const remaining = Object.entries(queue)
+                    .filter(([key]) => String(key) !== String(matchIdx))
+                    .sort((a, b) => Number(a[0]) - Number(b[0]))
+                    .map(([, value]) => value);
+                const reordered = {};
+                remaining.forEach((val, i) => { reordered[i] = val; });
+
+                t.update(roomDocRef, {
+                    [isAuto ? 'autoMatches' : 'scheduledMatches']: reordered,
+                    inProgressCourts: currentCourts,
+                });
             });
             setCourtModalOpen(false);
         } catch (e) {
@@ -2276,20 +2976,47 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
         if (!court || !court.players) return;
         try {
             const batch = writeBatch(db);
+
+            // 기존 표시용 기록 (사람이 읽는 문자열) — 그대로 유지한다
             const matchMembersString = court.players.map(pid => {
                 const p = players[pid];
                 if (!p) return '퇴장한 선수';
                 const levelMark = (p.level && p.level !== '미설정') ? p.level[0] : '';
                 return `${levelMark}${p.isBot ? `[Bot]${p.name}` : p.name}`;
             }).join(', ');
+
+            // ── [자동 매칭] 구조체 기록 ──
+            // 매칭 엔진은 "누가 누구와 몇 번 만났는지"를 세야 겹침을 피할 수 있는데,
+            // 위 문자열로는 그걸 계산할 수 없다. 그래서 구조체를 함께 쌓는다.
+            //
+            // ★ timestamp를 4명 모두에게 '똑같이' 넣는 게 핵심이다.
+            //   서로 다른 timestamp의 개수가 곧 '오늘 총 몇 경기'가 되고,
+            //   양쪽 선수 기록에서 같은 경기를 두 번 세지 않는 기준도 이 값이다.
+            //   각자 new Date()를 부르면 밀리초가 어긋나 둘 다 깨진다.
+            const timestamp = new Date().toISOString();
+            const teamA = [court.players[0], court.players[1]].filter(Boolean);
+            const teamB = [court.players[2], court.players[3]].filter(Boolean);
+
             court.players.forEach(pid => {
                 const p = players[pid];
-                if (pid && p) {
-                    const roomPlayerRef = doc(playersCollectionRef, pid);
-                    const currentHistory = Array.isArray(p.matchHistory) ? p.matchHistory : [];
-                    batch.update(roomPlayerRef, { todayGames: (p.todayGames || 0) + 1, matchHistory: [matchMembersString, ...currentHistory].slice(0, 10) });
-                }
+                if (!pid || !p) return;
+                const roomPlayerRef = doc(playersCollectionRef, pid);
+                const currentHistory = Array.isArray(p.matchHistory) ? p.matchHistory : [];
+                const inA = teamA.includes(pid);
+                const structured = {
+                    timestamp,
+                    partners: (inA ? teamA : teamB).filter(x => x !== pid),
+                    opponents: inA ? teamB : teamA,
+                };
+                const prevStructured = Array.isArray(p.todayRecentGames) ? p.todayRecentGames : [];
+                batch.update(roomPlayerRef, {
+                    todayGames: (p.todayGames || 0) + 1,
+                    matchHistory: [matchMembersString, ...currentHistory].slice(0, 10),
+                    // 최신이 앞. 20개까지만 — 엔진이 보는 건 최근 몇 경기뿐이라 더 쌓아둘 이유가 없다
+                    todayRecentGames: [structured, ...prevStructured].slice(0, 20),
+                });
             });
+
             const newCourts = [...roomData.inProgressCourts];
             newCourts[courtIdx] = null;
             await batch.commit();
@@ -2298,6 +3025,155 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
             console.error("경기 종료 및 히스토리 저장 오류:", e);
             toast("히스토리 저장 중 오류가 발생했습니다.", 'error');
         }
+    };
+
+    // ===============================================================================
+    // [자동 매칭] 후보 계산 → 관리자 선택 → 목록 추가
+    // -------------------------------------------------------------------------------
+    // 앱이 혼자 정하지 않는다. 후보 6개를 이유와 함께 보여주고 관리자가 고른다.
+    // 이미 다음 경기가 잡힌 사람은 후보에서 빠진다 (이중 배정 방지).
+    // ===============================================================================
+
+    /** 지금 상황으로 선택지를 계산한다 (모달을 처음 열 때 · '다시 계산'을 누를 때) */
+    const computeMatchOptions = (gender) => {
+        const isMixed = gender === '혼복';
+        const config = roomData?.autoMatchConfig || {};
+
+        // 민감도 = "경기중인 선수를 몇 명까지 미리 예약할지"
+        const masterSens = config.sensitivity || 'normal';
+        const perGender = !!config.perGenderSensitivity;
+        const sensKey = (perGender && !isMixed)
+            ? ((gender === '남' ? config.maleSensitivity : config.femaleSensitivity) || masterSens)
+            : masterSens;
+        const sens = getSensitivity(sensKey);
+
+        const { allPlayers, gameState } = buildEngineInput(roomData, players);
+        const ctx = buildMatchContext(allPlayers, gameState, { now: Date.now() });
+        const pool = buildCandidatePool(ctx, gender);
+
+        // 이미 '코트 끝나기를 기다리는' 예약이 목록에 몇 개나 있는지.
+        // 예약이 쌓이면 목록 전체가 대기 상태가 되어 코트가 논다 — 엔진이 이번엔
+        // '바로 시작 가능한 조합'을 우선하도록 알려준다.
+        const pendingReservations = Object.values(roomData?.autoMatches || {})
+            .filter(m => (m || []).some(id => id && inProgressPlayerIds.has(id))).length;
+
+        return generateMatchOptions({
+            pool, ctx, mode: gender, maxOnCourt: sens.maxOnCourt, pages: 3, pendingReservations,
+        });
+    };
+
+    const handleGenerateMatch = async (gender) => {
+        const isMixed = gender === '혼복';
+        const genderLabel = isMixed ? '혼복' : (gender === '남' ? '남자' : '여자');
+
+        if (!isAdmin || isGeneratingRef.current) return;
+        if (!roomData) return toast("데이터를 불러오는 중입니다. 잠시 후 다시 눌러주세요.", 'error');
+
+        isGeneratingRef.current = true;
+        setGeneratingGender(gender);
+        try {
+            const result = computeMatchOptions(gender);
+
+            // 인원이 모자라면 '무엇이 몇 명' 부족한지 정확히 알려준다
+            if (result.status !== 'ok') {
+                toast(isMixed
+                    ? `혼복은 남자 2명, 여자 2명 이상 필요합니다. (현재 남 ${result.maleCount ?? 0} · 여 ${result.femaleCount ?? 0})`
+                    : `${genderLabel} 선수가 4명 이상 필요합니다. (현재 ${result.poolSize}명)`,
+                'error');
+                return;
+            }
+            setMatchOptions({ gender, genderLabel, result });
+        } catch (e) {
+            console.error("자동 매칭 계산 실패:", e);
+            toast("매칭 후보를 계산하지 못했습니다.", 'error');
+        } finally {
+            isGeneratingRef.current = false;
+            setGeneratingGender(null);
+        }
+    };
+
+    /** 모달에서 '다시 계산' — 지금 코트 상황으로 후보를 새로 뽑는다 */
+    const handleRegenerateOptions = () => {
+        if (!matchOptions) return;
+        try {
+            const result = computeMatchOptions(matchOptions.gender);
+            if (result.status !== 'ok') {
+                toast("지금은 매칭할 수 있는 선수가 부족합니다.", 'error');
+                return;
+            }
+            setMatchOptions({ ...matchOptions, result });
+        } catch (e) { console.error("다시 계산 실패:", e); }
+    };
+
+    /** 관리자가 선택지 하나를 골랐을 때 — 자동 매칭 목록 맨 뒤에 추가 */
+    const handleSelectMatchOption = async (option) => {
+        let failReason = null;
+        try {
+            await runTransaction(db, async (t) => {
+                const snap = await t.get(roomDocRef);
+                if (!snap.exists()) throw "방이 존재하지 않습니다.";
+                const data = snap.data();
+                const autoMatches = { ...(data.autoMatches || {}) };
+
+                // 모달을 보는 사이에 상황이 바뀌었을 수 있으므로 DB 최신 상태로 다시 확인한다.
+                //  ① 다른 관리자가 같은 선수를 먼저 넣었는가 (두 대기열 모두 확인)
+                const queuedIds = new Set([
+                    ...Object.values(autoMatches).flat(),
+                    ...Object.values(data.scheduledMatches || {}).flat(),
+                ].filter(Boolean));
+                if (option.ids.some(id => queuedIds.has(id))) {
+                    failReason = '방금 다른 관리자가 같은 선수를 다른 경기에 넣었습니다.';
+                    return;
+                }
+                //  ② 그 사이에 나가거나 휴식으로 바뀐 선수가 있는가
+                const gone = option.ids.map(id => players[id]).find(p => !p || p.isResting);
+                if (gone !== undefined) {
+                    failReason = `${gone?.name || '일부'} 선수가 방금 빠졌습니다.`;
+                    return;
+                }
+
+                autoMatches[String(Object.keys(autoMatches).length)] = [...option.ids];
+                t.update(roomDocRef, { autoMatches });
+            });
+        } catch (e) {
+            console.error("자동 매칭 추가 실패:", e);
+            failReason = typeof e === 'string' ? e : '목록에 추가하지 못했습니다.';
+        }
+
+        setMatchOptions(null);
+        if (failReason) {
+            toast(`${failReason} 매칭 버튼을 한 번 더 눌러주세요.`, 'error');
+        }
+    };
+
+    const handleDeleteAutoMatch = async (matchIndex) => {
+        if (!isAdmin) return;
+        if (!window.confirm(`${Number(matchIndex) + 1}번 자동 매칭을 삭제할까요?`)) return;
+        try {
+            await runTransaction(db, async (t) => {
+                const snap = await t.get(roomDocRef);
+                if (!snap.exists()) return;
+                const remaining = Object.entries(snap.data().autoMatches || {})
+                    .filter(([key]) => String(key) !== String(matchIndex))
+                    .sort((a, b) => Number(a[0]) - Number(b[0]))
+                    .map(([, v]) => v);
+                const reindexed = {};
+                remaining.forEach((m, i) => { reindexed[i] = m; });
+                t.update(roomDocRef, { autoMatches: reindexed });
+            });
+        } catch (e) { console.error("자동 매칭 삭제 실패:", e); toast("삭제 실패", 'error'); }
+    };
+
+    const handleClearAutoMatches = async () => {
+        if (!isAdmin) return;
+        if (!window.confirm("자동 매칭 목록을 모두 삭제할까요?")) return;
+        try { await updateDoc(roomDocRef, { autoMatches: {} }); }
+        catch (e) { console.error(e); toast("삭제 실패", 'error'); }
+    };
+
+    /** 자동 매칭 경기에서 한 명만 빼기 → 그 경기는 4명이 아니게 되므로 통째로 해체한다 */
+    const handleRemoveFromAutoMatch = (matchIndex) => {
+        handleDeleteAutoMatch(matchIndex);
     };
 
     if (loading) return <LoadingSpinner text="ENTERING" />;
@@ -2331,9 +3207,17 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                     <button onClick={handleShare} className="w-9 h-9 flex items-center justify-center rounded-full text-dim hover:text-volt hover:bg-white/5 transition-all" title="경기방 공유">
                         <Share2 size={19} />
                     </button>
-                    <button onClick={handleToggleRest} className={`h-9 px-3.5 rounded-full text-xs font-black transition-all flex items-center justify-center ${players[user.uid]?.isResting ? 'bg-white/10 text-dim' : 'bg-volt text-ink'}`}>
-                        {players[user.uid]?.isResting ? '복귀' : '휴식'}
-                    </button>
+                    {/* 운영 전용 모드에서는 선수 카드 자체가 없으므로 휴식 버튼이 의미가 없다.
+                        대신 지금 어떤 모드인지 보여준다 (설정에서 되돌릴 수 있다) */}
+                    {ghostActive ? (
+                        <span className="h-9 px-3.5 rounded-full text-xs font-black flex items-center justify-center bg-white/10 text-dim" title="선수 명단에 잡히지 않습니다 — 설정에서 되돌릴 수 있어요">
+                            👻 운영중
+                        </span>
+                    ) : (
+                        <button onClick={handleToggleRest} className={`h-9 px-3.5 rounded-full text-xs font-black transition-all flex items-center justify-center ${players[user.uid]?.isResting ? 'bg-white/10 text-dim' : 'bg-volt text-ink'}`}>
+                            {players[user.uid]?.isResting ? '복귀' : '휴식'}
+                        </button>
+                    )}
                     {isAdmin && (
                         <div className="flex gap-1">
                             <button onClick={() => setIsTestLabOpen(true)} className={`w-9 h-9 flex items-center justify-center rounded-full transition-all ${isAutoPlay ? 'bg-coral/20 text-coral animate-pulse' : 'text-dim hover:text-volt hover:bg-white/5'}`} title="시뮬레이션 랩">
@@ -2388,6 +3272,23 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                                 </div>
                             )}
                         </section>
+
+                        {/* [자동 매칭] 엔진이 추천한 조합들 — 수동 배정보다 위에 둔다.
+                            대기 명단 바로 다음이 '이제 뭘 하지?'를 가장 자연스럽게 잇는 자리다. */}
+                        <AutoMatchSection
+                            autoMatches={roomData.autoMatches}
+                            players={players}
+                            isAdmin={isAdmin}
+                            currentUserId={user.uid}
+                            inProgressPlayerIds={inProgressPlayerIds}
+                            courtIndexByPlayer={courtIndexByPlayer}
+                            onGenerate={handleGenerateMatch}
+                            generatingGender={generatingGender}
+                            onStart={(mIdx) => handleStartClick(mIdx, 'auto')}
+                            onDelete={handleDeleteAutoMatch}
+                            onClearAll={handleClearAutoMatches}
+                            onRemovePlayer={handleRemoveFromAutoMatch}
+                        />
 
                         <section className="space-y-3">
                             <h2 className="text-xs font-black label text-dim ml-1">경기 배정 · Schedule</h2>
@@ -2461,12 +3362,40 @@ function GameRoomView({ roomId, user, userData, onExitRoom, roomsCollectionRef }
                 )}
             </main>
 
-            <CourtSelectionModal isOpen={courtModalOpen} onClose={() => setCourtModalOpen(false)} courts={availableCourts} onSelect={(idx) => processStartMatch(pendingMatchIndex, idx)} />
+            <CourtSelectionModal isOpen={courtModalOpen} onClose={() => setCourtModalOpen(false)} courts={availableCourts} onSelect={(idx) => processStartMatch(pendingMatchIndex, idx, pendingMatchSource)} />
             <ShareModal isOpen={showShareModal} onClose={() => setShowShareModal(false)} roomId={roomId} />
-            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} roomData={roomData} onSave={handleSettingsSave} onReset={handleSystemReset} onKickAll={handleKickAll} />
+            <SettingsModal
+                isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)}
+                roomData={roomData} onSave={handleSettingsSave} onReset={handleSystemReset} onKickAll={handleKickAll}
+                players={players}
+                onReplayGuide={() => { guideTriedRef.current = true; setIsSettingsOpen(false); setIsGuideOpen(true); }}
+                isGhost={ghostActive}
+                onToggleGhost={handleToggleGhost}
+            />
             <EditGamesModal isOpen={!!editGamePlayer} onClose={() => setEditGamePlayer(null)} player={editGamePlayer} onSave={handleSaveGames} />
             <EditRoomInfoModal isOpen={isEditInfoOpen} onClose={() => setIsEditInfoOpen(false)} roomData={roomData} onSave={handleRoomInfoSave} onDelete={handleRoomDelete} />
             <TestLabModal isOpen={isTestLabOpen} onClose={() => setIsTestLabOpen(false)} onCreateBots={handleCreateBots} isAutoPlay={isAutoPlay} setIsAutoPlay={setIsAutoPlay} />
+
+            {/* [자동 매칭] 후보 6개 고르기 */}
+            {matchOptions && (
+                <MatchOptionsModal
+                    genderLabel={matchOptions.genderLabel}
+                    result={matchOptions.result}
+                    queueCount={Object.keys(roomData.autoMatches || {}).length}
+                    onSelect={handleSelectMatchOption}
+                    onRegenerate={handleRegenerateOptions}
+                    onCancel={() => setMatchOptions(null)}
+                />
+            )}
+
+            {/* [자동 매칭] 관리자 게임형 안내 — 끝까지 봐야 기록이 남는다 */}
+            {isGuideOpen && (
+                <AutoMatchGuide
+                    userName={userData?.name}
+                    onComplete={markGuideSeen}
+                    onDismiss={() => setIsGuideOpen(false)}
+                />
+            )}
         </div>
     );
 }

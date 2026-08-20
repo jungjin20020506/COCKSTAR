@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:matching": "node scripts/simulate-matching.mjs",
+    "test:matching:stress": "node scripts/stress-test-matching.mjs"
   },
   "dependencies": {
     "firebase": "^12.2.1",
