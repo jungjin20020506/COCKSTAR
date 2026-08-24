@@ -10,7 +10,7 @@ import { GYM_COUNT } from '../../lib/places';
 // [왜 스킵 버튼이 없나]
 //   콕스타는 '경기방에 들어가서 매칭을 받는다'는, 처음 보면 알 수 없는 구조를 가진
 //   앱이다. 스킵할 수 있게 두면 90%가 스킵하고, 그 90%는 홈 화면만 보다가 나간다.
-//   대신 짧게 만들었다 — 여덟 장, 40초. 길면 스킵이 없는 게 폭력이 된다.
+//   대신 짧게 만들었다 — 아홉 장, 45초. 길면 스킵이 없는 게 폭력이 된다.
 //
 // [왜 개발자 인사로 시작하나]
 //   개인이 만든 앱이라는 걸 먼저 밝히면 사용자의 기대치가 달라진다.
@@ -62,6 +62,23 @@ function ArtEngine() {
                         <span key={i} className={`wt-engine-card ${t}`} style={{ animationDelay: `${i * 0.18}s` }} />
                     ))}
                 </div>
+            </div>
+        </div>
+    );
+}
+
+function ArtBell() {
+    return (
+        <div className="wt-art">
+            <div
+                className="animate-volt-pulse"
+                style={{
+                    width: 96, height: 96, borderRadius: 28,
+                    background: 'rgba(205,251,71,.14)', border: '1px solid rgba(205,251,71,.4)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+            >
+                <span style={{ fontSize: 44, lineHeight: 1 }}>🔔</span>
             </div>
         </div>
     );
@@ -148,29 +165,36 @@ const SLIDES = [
         cta: '다음',
     },
     {
-        art: ArtMap,
+        art: ArtBell,
         kicker: 'STEP 3',
+        title: '내 차례는\n앱이 알려드려요',
+        body: '경기방 화면 맨 위에 내 상태가 한 줄로 떠요.\n"다음 경기는 나!" · "약 10~20분 뒤 예상" 처럼요.\n\n알림을 켜두면 내 경기가 잡히는 순간\n진동과 "띠링" 소리로 알려드립니다.\n폰을 주머니에 넣고 수다 떨어도 돼요.\n\n지난 알림은 홈의 종(🔔) 아이콘에서 다시 봅니다.',
+        cta: '다음',
+    },
+    {
+        art: ArtMap,
+        kicker: 'STEP 4',
         title: '콕맵에서\n칠 곳을 찾아요',
         body: `경기도 체육관 ${GYM_COUNT.toLocaleString()}곳과 동호회를 지도에 담았어요.\n내 주변에 어디서 칠 수 있는지, 지금 열린 경기방은 어디인지 한눈에 봅니다.`,
         cta: '다음',
     },
     {
         art: ArtBrag,
-        kicker: 'STEP 4',
+        kicker: 'STEP 5',
         title: '오늘 기록,\n자랑해도 됩니다',
         body: '운동이 끝나면 오늘의 기록 카드를 만들 수 있어요.\n몇 경기 쳤는지, 방에서 몇 등인지, 몇 명과 랠리했는지.\n\n인스타 스토리 크기 그대로라 바로 올릴 수 있어요.',
         cta: '다음',
     },
     {
         art: ArtStore,
-        kicker: 'STEP 5',
+        kicker: 'STEP 6',
         title: '장비는\n스토어에서',
         body: `공식 파트너 노에러의 실제 상품 ${PRODUCTS.length}종을 담았어요.\n라켓·신발·의류·셔틀콕까지, 최대 ${DEAL_MAX}% 할인 상품도 있습니다.`,
         cta: '다음',
     },
     {
         art: ArtSupport,
-        kicker: 'STEP 6',
+        kicker: 'STEP 7',
         title: '이상하면\n바로 말해주세요',
         body: '혼자 만들다 보니 제가 못 본 게 분명히 있어요.\n\n내 정보 화면에 “문의·버그 신고”가 있습니다.\n카카오톡 오픈채팅으로 바로 말 걸어도 되고,\n메일로 길게 써주셔도 됩니다.\n\n진짜로 다 읽고, 진짜로 고칩니다.',
         cta: '다음',
