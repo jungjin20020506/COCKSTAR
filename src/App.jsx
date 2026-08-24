@@ -9,6 +9,7 @@ import { Toaster } from './lib/toast';
 import { LoadingSpinner, OfflineBanner } from './components/ui/Feedback';
 import { CockstarLogo } from './components/ui/Logo';
 import { InstallBanner, InstallGuideModal, countVisit } from './components/ui/InstallPrompt';
+import { UpdateBanner } from './components/ui/UpdateBanner';
 import { NotificationCenter, useNotiBadge } from './components/ui/NotificationCenter';
 import { checkVersionGate, forceUpdate } from './lib/appConfig';
 import { AuthModal } from './features/auth/AuthModal';
@@ -241,6 +242,7 @@ function Shell() {
                 </Suspense>
             </main>
 
+            <UpdateBanner />
             <InstallBanner />
             <TabBar onNeedAuth={() => setAuthOpen(true)} />
 

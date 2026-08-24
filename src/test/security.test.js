@@ -4,6 +4,7 @@ import {
     createInvite, inviteMatches, isInviteValid, normalizeCode, isRoomAdmin,
 } from '../lib/adminInvite';
 import { isSuperAdmin } from '../lib/superAdmin';
+import { convertToEmail, displayAccount } from '../constants';
 import { checkJoinable } from '../features/room/JoinGate';
 
 // ===================================================================================
@@ -48,6 +49,28 @@ describe('방 비밀번호', () => {
 
     it('빈 비밀번호는 잠그지 않은 것으로 본다', async () => {
         expect(await hashPassword('   ')).toBeNull();
+    });
+});
+
+describe('아이디 → 이메일 변환 (로그인 계정)', () => {
+    it("구버전 특수 계정: 'domain' 은 domain@special.user 로 간다 (v1.0 개편 때 깨졌던 회귀)", () => {
+        expect(convertToEmail('domain')).toBe('domain@special.user');
+        expect(convertToEmail(' Domain ')).toBe('domain@special.user'); // 공백·대소문자 너그럽게
+    });
+
+    it('일반 아이디는 @cockstar.app 이 붙는다', () => {
+        expect(convertToEmail('hong123')).toBe('hong123@cockstar.app');
+        expect(convertToEmail('domainx')).toBe('domainx@cockstar.app'); // 접두사는 특수 계정이 아니다
+    });
+
+    it('이메일을 통째로 넣으면 그대로 쓴다', () => {
+        expect(convertToEmail('a@b.com')).toBe('a@b.com');
+    });
+
+    it('화면 표기는 아이디만 보여준다 (특수 계정 포함)', () => {
+        expect(displayAccount('domain@special.user')).toBe('domain');
+        expect(displayAccount('hong123@cockstar.app')).toBe('hong123');
+        expect(displayAccount('real@gmail.com')).toBe('real@gmail.com');
     });
 });
 

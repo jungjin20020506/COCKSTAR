@@ -14,7 +14,7 @@ import { RoomAdminGuide } from '../features/tutorial/RoomAdminGuide';
 describe('환영 투어 (WelcomeTour)', () => {
     it('아홉 장을 끝까지 넘기면 onComplete 가 불린다', () => {
         const onComplete = vi.fn();
-        const { getByText, container } = render(
+        const { container } = render(
             <WelcomeTour userName="테스터" onComplete={onComplete} />,
         );
 

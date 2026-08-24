@@ -66,15 +66,26 @@ export const SUPPORT = {
 // ===================================================================================
 export const ACCOUNT_DOMAIN = 'cockstar.app';
 
+// ── 구버전 특수 계정 ──
+// v1.0 전면 개편 이전에는 아이디 'domain' 이 domain@special.user 로 변환되어
+// 가입돼 있었다. 개편 때 이 예외가 사라지면서 'domain' 로그인이 조용히 깨졌다 —
+// 실제 Auth 계정은 그대로인데 변환 규칙만 바뀌어 '없는 계정'을 두드리게 된 것.
+// 계정을 옮길 수는 없으므로(비밀번호를 우리가 모른다) 예외를 여기서 유지한다.
+const LEGACY_ACCOUNTS = { domain: 'domain@special.user' };
+
 export const convertToEmail = (input) => {
     const clean = String(input || '').trim();
     if (!clean) return '';
     if (clean.includes('@')) return clean;
+    const legacy = LEGACY_ACCOUNTS[clean.toLowerCase()];
+    if (legacy) return legacy;
     return `${clean}@${ACCOUNT_DOMAIN}`;
 };
 
 /** 가짜 이메일이면 아이디만 보여준다 (@cockstar.app 은 사용자에게 의미 없는 값이다) */
 export const displayAccount = (email) => {
     const s = String(email || '');
+    const legacyId = Object.keys(LEGACY_ACCOUNTS).find(k => LEGACY_ACCOUNTS[k] === s.toLowerCase());
+    if (legacyId) return legacyId;
     return s.endsWith(`@${ACCOUNT_DOMAIN}`) ? s.split('@')[0] : s;
 };
