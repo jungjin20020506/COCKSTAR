@@ -31,6 +31,20 @@ export const getLevelColor = (level) => {
 /** NOERROR 공식 파트너 (콕스타 공식 스폰서) */
 export const NOERROR_URL = 'https://www.pjbsports.com/';
 
+/**
+ * 경기방 포인트 색 — 방마다 고를 수 있는 테마 색 (내 방이라는 소속감).
+ * 값은 hex 로 저장한다(roomData.themeColor). 없으면 기본 라임(volt).
+ * 전부 어두운 배경 위에서 검정 글자가 읽히는 밝은 색으로 골랐다.
+ */
+export const ROOM_THEMES = [
+    { key: 'volt', color: '#CDFB47', label: '라임' },
+    { key: 'sky', color: '#4CC9F0', label: '스카이' },
+    { key: 'coral', color: '#FF6A52', label: '코랄' },
+    { key: 'violet', color: '#B79CFF', label: '바이올렛' },
+    { key: 'gold', color: '#FFC740', label: '골드' },
+    { key: 'mint', color: '#34E27A', label: '민트' },
+];
+
 /** 공용 폼 클래스 (다크) */
 export const FIELD_CLS = 'w-full p-3.5 bg-card2 rounded-xl border border-white/10 focus:border-volt outline-none font-bold text-txt placeholder-muted transition-colors';
 export const LABEL_CLS = 'block text-[11px] font-black label text-dim mb-1.5 ml-0.5';

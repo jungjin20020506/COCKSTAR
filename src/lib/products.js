@@ -187,13 +187,45 @@ function categoryThumb(cat) {
     return PRODUCTS.find(p => p.cat === cat && p.image)?.image || null;
 }
 
+// ===================================================================================
+// 최근 본 상품 — 기기에만 저장한다 (서버 왕복 없음, 로그인 불필요)
+// -----------------------------------------------------------------------------------
+// 공식몰로 넘어갔다 돌아온 사람이 "아까 그 라켓"을 다시 찾는 걸 한 줄로 줄인다.
+// openProduct 가 유일한 이탈 지점이라 여기서만 기록하면 빠짐이 없다.
+// ===================================================================================
+const RECENT_KEY = 'cockstar-recent-products';
+const RECENT_MAX = 12;
+
+function readRecentIdx() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+        return Array.isArray(raw) ? raw : [];
+    } catch { return []; }
+}
+
+function recordRecent(idx) {
+    if (idx === undefined || idx === null) return;
+    try {
+        const next = [idx, ...readRecentIdx().filter(i => i !== idx)].slice(0, RECENT_MAX);
+        localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+    } catch { /* noop */ }
+}
+
+/** 최근 본 상품 (최신순). 대표 목록에서 빠진 상품은 전체 목록에서 찾는다. */
+const recentProducts = (limit = 10) => readRecentIdx()
+    .map(idx => PRODUCTS.find(p => p.idx === idx) || ALL_PRODUCTS.find(p => p.idx === idx))
+    .filter(Boolean)
+    .slice(0, limit);
+
 /**
  * 상품을 누르면 공식몰의 '그 상품' 페이지를 새 탭으로 연다.
  * 쇼핑몰 첫 화면으로 보내면 방금 본 상품을 다시 찾아야 해서 대부분 그냥 나가버린다.
  * noopener/noreferrer는 새 탭이 원래 탭을 조작하지 못하게 막는 안전장치다.
  */
 const openProduct = (p) => {
-    if (p?.url) window.open(p.url, '_blank', 'noopener,noreferrer');
+    if (!p?.url) return;
+    recordRecent(p.idx);   // 최근 본 상품에 남긴다
+    window.open(p.url, '_blank', 'noopener,noreferrer');
 };
 
 /** 데이터를 언제 받아왔는지 — 화면 아래에 작게 표시해 '실시간이 아님'을 알린다 */
@@ -214,5 +246,6 @@ export {
     gearPicks,
     categoryThumb,
     openProduct,
+    recentProducts,
     badgeOf,
 };

@@ -13,6 +13,7 @@
     "fetch:clubs": "node scripts/fetch-clubs.mjs",
     "test:matching": "node scripts/simulate-matching.mjs",
     "test:matching:stress": "node scripts/stress-test-matching.mjs",
+    "test:updates": "node scripts/simulate-updates-0824.mjs",
     "test:integration": "node scripts/test-integration.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

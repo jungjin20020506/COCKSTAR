@@ -86,5 +86,23 @@ service cloud.firestore {
           || isRoomAdmin(get(/databases/$(database)/documents/rooms/$(roomId)).data);
       }
     }
+
+    // ── 신고 ──
+    // 만들기: 로그인한 본인 이름으로만 (남을 사칭한 신고를 막는다)
+    // 읽기·처리: 슈퍼 관리자만 — 신고자끼리 서로의 신고를 볼 수 없다
+    match /reports/{reportId} {
+      allow create: if signedIn()
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.status == 'open';
+      allow read, update, delete: if isSuper();
+    }
+
+    // ── 앱 원격 설정 (버전 게이트 등) ──
+    // 모든 기기가 부팅 때 읽는다. 쓰기는 슈퍼 관리자만 —
+    // 여기가 뚫리면 minVersion 하나로 전체 사용자를 잠글 수 있다.
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isSuper();
+    }
   }
 }

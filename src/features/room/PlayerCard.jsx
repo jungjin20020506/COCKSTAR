@@ -9,14 +9,18 @@ import { X, Plus, Crown } from '../../components/ui/icons';
 /**
  * 선수 카드.
  *
- * [길게 누르기의 발견 가능성]
- *   경기 수 수정은 800ms 길게 누르기로만 열렸는데, 그런 게 있다는 걸 아무도 몰랐다.
- *   지금은 관리자 화면에서 카드 오른쪽 위에 점 세 개 버튼을 함께 보여준다.
- *   길게 누르기는 아는 사람을 위한 지름길로 남긴다.
+ * [길게 누르기]
+ *   경기 수 수정은 카드를 길게(700ms) 누르면 열린다. 한때 점 세 개(⋯) 버튼을
+ *   함께 달았지만, 4열 그리드의 작은 카드에서는 거슬리기만 해서 뗐다 —
+ *   관리자 안내(RoomAdminGuide)가 길게 누르기를 알려준다.
+ *
+ * [색약 대응]
+ *   남/여 구분을 왼쪽 색 띠 하나에만 맡기지 않는다 — 이름 옆에 ♂/♀ 기호를
+ *   같이 둔다. 색을 구분하지 못해도 기호는 읽힌다.
  */
 export const PlayerCard = React.memo(function PlayerCard({
     player, isAdmin, isCurrentUser, isPlaying, isResting, isSelected,
-    onCardClick, onMenuClick, onDeleteClick, onLongPress,
+    onCardClick, onDeleteClick, onLongPress,
     onDragStart, onDragEnd, onDragOver, onDrop,
 }) {
     const timerRef = useRef(null);
@@ -41,7 +45,12 @@ export const PlayerCard = React.memo(function PlayerCard({
     if (!player) return <div className="h-[52px] bg-white/5 rounded-lg animate-pulse" />;
 
     const levelText = getLevelColor(player.level).replace('border-', 'text-');
-    const genderBorder = player.gender === '남' ? 'border-l-blue-500' : 'border-l-pink-500';
+    const isMale = player.gender === '남';
+    const genderBorder = isMale ? 'border-l-blue-500' : 'border-l-pink-500';
+    // 색만으로 남/여를 가르지 않는다 — 기호를 같이 둔다 (색약 대응)
+    const genderMark = isMale
+        ? <span className="text-[9px] font-black text-blue-400 shrink-0 leading-none" aria-hidden="true">♂</span>
+        : <span className="text-[9px] font-black text-pink-400 shrink-0 leading-none" aria-hidden="true">♀</span>;
 
     let cls = `relative bg-card2 rounded-lg px-2 py-1 h-[52px] flex flex-col justify-center border border-white/[0.06] border-l-[3px] transition-all duration-200 cursor-pointer active:scale-95 ${genderBorder} select-none `;
     if (isPlaying) cls += ' opacity-45 grayscale ';
@@ -77,19 +86,11 @@ export const PlayerCard = React.memo(function PlayerCard({
             onDragOver={canDrag ? onDragOver : undefined}
             onDrop={canDrag ? (e) => onDrop(e, { type: 'player', player }) : undefined}
         >
-            <div className="flex justify-between items-start pointer-events-none mb-0.5">
-                <span className="text-xs font-black text-txt truncate w-full pr-1 leading-none">{player.name}</span>
+            <div className="flex justify-between items-center gap-0.5 pointer-events-none mb-0.5">
+                <span className="text-xs font-black text-txt truncate leading-none">{player.name}</span>
+                {genderMark}
             </div>
 
-            {isAdmin && onMenuClick && (
-                <button
-                    aria-label={`${player.name} 관리 메뉴`}
-                    onClick={(e) => { e.stopPropagation(); onMenuClick(player); }}
-                    className="absolute -top-1.5 -left-1.5 w-[18px] h-[18px] bg-ink text-dim hover:bg-volt hover:text-ink rounded-full border border-white/10 flex items-center justify-center z-20 transition-colors"
-                >
-                    <span className="text-[11px] font-black leading-none mb-[3px]">⋯</span>
-                </button>
-            )}
             {isAdmin && onDeleteClick && (
                 <button
                     aria-label={`${player.name} 빼기`}

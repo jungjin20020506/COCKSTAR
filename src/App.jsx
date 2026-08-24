@@ -8,7 +8,9 @@ import { ConfirmProvider } from './components/ui/confirm';
 import { Toaster } from './lib/toast';
 import { LoadingSpinner, OfflineBanner } from './components/ui/Feedback';
 import { CockstarLogo } from './components/ui/Logo';
-import { InstallBanner, countVisit } from './components/ui/InstallPrompt';
+import { InstallBanner, InstallGuideModal, countVisit } from './components/ui/InstallPrompt';
+import { NotificationCenter, useNotiBadge } from './components/ui/NotificationCenter';
+import { checkVersionGate, forceUpdate } from './lib/appConfig';
 import { AuthModal } from './features/auth/AuthModal';
 import { InitialProfileModal } from './features/auth/InitialProfileModal';
 import { WelcomeTour } from './features/tutorial/WelcomeTour';
@@ -16,7 +18,6 @@ import { useTutorial } from './features/tutorial/useTutorial';
 import { WELCOME_TOUR_KEY } from './features/tutorial/guideKeys';
 import { HomePage } from './pages/HomePage';
 import { Home, Trophy, KokMapIcon, ShoppingBag, User, Search, Bell, AlertCircle } from './components/ui/icons';
-import { toast } from './lib/toast';
 import { logError } from './lib/errorLog';
 
 // 첫 화면에 필요 없는 것들은 나중에 받는다.
@@ -120,7 +121,8 @@ function TabBar({ onNeedAuth }) {
     );
 }
 
-function HomeHeader({ onSearchClick }) {
+function HomeHeader({ onSearchClick, onBellClick }) {
+    const unread = useNotiBadge();
     return (
         <header className="sticky top-0 glass z-10 px-5 py-3.5 flex justify-between items-center border-b border-white/[0.06]">
             <CockstarLogo markSize={22} />
@@ -133,14 +135,40 @@ function HomeHeader({ onSearchClick }) {
                     <Search size={22} />
                 </button>
                 <button
-                    onClick={() => toast('알림 기능은 준비 중입니다.')}
-                    aria-label="알림"
-                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/5 transition-colors"
+                    onClick={onBellClick}
+                    aria-label={unread > 0 ? `알림 ${unread}개` : '알림'}
+                    className="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/5 transition-colors"
                 >
                     <Bell size={22} />
+                    {unread > 0 && (
+                        <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-coral border-2 border-ink" />
+                    )}
                 </button>
             </div>
         </header>
+    );
+}
+
+/**
+ * 버전 강제 업데이트 게이트.
+ * Firestore config/app 의 minVersion 보다 낮은 버전은 이 화면에 갇힌다 —
+ * 치명적 버그가 있는 구버전이 계속 데이터를 만지는 걸 막는 마지막 안전장치.
+ */
+function UpdateGateScreen({ notice }) {
+    return (
+        <div className="flex flex-col items-center justify-center h-dvh bg-ink text-center px-8 max-w-md mx-auto">
+            <div className="animate-pop mb-6"><CockstarLogo markSize={40} /></div>
+            <h2 className="text-xl font-black text-txt kern-tight mb-2">새 버전이 필요해요</h2>
+            <p className="text-sm text-dim font-medium mb-8 break-keep">
+                {notice || '중요한 문제가 고쳐진 새 버전이 나왔어요.\n버튼 한 번이면 됩니다.'}
+            </p>
+            <button
+                onClick={forceUpdate}
+                className="px-8 py-4 bg-volt text-ink font-black rounded-full label text-xs shadow-volt"
+            >
+                새 버전 받기
+            </button>
+        </div>
     );
 }
 
@@ -153,6 +181,9 @@ function Shell() {
     const { user, userData, loading } = useAuth();
     const { hasSeen, markSeen } = useTutorial(user, userData);
     const [authOpen, setAuthOpen] = useState(false);
+    const [notiOpen, setNotiOpen] = useState(false);
+    const [installGuideOpen, setInstallGuideOpen] = useState(false);
+    const [versionGate, setVersionGate] = useState(null);   // { blocked, notice }
     const mainRef = React.useRef(null);
 
     // 화면을 옮기면 스크롤을 위로 (라우터는 이걸 자동으로 해주지 않는다)
@@ -160,6 +191,11 @@ function Shell() {
 
     // 방문 횟수 — 설치 배너를 언제 띄울지 정하는 데 쓴다
     useEffect(() => { countVisit(); }, []);
+
+    // 버전 게이트 — 치명적 버그가 있는 구버전을 막는다 (config/app.minVersion)
+    useEffect(() => {
+        checkVersionGate(__APP_VERSION__).then(setVersionGate).catch(() => {});
+    }, []);
 
     if (loading) {
         return (
@@ -172,16 +208,21 @@ function Shell() {
         );
     }
 
+    // 치명적 버그가 있는 구버전은 여기서 멈춘다
+    if (versionGate?.blocked) return <UpdateGateScreen notice={versionGate.notice} />;
+
     // 가입은 했는데 프로필이 없는 상태 — 프로필부터 채운다
     const needsProfile = user && !userData;
     // 프로필까지 끝난 사람에게 환영 투어를 한 번 (스킵 없음)
     const needsTour = user && userData && !hasSeen(WELCOME_TOUR_KEY);
 
     const isHome = location.pathname === '/';
+    // 경기방은 관리자가 PC 로 여는 경우가 있어 데스크톱에서 두 열로 넓힌다
+    const isRoom = location.pathname.startsWith('/room/');
 
     return (
-        <div className="flex flex-col h-dvh bg-ink max-w-md mx-auto shadow-2xl overflow-hidden relative font-sans text-txt">
-            {isHome && <HomeHeader onSearchClick={() => navigate('/map')} />}
+        <div className={`flex flex-col h-dvh bg-ink mx-auto shadow-2xl overflow-hidden relative font-sans text-txt ${isRoom ? 'max-w-md lg:max-w-4xl' : 'max-w-md'}`}>
+            {isHome && <HomeHeader onSearchClick={() => navigate('/map')} onBellClick={() => setNotiOpen(true)} />}
             <OfflineBanner />
 
             <main ref={mainRef} className="flex-grow overflow-y-auto hide-scrollbar bg-ink">
@@ -212,6 +253,12 @@ function Shell() {
             )}
 
             <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
+            <NotificationCenter
+                isOpen={notiOpen}
+                onClose={() => setNotiOpen(false)}
+                onNeedInstall={() => { setNotiOpen(false); setInstallGuideOpen(true); }}
+            />
+            <InstallGuideModal isOpen={installGuideOpen} onClose={() => setInstallGuideOpen(false)} />
             <Toaster />
         </div>
     );

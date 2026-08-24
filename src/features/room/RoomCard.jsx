@@ -29,6 +29,9 @@ export function RoomCard({ room, onEnter, onEdit, onToggleFavorite, isAdmin }) {
             ? `${Math.round(room.distance * 1000)}m`
             : `${room.distance.toFixed(1)}km`;
 
+    // 방 포인트 색 — 방마다 고른 색이 로비 카드에서도 보인다 (내 방 찾기가 빨라진다)
+    const accent = room.themeColor || '#CDFB47';
+
     return (
         <div
             role="button"
@@ -38,7 +41,10 @@ export function RoomCard({ room, onEnter, onEdit, onToggleFavorite, isAdmin }) {
             aria-label={`${room.name}, ${room.location}, ${count}명 참가${playing ? `, ${playing}명 경기 중` : ''}`}
             className="bg-card rounded-2xl border border-white/[0.06] p-5 cursor-pointer transition-all hover:border-white/15 active:scale-[0.98] relative group overflow-hidden"
         >
-            <div className={`absolute left-0 top-0 bottom-0 w-1 ${playing > 0 ? 'bg-volt' : 'bg-white/15'}`} />
+            <div
+                className="absolute left-0 top-0 bottom-0 w-1"
+                style={{ backgroundColor: playing > 0 ? accent : (room.themeColor ? `${accent}55` : 'rgba(255,255,255,0.15)') }}
+            />
 
             <div className="flex justify-between items-start mb-2 pl-1 gap-2">
                 <div className="flex items-center gap-1.5 overflow-hidden min-w-0">
@@ -75,7 +81,7 @@ export function RoomCard({ room, onEnter, onEdit, onToggleFavorite, isAdmin }) {
 
             <div className="flex flex-wrap gap-1.5 items-center pl-1">
                 {playing > 0 && (
-                    <span className="flex items-center gap-1 px-2.5 py-1.5 bg-volt text-ink rounded-full text-[11px] font-black">
+                    <span className="flex items-center gap-1 px-2.5 py-1.5 text-ink rounded-full text-[11px] font-black" style={{ backgroundColor: accent }}>
                         <Activity size={12} /> {playing}명 경기 중
                     </span>
                 )}

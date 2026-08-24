@@ -200,6 +200,16 @@ const W = {
     // 목록 전체가 대기 상태가 되어 코트가 논다. (시뮬레이션에서 가동률 8% 손실로 확인)
     SECOND_RESERVE: 90,  // 대기 중인 예약이 이미 있을 때, 경기중 선수 1명당 추가 -90
 
+    // ── 연속 경기 제한 — 같은 사람이 쉼 없이 3연속 코트에 서지 않게 ──
+    // 스트릭 2(두 경기 연속 직후) 상태의 선수를 또 뽑으면 3연속이 된다 → 1단계당 -45.
+    // 대기 보너스와 방향이 같지만(방금 끝낸 사람은 어차피 대기 점수가 0),
+    // 인원이 빠듯한 날엔 대기 점수 차이가 작아 이 감점이 있어야 실제로 걸러진다.
+    // 완전 금지가 아닌 감점인 이유: 4명뿐인 날은 물리적으로 연속이 불가피하다.
+    // ★ 45로 잡았더니 시뮬레이션에서 '직전 파트너 재회 0회' 검증이 깨졌다 —
+    //   연속을 피하려고 방금 같은 팀이던 짝을 다시 묶는 도피가 생긴다.
+    //   RECENT_MET_STEPS[0](-140)보다 확실히 작아야 하며, 25는 전체 검증을 통과한다.
+    CONSEC_STREAK: 25,
+
     // ── 절대 금지 ──
     SAME_FOUR: 1000,     // 직전 경기와 완전히 똑같은 4명 -1000 (사실상 후보에서 제외)
 };
@@ -228,6 +238,8 @@ const MAX_POOL_MIXED = 18;
 
 /** 배드민턴 한 경기가 보통 몇 분 걸리는지 (남은 대기 시간 추정에 쓴다) */
 const TYPICAL_GAME_MIN = 15;
+/** 경기 사이 휴식이 이 분수 이내면 '쉬지 않고 이어 뛰는 중'으로 본다 (연속 경기 판정) */
+const CONSEC_REST_MIN = 6;
 /** 이제 막 시작한 코트(이 시간 미만)의 선수는 예약 후보에서 뺀다 — 너무 오래 기다려야 한다 */
 const MIN_ELAPSED_TO_RESERVE = 5;
 
@@ -350,6 +362,36 @@ function buildMatchContext(allPlayers, gameState, opts = {}) {
         const elapsedMin = court ? minutesSince(court.startTime, now) : 0;
         const remainingMin = court ? Math.max(0, TYPICAL_GAME_MIN - elapsedMin) : 0;
 
+        // ── 연속 경기 스트릭 — "쉬지 않고 몇 경기째 이어 뛰는 중인가" ──
+        // 기록의 timestamp 는 경기 '종료' 시각이다. 그래서 간격 기준이 홉마다 다르다.
+        //   첫 홉(지금↔마지막 종료 / 시작↔마지막 종료) = 순수 휴식 시간 → CONSEC_REST_MIN
+        //   그다음 홉(종료↔이전 종료) = 경기 시간 + 휴식 → TYPICAL + CONSEC_REST_MIN
+        // 스트릭 2인 사람을 지금 또 뽑으면 3연속이 된다 (analyzeCombo 가 감점).
+        let consecStreak = 0;
+        {
+            const ends = realHistory
+                .filter(g => g && !g.isManual)
+                .map(g => new Date(g.timestamp).getTime())
+                .filter(Number.isFinite);
+            let anchor = null;
+            if (court) {
+                consecStreak = 1;   // 지금 치는 경기부터 센다
+                const st = new Date(court.startTime || now).getTime();
+                anchor = Number.isFinite(st) ? st : now;
+            } else if (ends.length > 0 && waitMin <= CONSEC_REST_MIN) {
+                anchor = now;       // 방금 경기를 끝냈다 — 스트릭이 아직 살아 있다
+            }
+            if (anchor !== null) {
+                let hopLimit = CONSEC_REST_MIN;
+                for (const t of ends) {
+                    if ((anchor - t) / 60000 > hopLimit) break;
+                    consecStreak += 1;
+                    anchor = t;
+                    hopLimit = TYPICAL_GAME_MIN + CONSEC_REST_MIN;
+                }
+            }
+        }
+
         stats[p.id] = {
             id: p.id,
             name: p.name,
@@ -368,6 +410,7 @@ function buildMatchContext(allPlayers, gameState, opts = {}) {
             remainingMin,
             queued: queuedIds.has(p.id),
             queuedWhere: queuedWhere[p.id] || null,
+            consecStreak,
             thirst: 0,
             thirstDir: null,
         };
@@ -605,6 +648,19 @@ function analyzeCombo(comboStats, ctx, poolInfo, isMixed) {
     });
     score += thirstScore;
 
+    // ── ⑤.5 연속 경기 제한 — 쉼 없이 3연속이 되는 선수는 감점 ──
+    //    경기중인 선수는 ⑥의 예약 감점이 이미 다루므로 대기석 선수만 본다.
+    let consecScore = 0;
+    const consecNames = [];
+    comboStats.forEach(p => {
+        if (p.onCourt) return;
+        if ((p.consecStreak || 0) >= 2) {
+            consecScore -= W.CONSEC_STREAK * (p.consecStreak - 1);
+            consecNames.push(p.name);
+        }
+    });
+    score += consecScore;
+
     // ── ⑥ 지금 바로 시작할 수 있는가 ──
     //  경기중 선수를 예약에 넣으면 같이 뽑힌 대기 선수까지 그 코트가 끝날 때까지 묶인다.
     //  그래서 "몇 분이나 기다려야 하는지"를 실제로 계산해서 감점한다.
@@ -657,6 +713,7 @@ function analyzeCombo(comboStats, ctx, poolInfo, isMixed) {
         levelSpread,
         lonelyNames,
         longWaiters,
+        consecNames,
         thirstRelieved,
         onCourtNames: onCourtPlayers.map(p => p.name),
         waitCourts,
@@ -674,6 +731,7 @@ function analyzeCombo(comboStats, ctx, poolInfo, isMixed) {
             balance: Math.round(balance),
             games: Math.round(gamesScore),
             thirst: Math.round(thirstScore),
+            consec: Math.round(consecScore),
             startability: Math.round(startability),
         },
     };
@@ -720,6 +778,11 @@ function buildReasonLines(facts) {
         const top = facts.longWaiters[0];
         const extra = facts.longWaiters.length > 1 ? ` 외 ${facts.longWaiters.length - 1}명` : '';
         lines.push({ tone: 'good', text: `오래 기다린 선수: ${top.name} (${top.waitMin}분째)${extra}` });
+    }
+
+    // ②.5 쉼 없이 3연속 경기가 되는 사람 (있을 때만 — 관리자가 알고 고르게)
+    if ((facts.consecNames || []).length > 0) {
+        lines.push({ tone: 'bad', text: `쉼 없이 3연속 경기가 되는 선수: ${nameList(facts.consecNames, 2)}` });
     }
 
     // ③ 급수 밸런스 (4명 전체 기준 — 팀은 코트에서 랜덤으로 짜므로)

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Modal } from '../../components/ui/Modal';
-import { FIELD_CLS, LABEL_CLS, LEVELS } from '../../constants';
+import { FIELD_CLS, LABEL_CLS, LEVELS, ROOM_THEMES } from '../../constants';
 import { searchAddress } from '../../lib/kakao';
 import { toast } from '../../lib/toast';
 import { Search, Crown, Trash2 } from '../../components/ui/icons';
@@ -17,6 +17,7 @@ export function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete,
     const [form, setForm] = useState({
         name: '', location: '', address: '', coords: null,
         description: '', maxPlayers: 20, levelLimit: 'N조',
+        notice: '', themeColor: null,
     });
 
     useEffect(() => {
@@ -29,6 +30,8 @@ export function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete,
             description: roomData.description || '',
             maxPlayers: roomData.maxPlayers || 20,
             levelLimit: roomData.levelLimit || 'N조',
+            notice: roomData.notice || '',
+            themeColor: roomData.themeColor || null,
         });
     }, [isOpen, roomData]);
 
@@ -129,6 +132,39 @@ export function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete,
                         value={form.description} onChange={change}
                         className={`${FIELD_CLS} resize-none`}
                     />
+                </div>
+
+                {/* 공지 — 방 화면 맨 위에 고정되는 한 줄. 채팅보다 먼저 필요한 것 */}
+                <div>
+                    <label className={LABEL_CLS} htmlFor="er-notice">📢 공지 (방 상단 고정)</label>
+                    <input
+                        id="er-notice" type="text" name="notice" maxLength={80}
+                        placeholder="예: 오늘 셔틀콕 각자 지참 · 21시 마감"
+                        value={form.notice} onChange={change} className={FIELD_CLS}
+                    />
+                    <p className="text-[10px] text-muted font-bold mt-1 ml-1">비워두면 공지가 사라집니다. 새 공지는 모든 참가자 화면에서 반짝하고 올라와요.</p>
+                </div>
+
+                {/* 방 포인트 색 — 내 방이라는 소속감 */}
+                <div>
+                    <span className={LABEL_CLS}>방 포인트 색</span>
+                    <div className="flex gap-2.5 flex-wrap">
+                        {ROOM_THEMES.map(t => {
+                            const active = (form.themeColor || ROOM_THEMES[0].color) === t.color;
+                            return (
+                                <button
+                                    key={t.key}
+                                    type="button"
+                                    onClick={() => setForm(prev => ({ ...prev, themeColor: t.color }))}
+                                    aria-label={`포인트 색 ${t.label}`}
+                                    aria-pressed={active}
+                                    className={`w-9 h-9 rounded-full transition-transform ${active ? 'scale-110 ring-2 ring-offset-2 ring-offset-surface' : 'active:scale-95 opacity-80'}`}
+                                    style={{ backgroundColor: t.color, ...(active ? { boxShadow: `0 0 14px ${t.color}66`, '--tw-ring-color': t.color } : {}) }}
+                                />
+                            );
+                        })}
+                    </div>
+                    <p className="text-[10px] text-muted font-bold mt-1.5 ml-1">방 헤더와 로비 카드에 이 색이 입혀집니다.</p>
                 </div>
 
                 <div className="flex gap-4">

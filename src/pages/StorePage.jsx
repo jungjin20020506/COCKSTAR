@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
-    PRODUCTS, CATEGORIES, FETCHED_AT, byCategory,
+    PRODUCTS, CATEGORIES, FETCHED_AT, byCategory, recentProducts,
 } from '../lib/products';
 import { ProductCardH, ProductCardGrid, NewDropHero } from '../components/ProductCards';
-import noErrorBanner from '../noerror.png';
+// 공식몰 배너 — 829KB PNG 를 98KB WebP 로 변환했다 (같은 그림, 1/8 용량)
+import noErrorBanner from '../noerror.webp';
 import { NOERROR_URL } from '../constants';
 import { ArrowUpRight, ChevronRight, Search, X, Heart } from '../components/ui/icons';
 
@@ -43,6 +44,8 @@ export function StorePage() {
     const cats = useMemo(() => ['전체', ...CATEGORIES], []);
     const maxRate = useMemo(() => Math.max(0, ...PRODUCTS.map(p => p.discountRate)), []);
     const newDrops = useMemo(() => PRODUCTS.filter(p => p.cat === '신상'), []);
+    // 최근 본 상품 — 공식몰에 갔다 돌아온 사람이 "아까 그거"를 바로 찾게
+    const recents = useMemo(() => recentProducts(10), []);
 
     const filtered = useMemo(() => {
         let list = byCategory(cat);
@@ -98,6 +101,26 @@ export function StorePage() {
             {/* 신상 구역은 검색 중에는 숨긴다 — 찾는 게 있는 사람에게는 방해다 */}
             {!searching && !favOnly && (
                 <>
+                    {/* 최근 본 상품 — 있을 때만, 맨 위 가로 한 줄 */}
+                    {recents.length > 0 && (
+                        <div className="px-5 mb-5 animate-content-in">
+                            <h2 className="text-[11px] font-black label text-dim mb-2.5">최근 본 상품</h2>
+                            <div
+                                className="flex gap-3 overflow-x-auto hide-scrollbar -mx-5 px-5 pb-1"
+                                style={{ overscrollBehaviorX: 'contain' }}
+                            >
+                                {recents.map(p => (
+                                    <ProductCardH
+                                        key={`recent-${p.idx}`}
+                                        product={p}
+                                        isFavorite={favoriteProducts.includes(p.idx)}
+                                        onToggleFavorite={toggleProductFavorite}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     <div className="px-5">
                         <NewDropHero products={newDrops} />
                     </div>

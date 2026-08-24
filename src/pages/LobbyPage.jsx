@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { collection, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -14,6 +14,7 @@ import { RoomCard } from '../features/room/RoomCard';
 import { SkeletonRoomCard, EmptyState, LoginRequiredPage } from '../components/ui/Feedback';
 import { Search, Plus, Archive, ShieldCheck, ArrowUpDown, Navigation, X } from '../components/ui/icons';
 import { ROOM_SORTS, decorateRooms, sortRooms, filterRooms } from '../lib/roomSort';
+import { usePullToRefresh, PullIndicator } from '../lib/usePullToRefresh.jsx';
 import { isRoomAdmin } from '../lib/adminInvite';
 import { toast } from '../lib/toast';
 import { logError } from '../lib/errorLog';
@@ -69,6 +70,22 @@ export function LobbyPage({ onLoginClick }) {
         return sortRooms(filterRooms(decorated, term), sortKey);
     }, [rooms, myLoc, favorites, term, sortKey]);
 
+    // ── 당겨서 새로고침 ──
+    // 목록은 onSnapshot 실시간이라 다시 받을 게 없다 — '가까운 순'일 때 위치만 다시 잰다.
+    // 그래도 당기는 행위 자체가 "최신 맞아?"라는 불안에 답한다.
+    const listRef = useRef(null);
+    const handleRefresh = useCallback(async () => {
+        if (sortKey !== 'near' || !navigator.geolocation) return;
+        await new Promise(resolve => {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => { setMyLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }); resolve(); },
+                () => resolve(),
+                { timeout: 5000, maximumAge: 0 },
+            );
+        });
+    }, [sortKey]);
+    const { pulling, refreshing } = usePullToRefresh(listRef, handleRefresh);
+
     const chooseSort = useCallback((key) => {
         setSortKey(key);
         setSortOpen(false);
@@ -116,6 +133,8 @@ export function LobbyPage({ onLoginClick }) {
                 description: updated.description,
                 levelLimit: updated.levelLimit,
                 maxPlayers: updated.maxPlayers,
+                notice: (updated.notice ?? '').trim(),
+                themeColor: updated.themeColor || null,
             });
             toast('방 정보가 수정되었습니다.');
             setEditRoom(null);
@@ -234,19 +253,21 @@ export function LobbyPage({ onLoginClick }) {
             </div>
 
             {/* ── 목록 ── */}
-            <main className="flex-grow overflow-y-auto p-4 space-y-3 hide-scrollbar pb-28">
+            <main ref={listRef} className="flex-grow overflow-y-auto p-4 space-y-3 hide-scrollbar pb-28">
+                <PullIndicator pulling={pulling} refreshing={refreshing} />
                 {loading ? (
                     <><SkeletonRoomCard /><SkeletonRoomCard /><SkeletonRoomCard /></>
                 ) : list.length > 0 ? (
-                    list.map(room => (
-                        <RoomCard
-                            key={room.id}
-                            room={room}
-                            onEnter={() => navigate(`/room/${room.id}`)}
-                            onEdit={setEditRoom}
-                            onToggleFavorite={toggleRoomFavorite}
-                            isAdmin={isRoomAdmin(room, user, superAdmin)}
-                        />
+                    list.map((room, i) => (
+                        <div key={room.id} className="animate-content-in" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
+                            <RoomCard
+                                room={room}
+                                onEnter={() => navigate(`/room/${room.id}`)}
+                                onEdit={setEditRoom}
+                                onToggleFavorite={toggleRoomFavorite}
+                                isAdmin={isRoomAdmin(room, user, superAdmin)}
+                            />
+                        </div>
                     ))
                 ) : (
                     <EmptyState

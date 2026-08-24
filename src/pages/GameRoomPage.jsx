@@ -20,10 +20,13 @@ import { BragCardModal } from '../features/room/BragCardModal';
 import { TestLabModal } from '../features/room/TestLabModal';
 import { ShareModal, CourtSelectionModal, EditGamesModal, AdminCodeModal } from '../features/room/SmallModals';
 import { MatchOptionsModal } from '../components/MatchOptionsModal';
+import { RoomEntryFX } from '../features/room/RoomEntryFX';
+import { MatchTimelineModal } from '../features/room/MatchTimelineModal';
+import { ReportModal } from '../features/room/ReportModal';
 import { LoadingSpinner } from '../components/ui/Feedback';
 import {
     ArrowLeft, Share2, Edit3, GripVertical, FlaskConical, Users, Lock,
-    Trophy, KeyRound, Crown, LogOut,
+    Trophy, KeyRound, Crown, LogOut, Clock, ShieldAlert,
 } from '../components/ui/icons';
 import { PLAYERS_PER_MATCH, FIELD_CLS } from '../constants';
 import {
@@ -82,9 +85,14 @@ export function GameRoomPage({ onLoginClick }) {
     const [matchOptions, setMatchOptions] = useState(null);
     const [generatingGender, setGeneratingGender] = useState(null);
     const generatingRef = useRef(false);
+    const swipeRef = useRef(null);            // 좌우 스와이프 시작점
+    const courtSigRef = useRef({});           // 코트별 선수 구성 — 새 경기 입장 연출용
+    const courtFirstRenderRef = useRef(true);
 
     const [showAdminGuide, setShowAdminGuide] = useState(false);
     const [showAutoGuide, setShowAutoGuide] = useState(false);
+    const [showTimeline, setShowTimeline] = useState(false);
+    const [showReport, setShowReport] = useState(false);
 
     const me = myUid ? players[myUid] : null;
     const joined = !!me;
@@ -322,6 +330,25 @@ export function GameRoomPage({ onLoginClick }) {
         [me, players, roomData],
     );
 
+    // ── 빈 코트 펄스 — "지금 올릴 수 있는 경기"가 있는데 코트가 놀고 있을 때 ──
+    const hasStartable = useMemo(() => {
+        const schedOk = Object.values(roomData?.scheduledMatches || {})
+            .some(m => (m || []).filter(Boolean).length === PLAYERS_PER_MATCH
+                && (m || []).every(id => !id || (!inProgressPlayerIds.has(id) && players[id] && !players[id].isResting)));
+        const autoOk = Object.values(roomData?.autoMatches || {})
+            .some(m => Array.isArray(m) && m.filter(Boolean).length === PLAYERS_PER_MATCH
+                && m.every(id => !inProgressPlayerIds.has(id) && players[id] && !players[id].isResting));
+        return schedOk || autoOk;
+    }, [roomData, players, inProgressPlayerIds]);
+
+    // ── [연출] 코트에 새 경기가 들어오는 순간을 기억한다 (렌더 후 '본 것'으로 기록) ──
+    useEffect(() => {
+        (roomData?.inProgressCourts || []).forEach((c, i) => {
+            courtSigRef.current[i] = (c?.players || []).filter(Boolean).join('|');
+        });
+        if (roomData) courtFirstRenderRef.current = false;
+    });
+
     // ── 시뮬레이션 (슈퍼 관리자 전용) ──
     useEffect(() => {
         if (!isAutoPlay || !isAdmin || !roomData) return undefined;
@@ -485,11 +512,24 @@ export function GameRoomPage({ onLoginClick }) {
     const maleWaiting = waitingPlayers.filter(p => p.gender === '남');
     const femaleWaiting = waitingPlayers.filter(p => p.gender !== '남');
     const courtLimit = roomData.courtTimeLimit ?? 20;
+    // 방 포인트 색 — CSS 변수로 내려보내 곳곳(탭·배지·코트 헤더)이 같은 색을 입는다
+    const accent = roomData.themeColor || '#CDFB47';
 
     return (
-        <div className="flex flex-col h-full bg-ink">
+        <div className="flex flex-col h-full bg-ink" style={{ '--room-accent': accent }}>
+            {/* 입장 연출 — 방 이름이 전광판처럼 켜진다 (탭하면 건너뛰기) */}
+            <RoomEntryFX
+                roomId={roomId}
+                roomName={roomData.name}
+                notice={roomData.notice}
+                locationName={roomData.location}
+            />
+
             {/* ── 헤더 ── */}
+            {/* sticky 가 곧 포지셔닝 컨텍스트다 — relative 를 겹치면 헤더 고정이 깨질 수 있다 */}
             <header className="flex-shrink-0 h-16 px-3 flex items-center justify-between bg-surface sticky top-0 z-30 border-b border-white/[0.06]">
+                {/* 테마색 스트립 — 이 방만의 색 */}
+                <span className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${accent}, transparent 70%)` }} />
                 <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
                     <button
                         onClick={handleLeaveRoom}
@@ -597,20 +637,52 @@ export function GameRoomPage({ onLoginClick }) {
 
             <GameBanner onNavigate={navigate} />
 
-            <div className="flex bg-surface px-2 border-b border-white/[0.06]">
+            {/* ── 공지 — 채팅보다 먼저 필요한 한 줄. 내용이 바뀌면 반짝하고 다시 올라온다 ── */}
+            {roomData.notice && (
+                <button
+                    key={roomData.notice}
+                    onClick={isAdmin ? () => setShowEditInfo(true) : undefined}
+                    className="flex-shrink-0 w-full flex items-center gap-2.5 px-4 py-2.5 bg-white/[0.04] border-b border-white/[0.06] notice-in text-left"
+                    title={isAdmin ? '누르면 공지를 수정합니다' : undefined}
+                >
+                    <span className="text-sm shrink-0 notice-megaphone">📢</span>
+                    <span className="flex-1 text-[12px] font-black text-txt break-keep leading-snug">{roomData.notice}</span>
+                    {isAdmin && <Edit3 size={12} className="text-muted shrink-0" />}
+                </button>
+            )}
+
+            {/* 탭 — 데스크톱(lg)에서는 두 화면을 나란히 펼치므로 탭이 필요 없다 */}
+            <div className="flex bg-surface px-2 border-b border-white/[0.06] lg:hidden">
                 {[{ key: 'matching', label: '매칭 대기' }, { key: 'inProgress', label: '경기 진행' }].map(t => (
                     <button
                         key={t.key}
                         onClick={() => setTab(t.key)}
                         aria-current={tab === t.key}
-                        className={`flex-1 py-3 text-sm font-black border-b-2 transition-colors label ${tab === t.key ? 'border-volt text-volt' : 'border-transparent text-muted'}`}
+                        className={`flex-1 py-3 text-sm font-black border-b-2 transition-colors label ${tab === t.key ? '' : 'border-transparent text-muted'}`}
+                        style={tab === t.key ? { color: accent, borderColor: accent } : undefined}
                     >
                         {t.label}
                     </button>
                 ))}
             </div>
 
-            <main className="flex-grow overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar">
+            <main
+                className="flex-grow overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar"
+                // 좌우 스와이프로도 탭 전환 — 손가락 이동이 가로로 확실할 때만 (세로 스크롤과 구분)
+                onTouchStart={(e) => {
+                    swipeRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }}
+                onTouchEnd={(e) => {
+                    const start = swipeRef.current;
+                    swipeRef.current = null;
+                    if (!start || window.innerWidth >= 1024) return;
+                    const dx = e.changedTouches[0].clientX - start.x;
+                    const dy = e.changedTouches[0].clientY - start.y;
+                    if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+                    if (dx < 0 && tab === 'matching') setTab('inProgress');
+                    else if (dx > 0 && tab === 'inProgress') setTab('matching');
+                }}
+            >
                 {/* 내 차례 — 선수가 가장 궁금한 한 가지 */}
                 {me && (
                     <MyTurnBanner
@@ -623,14 +695,15 @@ export function GameRoomPage({ onLoginClick }) {
                     />
                 )}
 
-                {tab === 'matching' ? (
-                    <>
+                {/* 데스크톱(lg)에서는 왼쪽 매칭 · 오른쪽 코트를 나란히 — 관리자 PC 운영 대비 */}
+                <div className="lg:grid lg:grid-cols-2 lg:gap-5 lg:items-start">
+                    <div className={`space-y-4 ${tab === 'matching' ? '' : 'hidden'} lg:block`}>
                         <section className="bg-card rounded-2xl p-4 border border-white/[0.06]">
                             <div className="flex justify-between items-center mb-4 border-b border-white/[0.06] pb-3">
                                 <h2 className="text-xs font-black label text-txt flex items-center gap-2">
-                                    <Users size={15} className="text-volt" />대기 명단
+                                    <Users size={15} style={{ color: accent }} />대기 명단
                                 </h2>
-                                <span className="bg-volt text-ink text-xs font-black px-2.5 py-0.5 rounded-full tabular">
+                                <span className="text-ink text-xs font-black px-2.5 py-0.5 rounded-full tabular" style={{ backgroundColor: accent }}>
                                     {waitingPlayers.length}
                                 </span>
                             </div>
@@ -644,7 +717,6 @@ export function GameRoomPage({ onLoginClick }) {
                                         isResting={p.isResting}
                                         onCardClick={handleCardClick}
                                         onDeleteClick={handleKick}
-                                        onMenuClick={setEditGamePlayer}
                                         onLongPress={setEditGamePlayer}
                                     />
                                 ))}
@@ -670,7 +742,6 @@ export function GameRoomPage({ onLoginClick }) {
                                         isResting={p.isResting}
                                         onCardClick={handleCardClick}
                                         onDeleteClick={handleKick}
-                                        onMenuClick={setEditGamePlayer}
                                         onLongPress={setEditGamePlayer}
                                     />
                                 ))}
@@ -727,7 +798,7 @@ export function GameRoomPage({ onLoginClick }) {
                                     <div key={mIdx} className="bg-card rounded-2xl p-3 border border-white/[0.06] flex flex-col gap-2">
                                         <div className="flex justify-between items-center px-1">
                                             <div className="flex items-center gap-2">
-                                                <span className="bg-volt text-ink text-[11px] font-black px-2.5 py-1 rounded-md tracking-wide">
+                                                <span className="text-ink text-[11px] font-black px-2.5 py-1 rounded-md tracking-wide" style={{ backgroundColor: accent }}>
                                                     MATCH {mIdx + 1}
                                                 </span>
                                                 <span className="text-[11px] font-black text-muted tabular">{filled}/4</span>
@@ -752,7 +823,6 @@ export function GameRoomPage({ onLoginClick }) {
                                                             isSelected={selectedIds.includes(pid)}
                                                             onCardClick={handleCardClick}
                                                             onDeleteClick={() => room.removeFromSchedule(mIdx, sIdx)}
-                                                            onMenuClick={setEditGamePlayer}
                                                             onLongPress={setEditGamePlayer}
                                                         />
                                                     );
@@ -777,62 +847,85 @@ export function GameRoomPage({ onLoginClick }) {
                                 );
                             })}
                         </section>
-                    </>
-                ) : (
-                    <div className="grid grid-cols-1 gap-4">
-                        {Array.from({ length: roomData.numInProgressCourts }).map((_, cIdx) => {
-                            const court = roomData.inProgressCourts?.[cIdx];
-                            const busy = !!court;
-                            return (
-                                <div
-                                    key={cIdx}
-                                    className={`rounded-2xl border transition-all overflow-hidden ${busy ? 'bg-card border-volt/40' : 'bg-card border-dashed border-white/10'}`}
-                                >
-                                    <div className={`px-4 py-3 flex justify-between items-center ${busy ? 'bg-volt' : 'border-b border-white/[0.06]'}`}>
-                                        <span className={`font-black text-sm tracking-wide ${busy ? 'text-ink' : 'text-muted'}`}>
-                                            COURT {cIdx + 1}
-                                        </span>
-                                        {busy ? (
-                                            <div className="flex items-center gap-2">
-                                                <CourtTimer startTime={court.startTime} limitMinutes={courtLimit} />
-                                                {isAdmin && (
-                                                    <button
-                                                        onClick={() => handleEndMatch(cIdx)}
-                                                        className="bg-ink text-txt text-xs font-black px-3 py-1.5 rounded-full"
-                                                    >
-                                                        경기 종료
-                                                    </button>
+                    </div>
+
+                    <div className={`space-y-4 ${tab === 'inProgress' ? '' : 'hidden'} lg:block`}>
+                        <h2 className="hidden lg:block text-xs font-black label text-dim ml-1">경기 진행 · Courts</h2>
+                        <div className="grid grid-cols-1 gap-4">
+                            {Array.from({ length: roomData.numInProgressCourts }).map((_, cIdx) => {
+                                const court = roomData.inProgressCourts?.[cIdx];
+                                const busy = !!court;
+                                // 새 경기가 이 코트에 방금 들어왔나 — 카드 4장이 착착 꽂히는 연출
+                                const sig = (court?.players || []).filter(Boolean).join('|');
+                                const isNewGame = !!sig && sig !== courtSigRef.current[cIdx] && !courtFirstRenderRef.current;
+                                // 올릴 경기가 있는데 코트가 놀고 있다 — 관리자 시선을 끈다
+                                const needsFill = !busy && hasStartable;
+                                return (
+                                    <div
+                                        key={cIdx}
+                                        className={`rounded-2xl border transition-all overflow-hidden bg-card ${busy ? '' : 'border-dashed border-white/10'} ${needsFill ? 'court-empty-pulse' : ''}`}
+                                        style={busy ? { borderColor: `${accent}66` } : undefined}
+                                    >
+                                        <div
+                                            className={`px-4 py-3 flex justify-between items-center ${busy ? '' : 'border-b border-white/[0.06]'}`}
+                                            style={busy ? { backgroundColor: accent } : undefined}
+                                        >
+                                            <span className={`font-black text-sm tracking-wide ${busy ? 'text-ink' : 'text-muted'}`}>
+                                                COURT {cIdx + 1}
+                                            </span>
+                                            {busy ? (
+                                                <div className="flex items-center gap-2">
+                                                    <CourtTimer startTime={court.startTime} limitMinutes={courtLimit} />
+                                                    {isAdmin && (
+                                                        <button
+                                                            onClick={() => handleEndMatch(cIdx)}
+                                                            className="bg-ink text-txt text-xs font-black px-3 py-1.5 rounded-full active:scale-95 transition-transform"
+                                                        >
+                                                            경기 종료
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className={`text-xs font-bold label ${needsFill ? 'text-volt' : 'text-muted'}`}>
+                                                    {needsFill ? '다음 경기를 올려주세요' : '대기 중'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className={`p-3 ${isNewGame ? 'auto-deal' : ''}`}>
+                                            <div className="grid grid-cols-4 gap-2">
+                                                {busy ? court.players.map((pid, idx) => {
+                                                    if (pid && players[pid]) {
+                                                        return (
+                                                            <PlayerCard
+                                                                key={pid} player={players[pid]} isPlaying isAdmin={isAdmin}
+                                                                isCurrentUser={myUid === pid}
+                                                                onLongPress={setEditGamePlayer}
+                                                            />
+                                                        );
+                                                    }
+                                                    if (pid) return <LeftPlayerCard key={`lc-${cIdx}-${idx}`} isAdmin={false} />;
+                                                    return <div key={`e-${cIdx}-${idx}`} className="h-[52px] bg-white/[0.02] rounded-lg border border-white/[0.06]" />;
+                                                }) : (
+                                                    <div className="col-span-4 h-[52px] flex items-center justify-center text-muted gap-2">
+                                                        <Trophy size={18} /><span className="text-sm font-bold">경기가 없습니다</span>
+                                                    </div>
                                                 )}
                                             </div>
-                                        ) : (
-                                            <span className="text-xs text-muted font-bold label">대기 중</span>
-                                        )}
+                                        </div>
                                     </div>
-                                    <div className="p-3 grid grid-cols-4 gap-2">
-                                        {busy ? court.players.map((pid, idx) => {
-                                            if (pid && players[pid]) {
-                                                return (
-                                                    <PlayerCard
-                                                        key={pid} player={players[pid]} isPlaying isAdmin={isAdmin}
-                                                        isCurrentUser={myUid === pid}
-                                                        onMenuClick={setEditGamePlayer}
-                                                        onLongPress={setEditGamePlayer}
-                                                    />
-                                                );
-                                            }
-                                            if (pid) return <LeftPlayerCard key={`lc-${cIdx}-${idx}`} isAdmin={false} />;
-                                            return <div key={`e-${cIdx}-${idx}`} className="h-[52px] bg-white/[0.02] rounded-lg border border-white/[0.06]" />;
-                                        }) : (
-                                            <div className="col-span-4 h-[52px] flex items-center justify-center text-muted gap-2">
-                                                <Trophy size={18} /><span className="text-sm font-bold">경기가 없습니다</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
+                        </div>
+
+                        {/* 오늘 끝난 경기 복기 — "아까 그 경기 누구랑 누구였지?" */}
+                        <button
+                            onClick={() => setShowTimeline(true)}
+                            className="w-full py-3 rounded-2xl bg-white/[0.03] border border-white/[0.07] text-dim text-xs font-black flex items-center justify-center gap-1.5 hover:text-txt transition-colors"
+                        >
+                            <Clock size={14} /> 오늘의 매칭 타임라인
+                        </button>
                     </div>
-                )}
+                </div>
 
                 {/* 구경만 하는 사람에게는 참가 버튼을, 참가한 사람에게는 나가기를 */}
                 {!joined && !ghostActive && peeking && (
@@ -843,14 +936,24 @@ export function GameRoomPage({ onLoginClick }) {
                         이 방에 참가하기
                     </button>
                 )}
-                {joined && (
-                    <button
-                        onClick={handleLeaveRoom}
-                        className="w-full py-3 text-muted text-xs font-bold flex items-center justify-center gap-1.5 hover:text-coral transition-colors"
-                    >
-                        <LogOut size={14} /> 이 방에서 나가기
-                    </button>
-                )}
+                <div className="flex items-center justify-center gap-4">
+                    {joined && (
+                        <button
+                            onClick={handleLeaveRoom}
+                            className="py-3 text-muted text-xs font-bold flex items-center justify-center gap-1.5 hover:text-coral transition-colors"
+                        >
+                            <LogOut size={14} /> 이 방에서 나가기
+                        </button>
+                    )}
+                    {user && !isAdmin && (
+                        <button
+                            onClick={() => setShowReport(true)}
+                            className="py-3 text-muted/70 text-[11px] font-bold flex items-center justify-center gap-1 hover:text-coral transition-colors"
+                        >
+                            <ShieldAlert size={12} /> 신고
+                        </button>
+                    )}
+                </div>
             </main>
 
             {/* ── 모달 ── */}
@@ -971,6 +1074,20 @@ export function GameRoomPage({ onLoginClick }) {
                 isOpen={showBrag}
                 onClose={() => setShowBrag(false)}
                 stat={bragStat}
+            />
+
+            <MatchTimelineModal
+                isOpen={showTimeline}
+                onClose={() => setShowTimeline(false)}
+                players={players}
+            />
+
+            <ReportModal
+                isOpen={showReport}
+                onClose={() => setShowReport(false)}
+                user={user}
+                roomId={roomId}
+                roomName={roomData.name}
             />
 
             {superAdmin && (

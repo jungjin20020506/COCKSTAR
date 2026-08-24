@@ -8,6 +8,7 @@ import { ALL_GUIDE_KEYS } from '../features/tutorial/guideKeys';
 import { EditProfileModal } from '../features/auth/EditProfileModal';
 import { FeedbackModal } from '../features/feedback/FeedbackModal';
 import { InstallGuideModal, useInstallState } from '../components/ui/InstallPrompt';
+import { ReportQueueModal } from '../features/room/ReportModal';
 import { ProductCardGrid } from '../components/ProductCards';
 import { EmptyState } from '../components/ui/Feedback';
 import { PRODUCTS } from '../lib/products';
@@ -15,7 +16,7 @@ import { displayAccount, SUPPORT } from '../constants';
 import { toast } from '../lib/toast';
 import {
     User, BarChart2, UserCheck, Heart, Archive, Copy, Star, MessageSquare,
-    HelpCircle, Download, ZapRaw, ChevronRight, LogOut,
+    HelpCircle, Download, ZapRaw, ChevronRight, LogOut, ShieldAlert,
 } from '../components/ui/icons';
 
 // ===================================================================================
@@ -50,7 +51,7 @@ function Row({ icon: Icon, label, sub, onClick, danger, right }) {
 export function MyInfoPage({ onLoginClick }) {
     const navigate = useNavigate();
     const confirm = useConfirm();
-    const { user, userData, logout, favorites, favoriteProducts, toggleProductFavorite } = useAuth();
+    const { user, userData, logout, favorites, favoriteProducts, toggleProductFavorite, superAdmin } = useAuth();
     const { rooms } = useRooms();
     const { resetSeen } = useTutorial(user, userData);
     const { installed, canPrompt, promptInstall } = useInstallState();
@@ -58,6 +59,7 @@ export function MyInfoPage({ onLoginClick }) {
     const [showEdit, setShowEdit] = useState(false);
     const [showFeedback, setShowFeedback] = useState(false);
     const [showInstall, setShowInstall] = useState(false);
+    const [showReports, setShowReports] = useState(false);
 
     const favProducts = useMemo(
         () => PRODUCTS.filter(p => favoriteProducts.includes(p.idx)),
@@ -247,6 +249,14 @@ export function MyInfoPage({ onLoginClick }) {
                         onClick={() => { if (canPrompt) promptInstall(); else setShowInstall(true); }}
                     />
                 )}
+                {superAdmin && (
+                    <Row
+                        icon={ShieldAlert}
+                        label="신고 검토 (슈퍼 관리자)"
+                        sub="사용자들이 접수한 신고 대기열"
+                        onClick={() => setShowReports(true)}
+                    />
+                )}
                 <Row
                     icon={HelpCircle}
                     label="사용 안내 다시 보기"
@@ -282,6 +292,7 @@ export function MyInfoPage({ onLoginClick }) {
             <EditProfileModal isOpen={showEdit} onClose={() => setShowEdit(false)} userData={userData} user={user} />
             <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
             <InstallGuideModal isOpen={showInstall} onClose={() => setShowInstall(false)} />
+            {superAdmin && <ReportQueueModal isOpen={showReports} onClose={() => setShowReports(false)} />}
         </div>
     );
 }

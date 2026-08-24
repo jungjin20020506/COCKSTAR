@@ -328,6 +328,13 @@ export function useGameRoom({ roomId, user, superAdmin }) {
     const toggleRest = useCallback(async () => {
         if (!user || !players[user.uid]) return;
         const goingToRest = !players[user.uid].isResting;
+        // [낙관적 갱신] 서버 응답을 기다리지 않고 화면부터 바꾼다.
+        // 체육관 와이파이에서는 이 한 번의 왕복이 눈에 띄게 길다 — 버튼이 굼뜨면
+        // 사람들은 두 번 누르고, 두 번 누르면 켰다 끈 상태가 된다.
+        // 실패하면 아래 catch 에서 되돌린다. (성공하면 스냅샷이 같은 값으로 덮는다)
+        setPlayers(prev => (prev[user.uid]
+            ? { ...prev, [user.uid]: { ...prev[user.uid], isResting: goingToRest } }
+            : prev));
         try {
             await updateDoc(doc(playersRef, user.uid), { isResting: goingToRest, lastSeen: serverTimestamp() });
             if (!goingToRest) return;
@@ -354,6 +361,10 @@ export function useGameRoom({ roomId, user, superAdmin }) {
                 });
             });
         } catch (e) {
+            // 낙관적으로 바꿔둔 화면을 원래대로 되돌린다
+            setPlayers(prev => (prev[user.uid]
+                ? { ...prev, [user.uid]: { ...prev[user.uid], isResting: !goingToRest } }
+                : prev));
             logError('휴식 상태 변경', e);
             toast.error('상태 변경에 실패했습니다.');
         }
@@ -648,25 +659,41 @@ export function useGameRoom({ roomId, user, superAdmin }) {
         }
     }, [players, playersRef]);
 
+    /**
+     * 선수를 내보낸다.
+     *
+     * ★ 트랜잭션으로 '문서가 아직 있을 때만' 지우고 인원을 줄인다.
+     *   예전에는 삭제와 인원 감소가 따로여서, 관리자 둘이 같은 사람을 거의 동시에
+     *   내보내면 인원 수가 2 줄었다 (보정 로직이 결국 맞추지만 그 사이 로비 숫자가 튄다).
+     */
     const kickPlayer = useCallback(async (playerId) => {
         try {
-            await deleteDoc(doc(playersRef, playerId));
-            await updateDoc(roomRef, { playerCount: increment(-1) });
+            await runTransaction(db, async (t) => {
+                const pRef = doc(playersRef, playerId);
+                const snap = await t.get(pRef);
+                if (!snap.exists()) return;   // 다른 관리자가 이미 내보냈다 — 조용히 끝낸다
+                t.delete(pRef);
+                t.update(roomRef, { playerCount: increment(-1) });
+            });
         } catch (e) {
             logError('선수 내보내기', e);
             toast.error('내보내기에 실패했습니다.');
         }
     }, [playersRef, roomRef]);
 
-    /** 자리 비운 사람들을 한 번에 내보낸다 */
+    /** 자리 비운 사람들을 한 번에 내보낸다 (남아 있는 사람만 세어 정확히 감소) */
     const cleanStale = useCallback(async () => {
         if (staleList.length === 0) return;
         try {
-            const batch = writeBatch(db);
-            staleList.forEach(p => batch.delete(doc(playersRef, p.id)));
-            await batch.commit();
-            await updateDoc(roomRef, { playerCount: increment(-staleList.length) });
-            toast(`자리 비운 ${staleList.length}명을 내보냈습니다.`);
+            const removed = await runTransaction(db, async (t) => {
+                const snaps = await Promise.all(staleList.map(p => t.get(doc(playersRef, p.id))));
+                const alive = snaps.filter(s => s.exists());
+                if (alive.length === 0) return 0;
+                alive.forEach(s => t.delete(s.ref));
+                t.update(roomRef, { playerCount: increment(-alive.length) });
+                return alive.length;
+            });
+            if (removed > 0) toast(`자리 비운 ${removed}명을 내보냈습니다.`);
         } catch (e) {
             logError('자리 비움 정리', e);
             toast.error('정리에 실패했습니다.');
@@ -792,6 +819,10 @@ export function useGameRoom({ roomId, user, superAdmin }) {
                 description: updated.description,
                 levelLimit: updated.levelLimit,
                 maxPlayers: updated.maxPlayers,
+                // 공지 — 방 화면 맨 위에 고정되는 한 줄 ("오늘 셔틀콕 각자 지참")
+                notice: (updated.notice ?? '').trim(),
+                // 방 포인트 색 — 없으면 기본 라임(volt)
+                themeColor: updated.themeColor || null,
             });
             toast('방 정보가 수정되었습니다.');
         } catch (e) {

@@ -22,6 +22,18 @@ function toE164(input) {
     return `+82${raw.replace(/^0/, '')}`;
 }
 
+/**
+ * 입력 중 자동 하이픈: 01012345678 → 010-1234-5678.
+ * 눈으로 자기 번호를 확인하기 훨씬 쉽다 (틀린 번호로 인증번호를 날리는 사고 방지).
+ * 저장·전송 값은 toE164 가 하이픈을 벗겨내므로 형식은 화면에만 존재한다.
+ */
+function formatPhone(input) {
+    const d = String(input || '').replace(/[^0-9]/g, '').slice(0, 11);
+    if (d.length <= 3) return d;
+    if (d.length <= 7) return `${d.slice(0, 3)}-${d.slice(3)}`;
+    return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+}
+
 export function AuthModal({ isOpen, onClose }) {
     const [mode, setMode] = useState('select');
     const [error, setError] = useState('');
@@ -208,9 +220,9 @@ export function AuthModal({ isOpen, onClose }) {
                         type="tel"
                         inputMode="numeric"
                         autoComplete="tel"
-                        placeholder="휴대폰 번호 (01012345678)"
+                        placeholder="휴대폰 번호 (010-1234-5678)"
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
+                        onChange={(e) => setPhone(formatPhone(e.target.value))}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleSendCode(); }}
                         className={FIELD_CLS}
                     />

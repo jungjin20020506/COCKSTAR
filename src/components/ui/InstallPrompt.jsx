@@ -26,7 +26,9 @@ import { X, Download } from './icons';
 
 const VISIT_KEY = 'cockstar-visit-count';
 const DISMISS_KEY = 'cockstar-install-dismissed-at';
-const SNOOZE_MS = 14 * 24 * 60 * 60 * 1000;
+// 닫으면 일주일 조용히. (예전 2주 — 설치가 알림의 선행 조건이 되면서 유도를 당겼다.
+//  단, '닫기'는 언제나 한 번에 되고, 안 깔아도 모든 기능이 브라우저에서 그대로 된다)
+const SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function isStandalone() {
     if (typeof window === 'undefined') return false;
@@ -40,6 +42,11 @@ export function isIOS() {
     // 아이패드는 iPadOS 13부터 데스크톱 사파리로 위장한다 — 터치 지점 수로 가려낸다
     return /iPad|iPhone|iPod/.test(ua)
         || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+}
+
+export function isAndroid() {
+    if (typeof navigator === 'undefined') return false;
+    return /Android/i.test(navigator.userAgent);
 }
 
 /** 방문 횟수를 센다 (앱 시작 때 한 번) */
@@ -154,9 +161,11 @@ export function InstallBanner() {
         try {
             const visits = Number(localStorage.getItem(VISIT_KEY) || '0');
             const dismissedAt = Number(localStorage.getItem(DISMISS_KEY) || '0');
-            if (visits < 3) return;                                  // 처음 온 사람은 그냥 둔다
-            if (Date.now() - dismissedAt < SNOOZE_MS) return;        // 닫았으면 2주간 조용히
-            if (!canPrompt && !ios) return;                          // 설치할 방법이 없으면 안 띄운다
+            if (visits < 2) return;                                  // 첫 방문에는 그냥 둔다
+            if (Date.now() - dismissedAt < SNOOZE_MS) return;        // 닫았으면 일주일 조용히
+            // 설치할 방법이 하나라도 있어야 띄운다:
+            //   네이티브 설치창(canPrompt) / 아이폰 안내 / 안드로이드 수동 안내(삼성 인터넷 등)
+            if (!canPrompt && !ios && !isAndroid()) return;
             const t = setTimeout(() => setShow(true), 4000);         // 화면을 좀 보고 나서
             return () => clearTimeout(t);
         } catch { /* localStorage 를 못 쓰면 그냥 안 띄운다 */ }
