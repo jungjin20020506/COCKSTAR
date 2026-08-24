@@ -1,0 +1,90 @@
+rules_version = '2';
+
+// ===================================================================================
+// Firestore 보안 규칙
+// -----------------------------------------------------------------------------------
+// 지금까지 규칙이 저장소에 없어서, 콘솔에 어떤 규칙이 걸려 있는지 아무도 몰랐다.
+// 이 파일이 진실이다. 배포는:
+//   firebase deploy --only firestore:rules
+//
+// 원칙
+//   · 화면이 막는 것은 '실수 방지'고, 여기가 막는 것이 '보안'이다.
+//     클라이언트 코드는 누구나 고쳐서 보낼 수 있다 — 여기서 안 막으면 안 막은 것이다.
+//   · 방 문서 쓰기는 관리자만. 선수 문서는 본인 것만.
+//   · 슈퍼 관리자는 커스텀 클레임(superAdmin)으로 인정한다.
+//     붙이는 법: admin.auth().setCustomUserClaims(uid, { superAdmin: true })
+// ===================================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSuper() {
+      return signedIn() && request.auth.token.superAdmin == true;
+    }
+
+    // 방장 또는 공동 관리자인가 (구버전 admins 문자열 목록도 uid 로는 인정)
+    function isRoomAdmin(room) {
+      return signedIn() && (
+        room.adminUid == request.auth.uid
+        || (('adminUids' in room) && room.adminUids.hasAny([request.auth.uid]))
+        || (('admins' in room) && room.admins.hasAny([request.auth.uid]))
+      );
+    }
+
+    // ── 사용자 프로필 ──
+    // 읽기: 로그인한 사람 누구나 (관리자 임명 때 이름을 보여줘야 한다)
+    // 쓰기: 본인만
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && request.auth.uid == uid;
+      allow delete: if isSuper();
+    }
+
+    // ── 경기방 ──
+    match /rooms/{roomId} {
+      // 목록·지도에 보여야 하므로 읽기는 로그인 없이도 허용한다.
+      // 비밀번호는 해시만 저장되므로(passwordHash) 읽혀도 열리지 않는다.
+      allow read: if true;
+
+      // 만들기: 로그인 + 자기 자신을 방장으로 세울 때만
+      allow create: if signedIn()
+        && request.resource.data.adminUid == request.auth.uid;
+
+      // 수정: 관리자 또는 슈퍼 관리자.
+      // 예외 하나 — 초대 코드를 아는 사람이 자신을 adminUids 에 '추가만' 하는 쓰기.
+      //   코드 검증 자체는 클라이언트가 하지만, 이 규칙 덕에 그 쓰기로 할 수 있는 일이
+      //   '관리자 목록에 나를 더하기'뿐으로 좁혀진다 (방 삭제나 이름 바꾸기는 안 된다).
+      allow update: if isSuper()
+        || isRoomAdmin(resource.data)
+        || selfInviteOnly();
+
+      allow delete: if isSuper() || (signedIn() && resource.data.adminUid == request.auth.uid);
+
+      function selfInviteOnly() {
+        let before = resource.data;
+        let after = request.resource.data;
+        return signedIn()
+          // adminUids 와 adminNames 만 바뀌었고
+          && after.diff(before).affectedKeys().hasOnly(['adminUids', 'adminNames'])
+          // 내가 추가됐고
+          && after.adminUids.hasAny([request.auth.uid])
+          // 기존 관리자가 빠지지 않았다
+          && after.adminUids.hasAll(before.get('adminUids', []));
+      }
+
+      // ── 선수 ──
+      match /players/{playerId} {
+        allow read: if true;
+
+        // 본인 문서는 스스로, 나머지는 관리자가
+        allow create, update, delete: if isSuper()
+          || (signedIn() && request.auth.uid == playerId)
+          || isRoomAdmin(get(/databases/$(database)/documents/rooms/$(roomId)).data);
+      }
+    }
+  }
+}

@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# 환경변수 (기기별 오버라이드 — 기본값은 src/firebase.js 참고)
+.env
+.env.*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

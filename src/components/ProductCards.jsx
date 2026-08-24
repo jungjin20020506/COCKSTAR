@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { formatPrice, openProduct, badgeOf } from '../lib/products';
+import { Heart } from './ui/icons';
 
 // ===================================================================================
 // 노에러 상품 카드
@@ -12,8 +13,11 @@ import { formatPrice, openProduct, badgeOf } from '../lib/products';
 //  · 뱃지는 NEW(신상)와 BEST(40%↑ 할인) 둘뿐이다. 모든 카드에 뱃지가 붙으면
 //    아무 뱃지도 눈에 안 들어온다.
 //  · 색상 변형은 도트로 보여준다. "이 옷, 다른 색도 있네"를 칸을 더 쓰지 않고 전달한다.
-//  · 찜/장바구니 버튼은 넣지 않았다 — 결제가 앱 밖(공식몰)에서 일어나므로
-//    눌러도 아무 일도 안 생기는 버튼이 된다. 안 눌리는 버튼은 거짓말이다.
+//  · 장바구니 버튼은 넣지 않는다 — 결제가 앱 밖(공식몰)에서 일어나므로 눌러도
+//    아무 일도 안 생기는 버튼이 된다. 안 눌리는 버튼은 거짓말이다.
+//  · 찜은 넣는다. 예전에는 '내 정보'에 찜 목록 자리만 있고 찜할 방법이 없었다 —
+//    빈 상자만 있고 넣을 구멍이 없는 셈이었다. 찜은 앱 안에서 완결되는 동작이라
+//    (공식몰 로그인이 필요 없다) 눌리는 버튼이 된다.
 // ===================================================================================
 
 /**
@@ -66,6 +70,28 @@ const SoldOutVeil = () => (
         <span className="text-[11px] font-black label text-dim">SOLD OUT</span>
     </div>
 );
+
+/**
+ * 찜 버튼.
+ *
+ * ★ 상품 카드 전체가 <button> 이라 그 안에 또 버튼을 넣을 수 없다(HTML 규칙 위반이고
+ *   실제로 클릭이 겹친다). 그래서 카드를 감싸는 relative 컨테이너 위에 따로 얹는다.
+ */
+function FavoriteButton({ active, onToggle, name }) {
+    if (!onToggle) return null;
+    return (
+        <button
+            onClick={(e) => { e.stopPropagation(); onToggle(); }}
+            aria-label={`${name} ${active ? '찜 해제' : '찜하기'}`}
+            aria-pressed={active}
+            className={`absolute top-1.5 right-1.5 z-20 w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90 ${
+                active ? 'bg-volt text-ink' : 'bg-ink/55 text-white/80 backdrop-blur-sm'
+            }`}
+        >
+            <Heart size={15} fill={active ? 'currentColor' : 'none'} />
+        </button>
+    );
+}
 
 /** 색상 이름 → 도트에 칠할 색. 못 알아들으면 회색 (지어내지 않는다) */
 const COLOR_HEX = {
@@ -124,12 +150,18 @@ const PriceRow = ({ product, size = 'sm' }) => (
 /**
  * 가로 스크롤 줄에 쓰는 카드 (홈 화면)
  */
-function ProductCardH({ product }) {
+function ProductCardH({ product, isFavorite, onToggleFavorite }) {
     return (
-        <button
-            onClick={() => openProduct(product)}
-            className="w-36 flex-shrink-0 text-left active:scale-[0.97] transition-transform"
-        >
+        <div className="w-36 flex-shrink-0 relative">
+            <FavoriteButton
+                active={isFavorite}
+                name={product.name}
+                onToggle={onToggleFavorite && (() => onToggleFavorite(product.idx))}
+            />
+            <button
+                onClick={() => openProduct(product)}
+                className="w-full text-left active:scale-[0.97] transition-transform"
+            >
             <div className="rounded-2xl overflow-hidden bg-card border border-white/[0.06]">
                 <div className="relative w-full aspect-square bg-[#F3F4F6]">
                     <CardBadges product={product} />
@@ -142,18 +174,25 @@ function ProductCardH({ product }) {
                     <PriceRow product={product} />
                 </div>
             </div>
-        </button>
+            </button>
+        </div>
     );
 }
 
 /**
  * 2열 그리드에 쓰는 카드 (스토어 화면) — 쇼핑몰의 기본 단위
  */
-function ProductCardGrid({ product }) {
+function ProductCardGrid({ product, isFavorite, onToggleFavorite }) {
     return (
+        <div className="relative">
+        <FavoriteButton
+            active={isFavorite}
+            name={product.name}
+            onToggle={onToggleFavorite && (() => onToggleFavorite(product.idx))}
+        />
         <button
             onClick={() => openProduct(product)}
-            className="text-left active:scale-[0.97] transition-transform group"
+            className="w-full text-left active:scale-[0.97] transition-transform group"
         >
             <div className="rounded-2xl overflow-hidden bg-card border border-white/[0.06] h-full flex flex-col group-hover:border-white/15 transition-colors">
                 <div className="relative w-full aspect-square bg-[#F3F4F6] overflow-hidden">
@@ -184,6 +223,7 @@ function ProductCardGrid({ product }) {
                 </div>
             </div>
         </button>
+        </div>
     );
 }
 
@@ -276,4 +316,4 @@ function NewDropHero({ products }) {
     );
 }
 
-export { ProductCardH, ProductCardGrid, ProductCardWide, ProductImage, NewDropHero };
+export { ProductCardH, ProductCardGrid, ProductCardWide, ProductImage, NewDropHero, FavoriteButton };

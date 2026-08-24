@@ -2,49 +2,76 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#08090C" />
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet" />
-
-    <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js"></script>
-
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=4bebedd2921e9ecf2412417b5b35762e&libraries=services,clusterer"></script>
-
-    <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-
     <title>COCKSTAR · 코트를 지배하라</title>
-    <meta name="description" content="배드민턴 퍼포먼스 플랫폼. 코트를 찾고, 경기를 만들고, 실력을 증명하라." />
+    <meta name="description" content="배드민턴 실시간 매칭 플랫폼. 코트를 찾고, 경기를 만들고, 오늘의 기록을 남겨라." />
+
+    <!-- 아이콘 (scripts/generate-icons.mjs 가 만든다) -->
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- 아이폰 홈 화면에서 전체 화면으로 열리게 한다 -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="COCKSTAR" />
+    <!-- 전화번호처럼 보이는 숫자를 사파리가 멋대로 링크로 만드는 걸 막는다 (경기 수·급수가 파랗게 변한다) -->
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- 카카오톡·문자로 링크를 보냈을 때 뜨는 미리보기.
+         초대 링크가 사실상 유일한 유입 경로라 이게 없으면 밋밋한 주소 한 줄만 간다. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="COCKSTAR" />
+    <meta property="og:title" content="COCKSTAR · 코트를 지배하라" />
+    <meta property="og:description" content="배드민턴 실시간 매칭 · 자동 매칭으로 공평하게, 오늘의 기록은 카드로." />
+    <meta property="og:image" content="/icon-512.png" />
+    <meta property="og:locale" content="ko_KR" />
+    <meta name="twitter:card" content="summary" />
 
     <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet" />
+
+    <!--
+      카카오 SDK 3종.
+      ★ defer 를 붙인 게 중요하다. 예전에는 동기 로드라 이 세 파일을 다 받을 때까지
+        화면이 한 글자도 안 그려졌다. 지도·주소검색은 해당 화면에 들어가야 쓰이므로
+        첫 화면을 막을 이유가 없다.
+        (콕맵은 SDK 가 늦게 와도 기다렸다가 뜨고, 8초가 지나면 목록 모드로 전환한다)
+    -->
+    <script defer src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js"></script>
+    <script defer src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=4bebedd2921e9ecf2412417b5b35762e&libraries=services,clusterer&autoload=false"></script>
+    <script defer src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 
     <style>
       html, body { margin: 0; background: #08090C; }
       body {
-        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          'Helvetica Neue', Arial, 'Noto Sans', sans-serif,
+          'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
       }
-
       /* 카카오맵 이미지 레이아웃 깨짐 방지 */
-      #kakao-map img {
-          max-width: none !important;
-          height: auto !important;
-          border: 0;
-      }
-
-      /* 스크롤바 숨기기 클래스 */
+      #kakao-map img { max-width: none !important; height: auto !important; border: 0; }
       .hide-scrollbar::-webkit-scrollbar { display: none; }
-      .hide-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
+      .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+      /* 스크립트가 오기 전에도 검은 화면 대신 로고가 보이게 */
+      #boot {
+        position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+        background: #08090C; color: #CDFB47;
+        font-family: inherit; font-weight: 900; font-size: 13px; letter-spacing: .18em;
       }
     </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div id="boot">COCKSTAR</div></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

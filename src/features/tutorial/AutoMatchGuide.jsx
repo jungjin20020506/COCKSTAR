@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { getLevelHex } from '../lib/matchQueues';
+import { getLevelHex } from '../../lib/matchQueues';
 
 // ===================================================================================
 // [자동매칭] 관리자 게임형 안내 — 글로 읽지 않고 직접 눌러보며 배운다

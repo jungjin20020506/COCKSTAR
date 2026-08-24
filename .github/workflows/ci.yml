@@ -1,0 +1,42 @@
+# ===================================================================================
+# CI — push 할 때마다 lint · 타입 · 테스트 · 빌드를 자동으로 돌린다
+# -----------------------------------------------------------------------------------
+# 지금까지는 사람이 기억날 때만 검사를 돌렸다. 이제 main 에 올라가는 모든 커밋이
+# 네 관문을 통과해야 한다. 로컬에서는 `npm run verify` 가 같은 것을 돌린다.
+# ===================================================================================
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 린트
+        run: npm run lint
+
+      - name: 타입 검사
+        run: npm run typecheck
+
+      - name: 컴포넌트·로직 테스트
+        run: npm test
+
+      - name: 매칭 엔진 시뮬레이션
+        run: npm run test:matching
+
+      - name: 빌드
+        run: npm run build

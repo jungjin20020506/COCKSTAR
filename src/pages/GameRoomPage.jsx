@@ -1,0 +1,1017 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useConfirm } from '../components/ui/confirm';
+import { useGameRoom } from '../features/room/useGameRoom';
+import { usePresence } from '../lib/presence';
+import { useTutorial } from '../features/tutorial/useTutorial';
+import { ROOM_ADMIN_GUIDE_KEY, AUTOMATCH_GUIDE_KEY } from '../features/tutorial/guideKeys';
+import { RoomAdminGuide } from '../features/tutorial/RoomAdminGuide';
+import { AutoMatchGuide } from '../features/tutorial/AutoMatchGuide';
+import { PlayerCard, LeftPlayerCard, EmptySlot, CourtTimer } from '../features/room/PlayerCard';
+import { AutoMatchSection } from '../features/room/AutoMatchSection';
+import { GameBanner } from '../features/room/GameBanner';
+import { MyTurnBanner } from '../features/room/MyTurnBanner';
+import { JoinGate } from '../features/room/JoinGate';
+import { SettingsModal } from '../features/room/SettingsModal';
+import { EditRoomInfoModal } from '../features/room/EditRoomInfoModal';
+import { AdminManagerModal } from '../features/room/AdminManagerModal';
+import { BragCardModal } from '../features/room/BragCardModal';
+import { TestLabModal } from '../features/room/TestLabModal';
+import { ShareModal, CourtSelectionModal, EditGamesModal, AdminCodeModal } from '../features/room/SmallModals';
+import { MatchOptionsModal } from '../components/MatchOptionsModal';
+import { LoadingSpinner } from '../components/ui/Feedback';
+import {
+    ArrowLeft, Share2, Edit3, GripVertical, FlaskConical, Users, Lock,
+    Trophy, KeyRound, Crown, LogOut,
+} from '../components/ui/icons';
+import { PLAYERS_PER_MATCH, FIELD_CLS } from '../constants';
+import {
+    buildMatchContext, buildCandidatePool, generateMatchOptions, getSensitivity,
+} from '../lib/matching';
+import { buildEngineInput } from '../lib/matchQueues';
+import { verifyPassword, hasPassword } from '../lib/roomPassword';
+import { computeBragStat } from '../lib/bragCard';
+import { toast } from '../lib/toast';
+import { logError } from '../lib/errorLog';
+
+// ===================================================================================
+// 경기방 화면
+// -----------------------------------------------------------------------------------
+// 로직은 useGameRoom 훅에 있고 여기는 '보여주기'만 한다.
+// 화면 흐름은 네 단계다.
+//   ① 비밀번호   → 잠긴 방이면 먼저 푼다
+//   ② 참가 확인   → 구경만 할지, 명단에 올릴지 (예전에는 열자마자 자동 참가였다)
+//   ③ 운영 화면   → 대기 명단 · 자동 매칭 · 경기 배정 · 코트
+//   ④ 안내       → 관리자로 처음 들어왔으면 운영 안내 → 자동매칭 연습
+// ===================================================================================
+
+export function GameRoomPage({ onLoginClick }) {
+    const { roomId } = useParams();
+    const navigate = useNavigate();
+    const confirm = useConfirm();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const { user, userData, superAdmin } = useAuth();
+    const room = useGameRoom({ roomId, user, superAdmin });
+    const { hasSeen, markSeen, resetSeen } = useTutorial(user, userData);
+
+    const {
+        roomData, players, loading, notFound, permissionDenied, isAdmin, myUid, playerCount,
+        inProgressPlayerIds, waitingPlayers, courtIndexByPlayer, staleList,
+    } = room;
+
+    // ── 화면 상태 ──
+    const [tab, setTab] = useState('matching');
+    const [selectedIds, setSelectedIds] = useState([]);
+    const [passwordInput, setPasswordInput] = useState('');
+    const [unlocked, setUnlocked] = useState(false);
+    const [peeking, setPeeking] = useState(false);
+    const [joining, setJoining] = useState(false);
+
+    const [showSettings, setShowSettings] = useState(false);
+    const [showEditInfo, setShowEditInfo] = useState(false);
+    const [showAdmins, setShowAdmins] = useState(false);
+    const [showShare, setShowShare] = useState(false);
+    const [showTestLab, setShowTestLab] = useState(false);
+    const [showBrag, setShowBrag] = useState(false);
+    const [showAdminCode, setShowAdminCode] = useState(false);
+    const [editGamePlayer, setEditGamePlayer] = useState(null);
+    const [isAutoPlay, setIsAutoPlay] = useState(false);
+
+    const [courtModal, setCourtModal] = useState(null);   // { matchIndex, source, courts }
+    const [matchOptions, setMatchOptions] = useState(null);
+    const [generatingGender, setGeneratingGender] = useState(null);
+    const generatingRef = useRef(false);
+
+    const [showAdminGuide, setShowAdminGuide] = useState(false);
+    const [showAutoGuide, setShowAutoGuide] = useState(false);
+
+    const me = myUid ? players[myUid] : null;
+    const joined = !!me;
+
+    // ── 👻 운영 전용 모드 ──
+    // 코치·총무처럼 '운영만 하고 경기는 안 뛰는 사람'을 위한 모드.
+    // 방마다 따로 켠다(어떤 방에서는 뛰고 어떤 방에서는 운영만 할 수 있어야 한다)
+    // → 방 문서가 아니라 기기에 저장한다.
+    const ghostKey = `cockstar-ghost-admin-${roomId}`;
+    const [isGhost, setIsGhost] = useState(() => {
+        try { return localStorage.getItem(ghostKey) === '1'; }
+        catch { return false; }
+    });
+    // 일반 회원이 켜면 자기만 현황판에서 사라져 매칭에 영영 안 들어간다 — 관리자만 인정한다
+    const ghostActive = isGhost && isAdmin;
+
+    // 살아 있다고 알린다 (자리 비움 판정에 쓰인다)
+    usePresence(roomId, myUid, joined && !ghostActive);
+
+    // ── 비밀번호 ──
+    const locked = hasPassword(roomData) && !unlocked && !superAdmin && roomData?.adminUid !== myUid;
+
+    const handleUnlock = async () => {
+        const ok = await verifyPassword(passwordInput, roomData || {});
+        if (ok) { setUnlocked(true); setPasswordInput(''); }
+        else toast.error('비밀번호가 틀렸습니다.');
+    };
+
+    // ── 초대 링크로 들어온 경우: 코드가 맞으면 바로 관리자가 된다 ──
+    const inviteHandledRef = useRef(false);
+    useEffect(() => {
+        const code = searchParams.get('adminInvite');
+        if (!code || !user || !roomData || inviteHandledRef.current) return;
+        inviteHandledRef.current = true;
+        (async () => {
+            const ok = await room.redeemInvite(code);
+            if (ok) toast('공동 관리자가 되었습니다! 👑');
+            else toast.error('초대 코드가 만료되었거나 올바르지 않습니다.');
+            const next = new URLSearchParams(searchParams);
+            next.delete('adminInvite');
+            setSearchParams(next, { replace: true });
+        })();
+    }, [searchParams, user, roomData, room, setSearchParams]);
+
+    // ── 관리자 안내: 이 방에 관리자로 처음 들어왔을 때 ──
+    useEffect(() => {
+        if (loading || !isAdmin || !joined && !ghostActive) return;
+        if (locked) return;
+        if (hasSeen(ROOM_ADMIN_GUIDE_KEY)) return;
+        if (showSettings || showEditInfo || showShare || courtModal) return;
+        const t = setTimeout(() => setShowAdminGuide(true), 600);
+        return () => clearTimeout(t);
+    }, [loading, isAdmin, joined, ghostActive, locked, hasSeen, showSettings, showEditInfo, showShare, courtModal]);
+
+    // 자동매칭 연습은 운영 안내를 끝낸 다음에 이어서 나온다 (겹쳐 뜨면 둘 다 못 쓴다)
+    const finishAdminGuide = async () => {
+        setShowAdminGuide(false);
+        await markSeen(ROOM_ADMIN_GUIDE_KEY);
+        if (!hasSeen(AUTOMATCH_GUIDE_KEY)) setTimeout(() => setShowAutoGuide(true), 350);
+    };
+
+    useEffect(() => {
+        if (loading || !isAdmin || locked) return;
+        if (!hasSeen(ROOM_ADMIN_GUIDE_KEY)) return;   // 운영 안내가 먼저다
+        if (hasSeen(AUTOMATCH_GUIDE_KEY) || showAdminGuide || showAutoGuide) return;
+        const t = setTimeout(() => setShowAutoGuide(true), 600);
+        return () => clearTimeout(t);
+    }, [loading, isAdmin, locked, hasSeen, showAdminGuide, showAutoGuide]);
+
+    // ── 참가 ──
+    const handleJoin = async () => {
+        if (!user) { onLoginClick(); return; }
+        setJoining(true);
+        try {
+            await room.join(userData);
+            toast('참가했습니다. 대기 명단에 올라갔어요!');
+        } catch (e) {
+            logError('방 참가', e);
+            toast.error('참가에 실패했습니다.');
+        } finally { setJoining(false); }
+    };
+
+    const handleLeaveRoom = async () => {
+        const ok = await confirm({
+            title: '방을 나갈까요?',
+            description: joined ? '대기 명단에서 빠지고 오늘 이 방의 기록이 사라집니다.' : '',
+            confirmText: '나가기',
+            tone: joined ? 'danger' : 'default',
+        });
+        if (!ok) return;
+        if (joined && !ghostActive) await room.leave();
+        navigate('/game');
+    };
+
+    const handleToggleGhost = async () => {
+        if (!user) return;
+        const next = !isGhost;
+        if (next && inProgressPlayerIds.has(user.uid)) {
+            toast.error('경기 중에는 운영 모드로 바꿀 수 없습니다. 경기가 끝난 뒤 눌러주세요.');
+            return;
+        }
+        try { localStorage.setItem(ghostKey, next ? '1' : '0'); } catch { /* noop */ }
+        setIsGhost(next);
+        if (next) {
+            await room.leave();
+            toast('운영 전용 모드로 바꿨습니다. 선수 명단에서 빠집니다.');
+        } else {
+            await room.join(userData);
+        }
+    };
+
+    // ── 선수 선택 · 배치 ──
+    const handleCardClick = (player) => {
+        if (!isAdmin) return;
+        if (selectedIds.includes(player.id)) {
+            setSelectedIds(prev => prev.filter(id => id !== player.id));
+            return;
+        }
+        const inSchedule = Object.values(roomData?.scheduledMatches || {})
+            .some(m => m && m.includes(player.id));
+        if (selectedIds.length > 0 && inSchedule) {
+            if (selectedIds.length > 1) {
+                toast.error('선수 교체는 1명만 선택한 상태에서 가능합니다.');
+                return;
+            }
+            let mIdx = null;
+            let sIdx = null;
+            Object.keys(roomData.scheduledMatches || {}).forEach(key => {
+                const idx = (roomData.scheduledMatches[key] || []).indexOf(player.id);
+                if (idx > -1) { mIdx = parseInt(key, 10); sIdx = idx; }
+            });
+            room.swapPlayers(selectedIds, player.id, mIdx, sIdx).then(() => setSelectedIds([]));
+            return;
+        }
+        setSelectedIds(prev => [...prev, player.id]);
+    };
+
+    const handleSlotClick = (matchIndex, slotIndex) => {
+        if (!isAdmin || selectedIds.length === 0) return;
+        room.fillSlot(matchIndex, slotIndex, selectedIds).then(() => setSelectedIds([]));
+    };
+
+    const handleKick = async (player) => {
+        const ok = await confirm({
+            title: `${player.name}님을 내보낼까요?`,
+            description: '오늘 이 방의 경기 기록도 함께 사라집니다.',
+            confirmText: '내보내기',
+            tone: 'danger',
+        });
+        if (!ok) return;
+        await room.kickPlayer(player.id);
+        setSelectedIds(prev => prev.filter(id => id !== player.id));
+    };
+
+    // ── 경기 시작 · 종료 ──
+    const handleStartClick = (matchIndex, source = 'schedule') => {
+        if (!isAdmin) { toast.error('관리자만 가능합니다.'); return; }
+        const courts = roomData?.inProgressCourts || [];
+        const empty = [];
+        for (let i = 0; i < (roomData?.numInProgressCourts || 0); i += 1) {
+            if (!courts[i]) empty.push(i);
+        }
+        if (empty.length === 0) { toast.error('빈 코트가 없습니다.'); return; }
+        if (empty.length === 1) { room.startMatch(matchIndex, empty[0], source); return; }
+        setCourtModal({ matchIndex, source, courts: empty });
+    };
+
+    const handleEndMatch = async (courtIdx) => {
+        const snapshot = await room.endMatch(courtIdx);
+        if (!snapshot) return;
+        // 경기 종료는 오조작이 잦다(코트가 여러 개면 옆 코트를 누르기 쉽다).
+        // 예전에는 4명의 경기 수를 하나씩 손으로 되돌려야 했다.
+        toast.undo('경기를 종료했습니다.', () => room.undoEndMatch(snapshot));
+    };
+
+    // ── 자동 매칭 ──
+    const computeOptions = useCallback((gender) => {
+        const isMixed = gender === '혼복';
+        const cfg = roomData?.autoMatchConfig || {};
+        const master = cfg.sensitivity || 'normal';
+        const key = (cfg.perGenderSensitivity && !isMixed)
+            ? ((gender === '남' ? cfg.maleSensitivity : cfg.femaleSensitivity) || master)
+            : master;
+        const sens = getSensitivity(key);
+
+        const { allPlayers, gameState } = buildEngineInput(roomData, players);
+        const ctx = buildMatchContext(allPlayers, gameState, { now: Date.now() });
+        const pool = buildCandidatePool(ctx, gender);
+
+        // 예약이 쌓이면 목록 전체가 대기 상태가 되어 코트가 논다 —
+        // 엔진이 이번엔 '바로 시작 가능한 조합'을 우선하도록 알려준다.
+        const pendingReservations = Object.values(roomData?.autoMatches || {})
+            .filter(m => (m || []).some(id => id && inProgressPlayerIds.has(id))).length;
+
+        return generateMatchOptions({
+            pool, ctx, mode: gender, maxOnCourt: sens.maxOnCourt, pages: 3, pendingReservations,
+        });
+    }, [roomData, players, inProgressPlayerIds]);
+
+    const handleGenerate = async (gender) => {
+        if (!isAdmin || generatingRef.current) return;
+        if (!roomData) { toast.error('데이터를 불러오는 중입니다. 잠시 후 다시 눌러주세요.'); return; }
+        const isMixed = gender === '혼복';
+        const label = isMixed ? '혼복' : (gender === '남' ? '남자' : '여자');
+
+        generatingRef.current = true;
+        setGeneratingGender(gender);
+        try {
+            const result = computeOptions(gender);
+            if (result.status !== 'ok') {
+                toast.error(isMixed
+                    ? `혼복은 남자 2명, 여자 2명 이상 필요합니다. (현재 남 ${result.maleCount ?? 0} · 여 ${result.femaleCount ?? 0})`
+                    : `${label} 선수가 4명 이상 필요합니다. (현재 ${result.poolSize}명)`);
+                return;
+            }
+            setMatchOptions({ gender, genderLabel: label, result });
+        } catch (e) {
+            logError('자동 매칭 계산', e);
+            toast.error('매칭 후보를 계산하지 못했습니다.');
+        } finally {
+            generatingRef.current = false;
+            setGeneratingGender(null);
+        }
+    };
+
+    const handleSelectOption = async (option) => {
+        const fail = await room.addAutoMatch(option);
+        setMatchOptions(null);
+        if (fail) toast.error(`${fail} 매칭 버튼을 한 번 더 눌러주세요.`);
+    };
+
+    // ── 자랑 카드 ──
+    const bragStat = useMemo(
+        () => (me ? computeBragStat(me, players, roomData?.name) : null),
+        [me, players, roomData],
+    );
+
+    // ── 시뮬레이션 (슈퍼 관리자 전용) ──
+    useEffect(() => {
+        if (!isAutoPlay || !isAdmin || !roomData) return undefined;
+        const id = setInterval(() => {
+            const courts = roomData.inProgressCourts || [];
+            const occupied = courts.map((c, i) => (c ? i : -1)).filter(i => i >= 0);
+            const empty = [];
+            for (let i = 0; i < roomData.numInProgressCourts; i += 1) if (!courts[i]) empty.push(i);
+
+            if (occupied.length > 0 && Math.random() < 0.3) {
+                room.endMatch(occupied[Math.floor(Math.random() * occupied.length)]);
+                return;
+            }
+            const full = Object.entries(roomData.scheduledMatches || {})
+                .filter(([, m]) => m && m.filter(Boolean).length === PLAYERS_PER_MATCH)
+                .map(([k]) => parseInt(k, 10));
+            if (full.length > 0 && empty.length > 0 && Math.random() < 0.5) {
+                room.startMatch(full[0], empty[0]);
+                return;
+            }
+            if (waitingPlayers.length > 0) {
+                for (let m = 0; m < roomData.numScheduledMatches; m += 1) {
+                    const match = roomData.scheduledMatches?.[m] || Array(PLAYERS_PER_MATCH).fill(null);
+                    const slot = match.indexOf(null);
+                    if (slot !== -1) { room.fillSlot(m, slot, [waitingPlayers[0].id]); return; }
+                }
+            }
+        }, 700);
+        return () => clearInterval(id);
+    }, [isAutoPlay, isAdmin, roomData, waitingPlayers, room]);
+
+    // ── 화면 ──
+    // 읽기 권한이 없다 = 로그인이 필요하다 (공유 링크를 받은 사람의 기본 경로다)
+    if (permissionDenied && !user) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full bg-ink p-8 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-volt flex items-center justify-center mb-4">
+                    <Lock size={26} className="text-ink" />
+                </div>
+                <h2 className="text-lg font-black kern-tight mb-1 text-txt">경기방 초대를 받으셨네요!</h2>
+                <p className="text-sm text-dim font-medium mb-6">로그인하면 바로 입장할 수 있어요.<br />가입은 30초면 됩니다.</p>
+                <button
+                    onClick={onLoginClick}
+                    className="w-full max-w-xs py-4 bg-volt text-ink font-black rounded-full shadow-volt"
+                >
+                    로그인하고 입장하기
+                </button>
+                <button onClick={() => navigate('/')} className="mt-4 text-dim text-sm font-bold">
+                    나중에 할게요
+                </button>
+            </div>
+        );
+    }
+    if (permissionDenied && user) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full bg-ink p-8 text-center">
+                <p className="text-5xl mb-4">🔒</p>
+                <h2 className="text-xl font-black text-txt kern-tight mb-2">이 방을 볼 권한이 없어요</h2>
+                <p className="text-sm text-dim font-medium mb-8">방장에게 문의해주세요.</p>
+                <button
+                    onClick={() => navigate('/game')}
+                    className="px-8 py-4 bg-volt text-ink font-black rounded-full label text-xs"
+                >
+                    경기방 목록으로
+                </button>
+            </div>
+        );
+    }
+
+    if (notFound) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full bg-ink p-8 text-center">
+                <p className="text-5xl mb-4">🏸</p>
+                <h2 className="text-xl font-black text-txt kern-tight mb-2">방을 찾을 수 없습니다</h2>
+                <p className="text-sm text-dim font-medium mb-8">삭제되었거나 링크가 잘못되었어요.</p>
+                <button
+                    onClick={() => navigate('/game')}
+                    className="px-8 py-4 bg-volt text-ink font-black rounded-full label text-xs"
+                >
+                    경기방 목록으로
+                </button>
+            </div>
+        );
+    }
+
+    if (loading || !roomData) return <LoadingSpinner text="ENTERING" />;
+
+    if (locked) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full bg-ink p-8 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-volt flex items-center justify-center mb-4">
+                    <Lock size={28} className="text-ink" />
+                </div>
+                <h2 className="text-xl font-black kern-tight mb-1 text-txt">비밀번호가 있는 방입니다</h2>
+                <p className="text-sm text-dim font-medium mb-6">{roomData.name}</p>
+                <input
+                    type="password"
+                    autoComplete="off"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleUnlock(); }}
+                    aria-label="방 비밀번호"
+                    className={`${FIELD_CLS} max-w-xs text-center mb-4`}
+                />
+                <button
+                    onClick={handleUnlock}
+                    className="w-full max-w-xs py-4 bg-volt text-ink font-black rounded-full shadow-volt"
+                >
+                    입장하기
+                </button>
+                <button onClick={() => navigate('/game')} className="mt-4 text-dim text-sm font-bold">
+                    목록으로 돌아가기
+                </button>
+            </div>
+        );
+    }
+
+    // 참가 확인 — 구경만 하려던 사람이 명단에 오르지 않게
+    if (!joined && !ghostActive && !peeking) {
+        if (!user) {
+            return (
+                <div className="flex flex-col items-center justify-center h-full bg-ink p-8 text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-volt flex items-center justify-center mb-4">
+                        <Lock size={26} className="text-ink" />
+                    </div>
+                    <h2 className="text-lg font-black kern-tight mb-1 text-txt">{roomData.name}</h2>
+                    <p className="text-sm text-dim font-medium mb-6">이 경기방에 참여하려면<br />로그인이 필요합니다.</p>
+                    <button
+                        onClick={onLoginClick}
+                        className="w-full max-w-xs py-4 bg-volt text-ink font-black rounded-full shadow-volt"
+                    >
+                        로그인하고 입장하기
+                    </button>
+                </div>
+            );
+        }
+        return (
+            <div className="h-full flex flex-col bg-ink">
+                <header className="flex-shrink-0 h-14 px-3 flex items-center bg-surface border-b border-white/[0.06]">
+                    <button
+                        onClick={() => navigate('/game')}
+                        aria-label="뒤로"
+                        className="p-2 text-dim hover:text-txt transition-colors"
+                    >
+                        <ArrowLeft size={22} />
+                    </button>
+                    <span className="text-sm font-black text-txt truncate ml-1">경기방 참가</span>
+                </header>
+                <JoinGate
+                    room={roomData}
+                    userData={userData}
+                    playerCount={playerCount}
+                    onJoin={handleJoin}
+                    onPeek={() => setPeeking(true)}
+                    joining={joining}
+                />
+            </div>
+        );
+    }
+
+    const maleWaiting = waitingPlayers.filter(p => p.gender === '남');
+    const femaleWaiting = waitingPlayers.filter(p => p.gender !== '남');
+    const courtLimit = roomData.courtTimeLimit ?? 20;
+
+    return (
+        <div className="flex flex-col h-full bg-ink">
+            {/* ── 헤더 ── */}
+            <header className="flex-shrink-0 h-16 px-3 flex items-center justify-between bg-surface sticky top-0 z-30 border-b border-white/[0.06]">
+                <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
+                    <button
+                        onClick={handleLeaveRoom}
+                        aria-label="방 나가기"
+                        className="p-2 -ml-1 text-dim hover:text-txt transition-colors"
+                    >
+                        <ArrowLeft size={22} />
+                    </button>
+                    <div className="flex flex-col overflow-hidden justify-center">
+                        <div className="flex items-center gap-1.5">
+                            <h1 className="text-base font-black text-txt truncate leading-tight kern-tight">{roomData.name}</h1>
+                            {isAdmin && (
+                                <button
+                                    onClick={() => setShowEditInfo(true)}
+                                    aria-label="방 정보 수정"
+                                    className="text-muted hover:text-volt p-0.5"
+                                >
+                                    <Edit3 size={14} />
+                                </button>
+                            )}
+                        </div>
+                        <div className="flex items-center text-[11px] text-dim font-bold leading-none mt-1 space-x-1.5 truncate">
+                            <span className="truncate max-w-[90px]">{roomData.location}</span>
+                            <span className="w-1 h-1 bg-muted rounded-full" />
+                            <span className="flex items-center gap-1 text-dim">
+                                <Users size={12} />{playerCount}/{roomData.maxPlayers}
+                            </span>
+                            <span className="w-1 h-1 bg-muted rounded-full" />
+                            <span className={isAdmin ? 'text-volt font-black' : 'text-dim'}>
+                                {isAdmin ? 'ADMIN' : peeking && !joined ? '구경 중' : 'PLAYER'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                        onClick={() => setShowShare(true)}
+                        aria-label="경기방 공유"
+                        className="w-9 h-9 flex items-center justify-center rounded-full text-dim hover:text-volt hover:bg-white/5 transition-all"
+                    >
+                        <Share2 size={19} />
+                    </button>
+
+                    {/* 관리자가 아닌 사람에게만 — 초대 코드로 관리자가 되는 뒷문 */}
+                    {!isAdmin && user && (
+                        <button
+                            onClick={() => setShowAdminCode(true)}
+                            aria-label="관리자 코드 입력"
+                            title="관리자 코드 입력"
+                            className="w-9 h-9 flex items-center justify-center rounded-full text-muted hover:text-volt hover:bg-white/5 transition-all"
+                        >
+                            <KeyRound size={17} />
+                        </button>
+                    )}
+
+                    {ghostActive ? (
+                        <span
+                            className="h-9 px-3 rounded-full text-xs font-black flex items-center justify-center bg-white/10 text-dim"
+                            title="선수 명단에 잡히지 않습니다 — 설정에서 되돌릴 수 있어요"
+                        >
+                            👻 운영중
+                        </span>
+                    ) : joined ? (
+                        <button
+                            onClick={room.toggleRest}
+                            className={`h-9 px-3.5 rounded-full text-xs font-black transition-all flex items-center justify-center ${me?.isResting ? 'bg-white/10 text-dim' : 'bg-volt text-ink'}`}
+                        >
+                            {me?.isResting ? '복귀' : '휴식'}
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleJoin}
+                            className="h-9 px-3.5 rounded-full text-xs font-black bg-volt text-ink"
+                        >
+                            참가하기
+                        </button>
+                    )}
+
+                    {isAdmin && (
+                        <>
+                            {/* 시뮬레이션 랩은 개발자(슈퍼 관리자)에게만.
+                                예전에는 방 관리자면 누구나 볼 수 있어서 실제 운영 중인 방에
+                                봇을 쏟아붓는 사고가 날 수 있었다. */}
+                            {superAdmin && (
+                                <button
+                                    onClick={() => setShowTestLab(true)}
+                                    aria-label="시뮬레이션 랩"
+                                    className={`w-9 h-9 flex items-center justify-center rounded-full transition-all ${isAutoPlay ? 'bg-coral/20 text-coral animate-pulse' : 'text-dim hover:text-volt hover:bg-white/5'}`}
+                                >
+                                    <FlaskConical size={19} />
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setShowSettings(true)}
+                                aria-label="방 설정"
+                                className="w-9 h-9 flex items-center justify-center rounded-full text-dim hover:text-txt hover:bg-white/5 transition-all"
+                            >
+                                <GripVertical size={19} />
+                            </button>
+                        </>
+                    )}
+                </div>
+            </header>
+
+            <GameBanner onNavigate={navigate} />
+
+            <div className="flex bg-surface px-2 border-b border-white/[0.06]">
+                {[{ key: 'matching', label: '매칭 대기' }, { key: 'inProgress', label: '경기 진행' }].map(t => (
+                    <button
+                        key={t.key}
+                        onClick={() => setTab(t.key)}
+                        aria-current={tab === t.key}
+                        className={`flex-1 py-3 text-sm font-black border-b-2 transition-colors label ${tab === t.key ? 'border-volt text-volt' : 'border-transparent text-muted'}`}
+                    >
+                        {t.label}
+                    </button>
+                ))}
+            </div>
+
+            <main className="flex-grow overflow-y-auto p-4 space-y-4 pb-24 hide-scrollbar">
+                {/* 내 차례 — 선수가 가장 궁금한 한 가지 */}
+                {me && (
+                    <MyTurnBanner
+                        me={me}
+                        roomData={roomData}
+                        players={players}
+                        inProgressPlayerIds={inProgressPlayerIds}
+                        courtIndexByPlayer={courtIndexByPlayer}
+                        onOpenBrag={() => setShowBrag(true)}
+                    />
+                )}
+
+                {tab === 'matching' ? (
+                    <>
+                        <section className="bg-card rounded-2xl p-4 border border-white/[0.06]">
+                            <div className="flex justify-between items-center mb-4 border-b border-white/[0.06] pb-3">
+                                <h2 className="text-xs font-black label text-txt flex items-center gap-2">
+                                    <Users size={15} className="text-volt" />대기 명단
+                                </h2>
+                                <span className="bg-volt text-ink text-xs font-black px-2.5 py-0.5 rounded-full tabular">
+                                    {waitingPlayers.length}
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-4 gap-2">
+                                {maleWaiting.map(p => (
+                                    <PlayerCard
+                                        key={p.id} player={p} isAdmin={isAdmin}
+                                        isCurrentUser={myUid === p.id}
+                                        isSelected={selectedIds.includes(p.id)}
+                                        isResting={p.isResting}
+                                        onCardClick={handleCardClick}
+                                        onDeleteClick={handleKick}
+                                        onMenuClick={setEditGamePlayer}
+                                        onLongPress={setEditGamePlayer}
+                                    />
+                                ))}
+                            </div>
+
+                            {maleWaiting.length > 0 && femaleWaiting.length > 0 && (
+                                <div className="my-4 relative">
+                                    <div className="absolute inset-0 flex items-center">
+                                        <div className="w-full border-t border-dashed border-white/10" />
+                                    </div>
+                                    <div className="relative flex justify-center">
+                                        <span className="bg-card px-2 text-[10px] text-muted font-black label">여성 회원</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-4 gap-2">
+                                {femaleWaiting.map(p => (
+                                    <PlayerCard
+                                        key={p.id} player={p} isAdmin={isAdmin}
+                                        isCurrentUser={myUid === p.id}
+                                        isSelected={selectedIds.includes(p.id)}
+                                        isResting={p.isResting}
+                                        onCardClick={handleCardClick}
+                                        onDeleteClick={handleKick}
+                                        onMenuClick={setEditGamePlayer}
+                                        onLongPress={setEditGamePlayer}
+                                    />
+                                ))}
+                            </div>
+
+                            {waitingPlayers.length === 0 && (
+                                <div className="text-center py-8">
+                                    <p className="text-sm text-dim font-bold">대기 중인 선수가 없습니다.</p>
+                                    <p className="text-xs text-muted mt-1 font-medium">새로운 선수를 기다리는 중...</p>
+                                </div>
+                            )}
+
+                            {isAdmin && selectedIds.length > 0 && (
+                                <div className="mt-3 flex items-center justify-between px-1">
+                                    <span className="text-[11px] font-black text-volt">{selectedIds.length}명 선택됨</span>
+                                    <button
+                                        onClick={() => setSelectedIds([])}
+                                        className="text-[11px] font-bold text-muted"
+                                    >
+                                        선택 해제
+                                    </button>
+                                </div>
+                            )}
+                        </section>
+
+                        <AutoMatchSection
+                            autoMatches={roomData.autoMatches}
+                            players={players}
+                            isAdmin={isAdmin}
+                            currentUserId={myUid}
+                            inProgressPlayerIds={inProgressPlayerIds}
+                            courtIndexByPlayer={courtIndexByPlayer}
+                            onGenerate={handleGenerate}
+                            generatingGender={generatingGender}
+                            onStart={(idx) => handleStartClick(idx, 'auto')}
+                            onDelete={room.deleteAutoMatch}
+                            onClearAll={async () => {
+                                const ok = await confirm({
+                                    title: '자동 매칭 목록을 모두 지울까요?',
+                                    confirmText: '전체 삭제',
+                                    tone: 'danger',
+                                });
+                                if (ok) room.clearAutoMatches();
+                            }}
+                            onRemovePlayer={(matchIndex) => room.deleteAutoMatch(matchIndex)}
+                        />
+
+                        <section className="space-y-3">
+                            <h2 className="text-xs font-black label text-dim ml-1">경기 배정 · Schedule</h2>
+                            {Array.from({ length: roomData.numScheduledMatches }).map((_, mIdx) => {
+                                const match = roomData.scheduledMatches?.[mIdx] || Array(PLAYERS_PER_MATCH).fill(null);
+                                const filled = match.filter(Boolean).length;
+                                return (
+                                    <div key={mIdx} className="bg-card rounded-2xl p-3 border border-white/[0.06] flex flex-col gap-2">
+                                        <div className="flex justify-between items-center px-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className="bg-volt text-ink text-[11px] font-black px-2.5 py-1 rounded-md tracking-wide">
+                                                    MATCH {mIdx + 1}
+                                                </span>
+                                                <span className="text-[11px] font-black text-muted tabular">{filled}/4</span>
+                                            </div>
+                                            {isAdmin && (
+                                                <button
+                                                    onClick={() => handleStartClick(mIdx)}
+                                                    disabled={filled < PLAYERS_PER_MATCH}
+                                                    className={`flex items-center gap-1 px-3.5 py-1.5 rounded-full text-xs font-black transition-all label ${filled === PLAYERS_PER_MATCH ? 'bg-volt text-ink shadow-volt' : 'bg-white/5 text-muted cursor-not-allowed'}`}
+                                                >
+                                                    경기 시작
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="grid grid-cols-4 gap-2">
+                                            {match.map((pid, sIdx) => {
+                                                if (pid && players[pid]) {
+                                                    return (
+                                                        <PlayerCard
+                                                            key={pid} player={players[pid]} isAdmin={isAdmin}
+                                                            isCurrentUser={myUid === pid}
+                                                            isSelected={selectedIds.includes(pid)}
+                                                            onCardClick={handleCardClick}
+                                                            onDeleteClick={() => room.removeFromSchedule(mIdx, sIdx)}
+                                                            onMenuClick={setEditGamePlayer}
+                                                            onLongPress={setEditGamePlayer}
+                                                        />
+                                                    );
+                                                }
+                                                if (pid) {
+                                                    return (
+                                                        <LeftPlayerCard
+                                                            key={`left-${mIdx}-${sIdx}`} isAdmin={isAdmin}
+                                                            onClick={() => room.removeFromSchedule(mIdx, sIdx)}
+                                                        />
+                                                    );
+                                                }
+                                                return (
+                                                    <EmptySlot
+                                                        key={`empty-${mIdx}-${sIdx}`}
+                                                        onSlotClick={() => handleSlotClick(mIdx, sIdx)}
+                                                    />
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </section>
+                    </>
+                ) : (
+                    <div className="grid grid-cols-1 gap-4">
+                        {Array.from({ length: roomData.numInProgressCourts }).map((_, cIdx) => {
+                            const court = roomData.inProgressCourts?.[cIdx];
+                            const busy = !!court;
+                            return (
+                                <div
+                                    key={cIdx}
+                                    className={`rounded-2xl border transition-all overflow-hidden ${busy ? 'bg-card border-volt/40' : 'bg-card border-dashed border-white/10'}`}
+                                >
+                                    <div className={`px-4 py-3 flex justify-between items-center ${busy ? 'bg-volt' : 'border-b border-white/[0.06]'}`}>
+                                        <span className={`font-black text-sm tracking-wide ${busy ? 'text-ink' : 'text-muted'}`}>
+                                            COURT {cIdx + 1}
+                                        </span>
+                                        {busy ? (
+                                            <div className="flex items-center gap-2">
+                                                <CourtTimer startTime={court.startTime} limitMinutes={courtLimit} />
+                                                {isAdmin && (
+                                                    <button
+                                                        onClick={() => handleEndMatch(cIdx)}
+                                                        className="bg-ink text-txt text-xs font-black px-3 py-1.5 rounded-full"
+                                                    >
+                                                        경기 종료
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <span className="text-xs text-muted font-bold label">대기 중</span>
+                                        )}
+                                    </div>
+                                    <div className="p-3 grid grid-cols-4 gap-2">
+                                        {busy ? court.players.map((pid, idx) => {
+                                            if (pid && players[pid]) {
+                                                return (
+                                                    <PlayerCard
+                                                        key={pid} player={players[pid]} isPlaying isAdmin={isAdmin}
+                                                        isCurrentUser={myUid === pid}
+                                                        onMenuClick={setEditGamePlayer}
+                                                        onLongPress={setEditGamePlayer}
+                                                    />
+                                                );
+                                            }
+                                            if (pid) return <LeftPlayerCard key={`lc-${cIdx}-${idx}`} isAdmin={false} />;
+                                            return <div key={`e-${cIdx}-${idx}`} className="h-[52px] bg-white/[0.02] rounded-lg border border-white/[0.06]" />;
+                                        }) : (
+                                            <div className="col-span-4 h-[52px] flex items-center justify-center text-muted gap-2">
+                                                <Trophy size={18} /><span className="text-sm font-bold">경기가 없습니다</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {/* 구경만 하는 사람에게는 참가 버튼을, 참가한 사람에게는 나가기를 */}
+                {!joined && !ghostActive && peeking && (
+                    <button
+                        onClick={handleJoin}
+                        className="w-full py-4 bg-volt text-ink font-black rounded-full shadow-volt"
+                    >
+                        이 방에 참가하기
+                    </button>
+                )}
+                {joined && (
+                    <button
+                        onClick={handleLeaveRoom}
+                        className="w-full py-3 text-muted text-xs font-bold flex items-center justify-center gap-1.5 hover:text-coral transition-colors"
+                    >
+                        <LogOut size={14} /> 이 방에서 나가기
+                    </button>
+                )}
+            </main>
+
+            {/* ── 모달 ── */}
+            <CourtSelectionModal
+                isOpen={!!courtModal}
+                onClose={() => setCourtModal(null)}
+                courts={courtModal?.courts || []}
+                onSelect={(idx) => {
+                    room.startMatch(courtModal.matchIndex, idx, courtModal.source);
+                    setCourtModal(null);
+                }}
+            />
+
+            <ShareModal
+                isOpen={showShare}
+                onClose={() => setShowShare(false)}
+                room={roomData}
+                roomId={roomId}
+                roomName={roomData.name}
+            />
+
+            <SettingsModal
+                isOpen={showSettings}
+                onClose={() => setShowSettings(false)}
+                roomData={roomData}
+                players={players}
+                onSave={room.saveSettings}
+                onManageAdmins={() => { setShowSettings(false); setShowAdmins(true); }}
+                canManagePassword={isAdmin}
+                staleCount={staleList.length}
+                onCleanStale={async () => {
+                    const ok = await confirm({
+                        title: `자리 비운 ${staleList.length}명을 내보낼까요?`,
+                        description: staleList.map(p => p.name).join(', '),
+                        confirmText: '내보내기',
+                        tone: 'danger',
+                    });
+                    if (ok) room.cleanStale();
+                }}
+                onReset={async () => {
+                    const ok = await confirm({
+                        title: '모든 경기 기록을 초기화할까요?',
+                        description: '진행 중인 경기와 대기열이 지워집니다. 선수 목록은 그대로예요.',
+                        confirmText: '초기화',
+                        tone: 'danger',
+                    });
+                    if (ok) room.resetSystem();
+                }}
+                onKickAll={async () => {
+                    const ok = await confirm({
+                        title: '모든 선수를 내보낼까요?',
+                        description: '오늘 이 방의 경기 기록이 전부 사라집니다.',
+                        confirmText: '전원 내보내기',
+                        tone: 'danger',
+                    });
+                    if (ok) room.kickAll();
+                }}
+                onReplayGuide={async () => {
+                    setShowSettings(false);
+                    await resetSeen([ROOM_ADMIN_GUIDE_KEY, AUTOMATCH_GUIDE_KEY]);
+                    setShowAdminGuide(true);
+                }}
+                isGhost={ghostActive}
+                onToggleGhost={handleToggleGhost}
+            />
+
+            <EditRoomInfoModal
+                isOpen={showEditInfo}
+                onClose={() => setShowEditInfo(false)}
+                roomData={roomData}
+                onSave={room.saveRoomInfo}
+                onManageAdmins={() => { setShowEditInfo(false); setShowAdmins(true); }}
+                canDelete={roomData.adminUid === myUid || superAdmin}
+                onDelete={async () => {
+                    const ok = await confirm({
+                        title: '이 방을 삭제할까요?',
+                        description: '선수 명단과 오늘 기록이 함께 사라집니다. 되돌릴 수 없어요.',
+                        confirmText: '삭제',
+                        tone: 'danger',
+                    });
+                    if (!ok) return;
+                    await room.deleteRoom();
+                    toast('방이 삭제되었습니다.');
+                    navigate('/game');
+                }}
+            />
+
+            <AdminManagerModal
+                isOpen={showAdmins}
+                onClose={() => setShowAdmins(false)}
+                room={roomData}
+                players={players}
+                currentUid={myUid}
+                onAppoint={room.appointAdmin}
+                onRemove={room.removeAdmin}
+                onCreateInvite={room.createInviteCode}
+                onRevokeInvite={room.revokeInvite}
+            />
+
+            <AdminCodeModal
+                isOpen={showAdminCode}
+                onClose={() => setShowAdminCode(false)}
+                onSubmit={async (code) => {
+                    const ok = await room.redeemInvite(code);
+                    if (ok) { toast('공동 관리자가 되었습니다! 👑'); setShowAdminCode(false); }
+                    else toast.error('코드가 만료되었거나 올바르지 않습니다.');
+                }}
+            />
+
+            <EditGamesModal
+                isOpen={!!editGamePlayer}
+                onClose={() => setEditGamePlayer(null)}
+                player={editGamePlayer}
+                onSave={(id, count) => { room.saveGames(id, count); setEditGamePlayer(null); }}
+            />
+
+            <BragCardModal
+                isOpen={showBrag}
+                onClose={() => setShowBrag(false)}
+                stat={bragStat}
+            />
+
+            {superAdmin && (
+                <TestLabModal
+                    isOpen={showTestLab}
+                    onClose={() => setShowTestLab(false)}
+                    onCreateBots={room.createBots}
+                    isAutoPlay={isAutoPlay}
+                    setIsAutoPlay={setIsAutoPlay}
+                />
+            )}
+
+            {matchOptions && (
+                <MatchOptionsModal
+                    genderLabel={matchOptions.genderLabel}
+                    result={matchOptions.result}
+                    queueCount={Object.keys(roomData.autoMatches || {}).length}
+                    onSelect={handleSelectOption}
+                    onRegenerate={() => {
+                        try {
+                            const result = computeOptions(matchOptions.gender);
+                            if (result.status !== 'ok') {
+                                toast.error('지금은 매칭할 수 있는 선수가 부족합니다.');
+                                return;
+                            }
+                            setMatchOptions({ ...matchOptions, result });
+                        } catch (e) { logError('다시 계산', e); }
+                    }}
+                    onCancel={() => setMatchOptions(null)}
+                />
+            )}
+
+            <RoomAdminGuide open={showAdminGuide} onComplete={finishAdminGuide} />
+
+            {showAutoGuide && (
+                <AutoMatchGuide
+                    userName={userData?.name}
+                    onComplete={async () => { setShowAutoGuide(false); await markSeen(AUTOMATCH_GUIDE_KEY); }}
+                    onDismiss={() => setShowAutoGuide(false)}
+                />
+            )}
+        </div>
+    );
+}
