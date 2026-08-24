@@ -14,9 +14,9 @@
 export const WELCOME_TOUR_KEY = 'cockstar-welcome-v1';
 
 /** 어떤 방이든 '관리자로서 처음' 들어왔을 때 보여주는 운영 안내
- *  v2: 공지사항·타임라인·테마색·스와이프·3연속 방지 페이지 추가 (2026-08-24) —
- *  기존 관리자에게도 새 기능 페이지를 한 번 보여주려고 버전을 올렸다 */
-export const ROOM_ADMIN_GUIDE_KEY = 'cockstar-room-admin-v2';
+ *  v3: 글 나열식 → 게임형(직접 눌러보는 연습 화면)으로 전면 개편 (2026-08-24).
+ *  기존 관리자도 새 방식으로 한 번 보게 버전을 올렸다 */
+export const ROOM_ADMIN_GUIDE_KEY = 'cockstar-room-admin-v3';
 
 /** 경기방을 처음 만들 때 보여주는 항목 설명 */
 export const CREATE_ROOM_GUIDE_KEY = 'cockstar-create-room-v1';

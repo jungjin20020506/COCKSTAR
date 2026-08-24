@@ -49,21 +49,64 @@ describe('환영 투어 (WelcomeTour)', () => {
     });
 });
 
-describe('관리자 안내 (RoomAdminGuide)', () => {
-    it('네 페이지를 끝까지 넘기면 onComplete 가 불린다', () => {
+describe('관리자 안내 (RoomAdminGuide — 게임형)', () => {
+    it('연습 화면을 처음부터 끝까지 직접 눌러 완주하면 onComplete 가 불린다', async () => {
         const onComplete = vi.fn();
         const { container, getByText } = render(
-            <RoomAdminGuide open onComplete={onComplete} />,
+            <RoomAdminGuide open onComplete={onComplete} onDismiss={() => {}} />,
         );
-        // 1→2→3→4 페이지 이동 후 마지막 버튼
+        const clickCard = (name) => fireEvent.click(getByText(name).closest('[role="button"]'));
+
+        fireEvent.click(getByText('🎮 직접 해보기'));
+
+        // ① 카드 해부 → 탭해서 선택
+        expect(container.textContent).toContain('오늘 친 경기 수');
+        fireEvent.click(getByText('다 봤어요'));
+        clickCard('김민수');
+        expect(container.textContent).toContain('선택됨');
+        fireEvent.click(getByText('넣으러 가기'));
+
+        // ② 빈칸에 넣기 → 경기 시작
+        const slot = [...container.querySelectorAll('button')].find(b => b.textContent.trim() === '+');
+        fireEvent.click(slot);
+        fireEvent.click(getByText('마지막 한 명 채우기'));
+        fireEvent.click(getByText('경기 시작'));
+
+        // ③ 경기 종료 → 경기 수 +1 확인
+        fireEvent.click(getByText('경기 종료'));
+        expect(container.textContent).toContain('되돌리기');
+        expect(container.textContent).toContain('경기 수 +1');
+        fireEvent.click(getByText('다음'));
+
+        // ④ 꾹 누르기 (실제와 같은 0.7초) → 경기 수 수정 창
+        fireEvent.mouseDown(getByText('오세훈').closest('[role="button"]'));
+        await new Promise(r => setTimeout(r, 800));
+        expect(container.textContent).toContain('경기 수 수정');
+        fireEvent.click(getByText('저장'));
+        fireEvent.click(getByText('설정 보러 가기'));
+
+        // ⑤ 설정 열기 → 항목 4걸음
+        fireEvent.click(container.querySelector('[aria-label="설정 열기"]'));
+        expect(container.textContent).toContain('공지 등록하기');
         fireEvent.click(getByText('다음'));
         fireEvent.click(getByText('다음'));
         fireEvent.click(getByText('다음'));
-        // 4페이지 = 새 기능 안내
-        expect(container.ownerDocument.body.textContent).toContain('공지사항');
-        expect(container.ownerDocument.body.textContent).toContain('매칭 타임라인');
-        expect(container.ownerDocument.body.textContent).toContain('3연속');
-        fireEvent.click(getByText('시작할게요'));
+        fireEvent.click(getByText('거의 다 왔어요!'));
+
+        // ⑥ 완주
+        expect(container.textContent).toContain('이게 전부예요');
+        fireEvent.click(getByText('확인했습니다 ✅'));
         expect(onComplete).toHaveBeenCalledTimes(1);
+    });
+
+    it("'나중에 할게요' 는 기록 없이 닫는다 (onDismiss)", () => {
+        const onComplete = vi.fn();
+        const onDismiss = vi.fn();
+        const { getByText } = render(
+            <RoomAdminGuide open onComplete={onComplete} onDismiss={onDismiss} />,
+        );
+        fireEvent.click(getByText('나중에 할게요'));
+        expect(onDismiss).toHaveBeenCalledTimes(1);
+        expect(onComplete).not.toHaveBeenCalled();
     });
 });

@@ -1223,7 +1223,12 @@ export function GameRoomPage({ onLoginClick }) {
                 />
             )}
 
-            <RoomAdminGuide open={showAdminGuide} onComplete={finishAdminGuide} />
+            <RoomAdminGuide
+                open={showAdminGuide}
+                onComplete={finishAdminGuide}
+                // '나중에 할게요' — 기록을 안 남기고 닫는다 (다음 접속 때 다시 뜬다)
+                onDismiss={() => setShowAdminGuide(false)}
+            />
 
             {showAutoGuide && (
                 <AutoMatchGuide
