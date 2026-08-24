@@ -34,6 +34,15 @@ export function Modal({
     const panelRef = useRef(null);
     const restoreFocusRef = useRef(null);
 
+    // ★ onClose·dismissable 은 ref 로 들고 간다.
+    //   부모는 대개 onClose 를 인라인 함수로 넘기므로 매 렌더마다 새 함수가 온다.
+    //   그걸 아래 effect 의존성에 넣으면 '글자 하나 칠 때마다' effect 가 통째로
+    //   재실행된다 — 스크롤 잠금을 풀었다 다시 걸고, 포커스를 첫 입력칸으로 되돌리며
+    //   모바일 키패드가 내려갔다 올라오는 버그가 그렇게 생겼다.
+    const onCloseRef = useRef(onClose);
+    const dismissableRef = useRef(dismissable);
+    useEffect(() => { onCloseRef.current = onClose; dismissableRef.current = dismissable; });
+
     useEffect(() => {
         if (!open) return undefined;
 
@@ -56,7 +65,7 @@ export function Modal({
         body.style.overflow = 'hidden';
 
         const onKey = (e) => {
-            if (e.key === 'Escape' && dismissable) { e.stopPropagation(); onClose?.(); return; }
+            if (e.key === 'Escape' && dismissableRef.current) { e.stopPropagation(); onCloseRef.current?.(); return; }
             if (e.key !== 'Tab') return;
             // 포커스가 모달 밖으로 빠져나가지 않게 가둔다
             const focusables = panelRef.current?.querySelectorAll(
@@ -90,7 +99,7 @@ export function Modal({
             window.scrollTo(0, scrollY);
             restoreFocusRef.current?.focus?.({ preventScroll: true });
         };
-    }, [open, onClose, dismissable]);
+    }, [open]);   // ← open 에만 반응한다. onClose 등은 위 ref 로 최신을 본다
 
     if (!open) return null;
 

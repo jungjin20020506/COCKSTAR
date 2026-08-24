@@ -49,6 +49,57 @@ export function isAndroid() {
     return /Android/i.test(navigator.userAgent);
 }
 
+// ===================================================================================
+// 인앱 브라우저 — 콕스타 유입의 대부분은 카카오톡 링크인데, 카톡이 여는 내장
+// 브라우저에서는 PWA 설치가 '원래' 불가능하다 (설치 이벤트도, 사파리 공유 버튼도 없다).
+// 그래서 여기서는 설치를 권하는 게 아니라 **크롬/사파리로 탈출**시키는 게 정답이다.
+//   · 카카오톡: kakaotalk://web/openExternal 스킴으로 기본 브라우저에 열 수 있다
+//   · 라인: 주소에 openExternalBrowser=1 을 붙이면 밖으로 나간다
+//   · 그 외 안드로이드 인앱: 크롬 인텐트 스킴
+//   · 그 외 아이폰 인앱: 강제 탈출 방법이 없다 — 메뉴 → 'Safari로 열기'를 안내한다
+// ===================================================================================
+
+/** 어느 인앱 브라우저 안인지. 아니면 null */
+export function getInAppBrowser() {
+    if (typeof navigator === 'undefined') return null;
+    const ua = navigator.userAgent || '';
+    if (/KAKAOTALK/i.test(ua)) return 'kakao';
+    if (/\bLine\//i.test(ua)) return 'line';
+    if (/Instagram/i.test(ua)) return 'instagram';
+    if (/FBAN|FBAV|FB_IAB/i.test(ua)) return 'facebook';
+    if (/NAVER\(inapp/i.test(ua)) return 'naver';
+    if (/DaumApps/i.test(ua)) return 'daum';
+    return null;
+}
+
+/**
+ * 인앱 브라우저에서 기본 브라우저(크롬/사파리)로 탈출을 시도한다.
+ * @returns {boolean} 자동 탈출을 시도했으면 true, 수동 안내가 필요하면 false
+ */
+export function escapeInAppBrowser() {
+    const kind = getInAppBrowser();
+    if (!kind || typeof window === 'undefined') return false;
+    const url = window.location.href;
+    try {
+        if (kind === 'kakao') {
+            window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(url)}`;
+            return true;
+        }
+        if (kind === 'line') {
+            const sep = url.includes('?') ? '&' : '?';
+            window.location.href = `${url}${sep}openExternalBrowser=1`;
+            return true;
+        }
+        if (isAndroid()) {
+            // 안드로이드 인앱 공통 — 크롬 인텐트로 연다
+            const noProto = url.replace(/^https?:\/\//, '');
+            window.location.href = `intent://${noProto}#Intent;scheme=https;package=com.android.chrome;end`;
+            return true;
+        }
+    } catch { /* 스킴이 막힌 환경 — 아래 수동 안내로 */ }
+    return false;   // 아이폰 기타 인앱 — 수동 안내
+}
+
 /** 방문 횟수를 센다 (앱 시작 때 한 번) */
 export function countVisit() {
     try {
@@ -87,16 +138,17 @@ export function useInstallState() {
     return { installed, canPrompt: !!deferred, promptInstall, isIOS: isIOS() };
 }
 
-/** 아이폰용 설치 안내 — 어디를 눌러야 하는지 그림으로 */
+/** 설치 안내 — 어디를 눌러야 하는지 그림으로 (인앱 브라우저면 탈출 방법부터) */
 export function InstallGuideModal({ isOpen, onClose }) {
     const ios = isIOS();
+    const inApp = getInAppBrowser();
 
     return (
         <Modal
             open={isOpen}
             onClose={onClose}
-            title="홈 화면에 추가하기"
-            subtitle={ios ? '아이폰 · 아이패드' : '한 번만 하면 됩니다'}
+            title={inApp ? '브라우저로 열기' : '홈 화면에 추가하기'}
+            subtitle={inApp ? '카톡·인앱 브라우저에서는 설치가 안 돼요' : ios ? '아이폰 · 아이패드' : '한 번만 하면 됩니다'}
             size="max-w-xs"
             variant="center"
             zIndex="z-[160]"
@@ -114,7 +166,33 @@ export function InstallGuideModal({ isOpen, onClose }) {
                 <CockstarMark size={64} plate className="rounded-2xl shadow-volt" />
             </div>
 
-            {ios ? (
+            {inApp ? (
+                <div className="space-y-3">
+                    <button
+                        onClick={() => { if (!escapeInAppBrowser()) { /* 아래 수동 안내가 이미 보인다 */ } }}
+                        className="w-full py-3.5 bg-volt text-ink font-black rounded-2xl text-sm active:scale-[0.98] transition-transform"
+                    >
+                        기본 브라우저로 열기
+                    </button>
+                    <ol className="space-y-3">
+                        {[
+                            { n: 1, t: '버튼이 안 되면 메뉴를 여세요', d: '화면 위나 아래의 ⋯ (또는 공유) 버튼이에요.' },
+                            { n: 2, t: '"다른 브라우저로 열기"를 찾으세요', d: '아이폰은 "Safari로 열기", 안드로이드는 "브라우저에서 열기".' },
+                            { n: 3, t: '열린 뒤 설치 안내를 따라주세요', d: '거기서는 홈 화면 설치와 알림이 됩니다.' },
+                        ].map(s => (
+                            <li key={s.n} className="flex gap-3 p-3 rounded-xl bg-white/[0.04] border border-white/[0.07]">
+                                <span className="w-6 h-6 rounded-full bg-volt text-ink text-xs font-black flex items-center justify-center shrink-0">
+                                    {s.n}
+                                </span>
+                                <div className="min-w-0">
+                                    <p className="text-[13px] font-black text-txt break-keep">{s.t}</p>
+                                    <p className="text-[11px] text-muted font-medium mt-0.5 break-keep">{s.d}</p>
+                                </div>
+                            </li>
+                        ))}
+                    </ol>
+                </div>
+            ) : ios ? (
                 <ol className="space-y-3">
                     {[
                         { n: 1, t: '아래 공유 버튼을 누르세요', d: '사각형에서 화살표가 위로 나오는 아이콘이에요.', icon: '􀈂' },
@@ -156,20 +234,22 @@ export function InstallBanner() {
     const [show, setShow] = useState(false);
     const [showGuide, setShowGuide] = useState(false);
 
+    const inApp = getInAppBrowser();
+
     useEffect(() => {
         if (installed) return;
         try {
-            const visits = Number(localStorage.getItem(VISIT_KEY) || '0');
             const dismissedAt = Number(localStorage.getItem(DISMISS_KEY) || '0');
-            if (visits < 2) return;                                  // 첫 방문에는 그냥 둔다
             if (Date.now() - dismissedAt < SNOOZE_MS) return;        // 닫았으면 일주일 조용히
-            // 설치할 방법이 하나라도 있어야 띄운다:
-            //   네이티브 설치창(canPrompt) / 아이폰 안내 / 안드로이드 수동 안내(삼성 인터넷 등)
-            if (!canPrompt && !ios && !isAndroid()) return;
-            const t = setTimeout(() => setShow(true), 4000);         // 화면을 좀 보고 나서
+            // ★ 첫 방문부터 띄운다. 유입의 대부분이 카톡 링크 1회성 방문이라
+            //   "두 번째 방문부터"로 아끼면 설치 유도가 사실상 아무에게도 안 보인다.
+            // 띄우는 조건: 설치 방법이 있거나(네이티브 창/아이폰/안드로이드 수동),
+            //   인앱 브라우저라서 '탈출 안내'가 필요하거나.
+            if (!canPrompt && !ios && !isAndroid() && !inApp) return;
+            const t = setTimeout(() => setShow(true), 2500);         // 화면을 잠깐 보고 나서
             return () => clearTimeout(t);
         } catch { /* localStorage 를 못 쓰면 그냥 안 띄운다 */ }
-    }, [installed, canPrompt, ios]);
+    }, [installed, canPrompt, ios, inApp]);
 
     const dismiss = () => {
         setShow(false);
@@ -177,6 +257,37 @@ export function InstallBanner() {
     };
 
     if (!show || installed) return null;
+
+    // ── 인앱 브라우저 (카톡·라인 등): 설치가 불가능한 곳 — '브라우저로 열기'를 권한다 ──
+    if (inApp) {
+        const appName = { kakao: '카카오톡', line: '라인', instagram: '인스타그램', facebook: '페이스북', naver: '네이버', daum: '다음' }[inApp] || '인앱';
+        return (
+            <>
+                <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 bg-volt/10 border-t border-volt/25 animate-fade-in-up">
+                    <CockstarMark size={30} plate className="rounded-lg shrink-0" />
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-black text-txt leading-tight">브라우저로 열면 앱처럼 쓸 수 있어요</p>
+                        <p className="text-[10px] text-dim font-bold truncate">
+                            {appName} 안에서는 홈 화면 설치·알림이 안 돼요
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => { if (!escapeInAppBrowser()) setShowGuide(true); }}
+                        className="px-3.5 py-2 rounded-full bg-volt text-ink text-[11px] font-black shrink-0 flex items-center gap-1"
+                    >
+                        <Download size={13} /> 브라우저로 열기
+                    </button>
+                    <button onClick={dismiss} aria-label="안내 닫기" className="p-1.5 text-dim shrink-0">
+                        <X size={15} />
+                    </button>
+                </div>
+                <InstallGuideModal
+                    isOpen={showGuide}
+                    onClose={() => setShowGuide(false)}
+                />
+            </>
+        );
+    }
 
     return (
         <>
