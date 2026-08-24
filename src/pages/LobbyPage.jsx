@@ -12,7 +12,7 @@ import { CreateRoomModal } from '../features/room/CreateRoomModal';
 import { EditRoomInfoModal } from '../features/room/EditRoomInfoModal';
 import { RoomCard } from '../features/room/RoomCard';
 import { SkeletonRoomCard, EmptyState, LoginRequiredPage } from '../components/ui/Feedback';
-import { Search, Plus, Archive, ShieldCheck, ArrowUpDown, Navigation, X } from '../components/ui/icons';
+import { Search, Plus, Archive, ShieldCheck, ArrowUpDown, Navigation, X, Activity, Users, Flame } from '../components/ui/icons';
 import { ROOM_SORTS, decorateRooms, sortRooms, filterRooms } from '../lib/roomSort';
 import { usePullToRefresh, PullIndicator } from '../lib/usePullToRefresh.jsx';
 import { isRoomAdmin } from '../lib/adminInvite';
@@ -30,6 +30,55 @@ import { logError } from '../lib/errorLog';
 // ===================================================================================
 
 const SORT_STORAGE_KEY = 'cockstar-room-sort';
+
+// ===================================================================================
+// 오늘의 추천 — 로비 맨 위 가로 3장
+// -----------------------------------------------------------------------------------
+// "어디로 가야 하지?"에 3초 안에 답하는 줄이다. 점수 기준:
+//   지금 경기 중(×10) > 모인 인원(×2) > 최근 6시간 내 운영(+4)
+// 활동이 전혀 없는 방만 있으면 추천 자체를 숨긴다 — 빈 방 추천은 신뢰만 깎는다.
+// ===================================================================================
+function recommendRooms(decorated, limit = 3) {
+    const now = Date.now();
+    return decorated
+        .map(r => {
+            const lastMs = r.lastActiveAt?.toDate?.()?.getTime?.() ?? 0;
+            const recent = now - lastMs < 6 * 60 * 60 * 1000;
+            const score = (r.playingNow || 0) * 10 + (r.playerCount || 0) * 2 + (recent ? 4 : 0);
+            return { room: r, score };
+        })
+        .filter(x => x.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit)
+        .map(x => x.room);
+}
+
+/** 추천 카드 — 컴팩트 가로형. 방 테마색이 왼쪽 띠로 보인다 */
+function RecommendedRoomCard({ room, onEnter }) {
+    const accent = room.themeColor || '#CDFB47';
+    const playing = room.playingNow || 0;
+    return (
+        <button
+            onClick={onEnter}
+            className="relative flex-shrink-0 w-[210px] text-left bg-card rounded-2xl border border-white/[0.06] p-3.5 pl-4 overflow-hidden active:scale-[0.97] transition-transform"
+        >
+            <span className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: accent }} />
+            <p className="text-sm font-black text-txt truncate kern-tight">{room.name}</p>
+            <p className="text-[10px] text-muted font-bold truncate mt-0.5">{room.location}</p>
+            <div className="flex items-center gap-1.5 mt-2">
+                {playing > 0 ? (
+                    <span className="flex items-center gap-1 px-2 py-1 text-ink rounded-full text-[10px] font-black" style={{ backgroundColor: accent }}>
+                        <Activity size={10} /> {playing}명 경기 중
+                    </span>
+                ) : (
+                    <span className="flex items-center gap-1 px-2 py-1 bg-white/5 text-dim rounded-full text-[10px] font-black">
+                        <Users size={10} /> {room.playerCount || 0}명 모임
+                    </span>
+                )}
+            </div>
+        </button>
+    );
+}
 
 export function LobbyPage({ onLoginClick }) {
     const navigate = useNavigate();
@@ -69,6 +118,12 @@ export function LobbyPage({ onLoginClick }) {
         const decorated = decorateRooms(rooms, { myLoc, favorites });
         return sortRooms(filterRooms(decorated, term), sortKey);
     }, [rooms, myLoc, favorites, term, sortKey]);
+
+    // 오늘의 추천 3 — 검색 중에는 숨긴다 (찾는 게 있는 사람에게는 방해다)
+    const recommended = useMemo(() => {
+        if (term.trim()) return [];
+        return recommendRooms(decorateRooms(rooms, { favorites }), 3);
+    }, [rooms, favorites, term]);
 
     // ── 당겨서 새로고침 ──
     // 목록은 onSnapshot 실시간이라 다시 받을 게 없다 — '가까운 순'일 때 위치만 다시 잰다.
@@ -133,8 +188,8 @@ export function LobbyPage({ onLoginClick }) {
                 description: updated.description,
                 levelLimit: updated.levelLimit,
                 maxPlayers: updated.maxPlayers,
-                notice: (updated.notice ?? '').trim(),
                 themeColor: updated.themeColor || null,
+                // 공지는 방 안의 전용 창(NoticeModal)이 담당 — 여기서 덮어쓰지 않는다
             });
             toast('방 정보가 수정되었습니다.');
             setEditRoom(null);
@@ -255,6 +310,29 @@ export function LobbyPage({ onLoginClick }) {
             {/* ── 목록 ── */}
             <main ref={listRef} className="flex-grow overflow-y-auto p-4 space-y-3 hide-scrollbar pb-28">
                 <PullIndicator pulling={pulling} refreshing={refreshing} />
+
+                {/* ── 오늘의 추천 3 — 활동이 있는 방만, 맨 위 가로 한 줄 ── */}
+                {!loading && recommended.length > 0 && (
+                    <section className="animate-content-in">
+                        <div className="flex items-center gap-1.5 mb-2 ml-1">
+                            <Flame size={13} className="text-volt" />
+                            <h2 className="text-[11px] font-black label text-dim">오늘의 추천</h2>
+                        </div>
+                        <div
+                            className="flex gap-2.5 overflow-x-auto hide-scrollbar -mx-4 px-4 pb-1"
+                            style={{ overscrollBehaviorX: 'contain' }}
+                        >
+                            {recommended.map(room => (
+                                <RecommendedRoomCard
+                                    key={`rec-${room.id}`}
+                                    room={room}
+                                    onEnter={() => navigate(`/room/${room.id}`)}
+                                />
+                            ))}
+                        </div>
+                    </section>
+                )}
+
                 {loading ? (
                     <><SkeletonRoomCard /><SkeletonRoomCard /><SkeletonRoomCard /></>
                 ) : list.length > 0 ? (

@@ -819,15 +819,35 @@ export function useGameRoom({ roomId, user, superAdmin }) {
                 description: updated.description,
                 levelLimit: updated.levelLimit,
                 maxPlayers: updated.maxPlayers,
-                // 공지 — 방 화면 맨 위에 고정되는 한 줄 ("오늘 셔틀콕 각자 지참")
-                notice: (updated.notice ?? '').trim(),
                 // 방 포인트 색 — 없으면 기본 라임(volt)
                 themeColor: updated.themeColor || null,
+                // ⚠️ 공지는 여기서 만지지 않는다 — 전용 창(saveNotice)이 담당한다.
+                //   방 정보 저장이 공지를 덮어쓰면 "정보만 고쳤는데 공지가 사라졌다"가 된다.
             });
             toast('방 정보가 수정되었습니다.');
         } catch (e) {
             logError('방 정보 수정', e);
             toast.error('수정에 실패했습니다.');
+        }
+    }, [roomRef]);
+
+    /**
+     * 공지사항 저장 — 빈 값이면 공지를 내린다.
+     * 방 문서 하나만 고치므로 updateDoc 이면 충분하다 (마지막 저장이 이긴다 —
+     * 관리자 둘이 동시에 다른 공지를 쓰는 건 충돌이 아니라 나중 것이 최신 공지다).
+     */
+    const saveNotice = useCallback(async (text) => {
+        const clean = String(text ?? '').trim().slice(0, 200);
+        try {
+            await updateDoc(roomRef, {
+                notice: clean,
+                noticeUpdatedAt: serverTimestamp(),
+            });
+            toast(clean ? '공지를 등록했습니다 — 모두에게 바로 보여요 📢' : '공지를 내렸습니다.');
+        } catch (e) {
+            logError('공지 저장', e);
+            toast.error('공지를 저장하지 못했습니다.');
+            throw e;
         }
     }, [roomRef]);
 
@@ -965,7 +985,7 @@ export function useGameRoom({ roomId, user, superAdmin }) {
         join, leave, toggleRest, swapPlayers, fillSlot, removeFromSchedule,
         startMatch, endMatch, undoEndMatch, saveGames, kickPlayer, cleanStale,
         appointAdmin, removeAdmin, createInviteCode, revokeInvite, redeemInvite,
-        saveSettings, saveRoomInfo, resetSystem, kickAll, deleteRoom,
+        saveSettings, saveRoomInfo, saveNotice, resetSystem, kickAll, deleteRoom,
         addAutoMatch, deleteAutoMatch, clearAutoMatches, createBots, fetchRoomOnce,
     };
 }

@@ -18,10 +18,12 @@ import {
 // -----------------------------------------------------------------------------------
 // 구성 순서에 의도가 있다.
 //   ① 인사 → ② 배너 → ③ 카테고리 → ④ 신상 → ⑤ 특가 → ⑥ 장비
-//   → ⑦ 지금 뜨는 경기 → ⑧ 파트너 배너
+//   → ⑦ 파트너 배너 → ⑧ 지금 뜨는 경기 (맨 아래)
 //
-// 상품을 위쪽에 두되, 경기가 아래로 밀려 안 보이지 않게 상품 구역은 가로 스크롤
-// 한 줄씩으로 짧게 끊었다. (세로로 길게 늘어놓으면 스토어 앱처럼 보인다)
+// '지금 뜨는 경기'는 요청에 따라 맨 아래에 둔다 — 경기를 찾는 사람은 어차피
+// 하단 '경기' 탭으로 바로 가고, 홈은 상품·소식 위주로 쓴다.
+// 상품 구역은 가로 스크롤 한 줄씩으로 짧게 끊었다. (세로로 길게 늘어놓으면
+// 스토어 앱처럼 보인다)
 //
 // [고친 것] '지금 뜨는 경기'가 오산시·수원시로 하드코딩된 가짜 카드였다.
 //   실제로는 존재하지 않는 방이라 누르면 그냥 목록으로 튕겼다. 이제 진짜 방을
@@ -277,43 +279,6 @@ export function HomePage() {
 
             <MainBanner onNavigate={navigate} />
 
-            {/* ── 지금 뜨는 경기 — 진짜 방이다 ── */}
-            <section>
-                <SectionHeader
-                    title="지금 뜨는 경기"
-                    sub={liveRooms.some(r => r.playingNow > 0) ? 'Live Now' : 'Open Rooms'}
-                    onMoreClick={() => navigate('/game')}
-                />
-                <div className="space-y-3">
-                    {roomsLoading ? (
-                        <><SkeletonCard /><SkeletonCard /></>
-                    ) : liveRooms.length > 0 ? (
-                        liveRooms.map(room => (
-                            <RoomCard
-                                key={room.id}
-                                room={room}
-                                onEnter={() => navigate(`/room/${room.id}`)}
-                                onToggleFavorite={toggleRoomFavorite}
-                            />
-                        ))
-                    ) : (
-                        <button
-                            onClick={() => navigate('/game')}
-                            className="w-full flex flex-col items-center justify-center text-center p-8 rounded-2xl bg-card border border-dashed border-white/10 active:scale-[0.99] transition-transform"
-                        >
-                            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-3">
-                                <Archive className="w-6 h-6 text-volt" />
-                            </div>
-                            <p className="text-sm font-black text-txt mb-1">아직 열린 경기방이 없어요</p>
-                            <p className="text-xs text-dim font-medium mb-4">첫 번째 방을 만들어보세요.</p>
-                            <span className="inline-flex items-center gap-1 px-4 py-2 rounded-full bg-volt text-ink text-xs font-black">
-                                <Plus size={14} /> 경기방 만들기
-                            </span>
-                        </button>
-                    )}
-                </div>
-            </section>
-
             {/* 카테고리 바로가기 — 사진 타일이라 뭐가 있는지 바로 보인다 */}
             <section>
                 <SectionHeader title="뭐 찾으세요?" sub="Shop by Category" onMoreClick={goStore} />
@@ -357,6 +322,43 @@ export function HomePage() {
             </section>
 
             <NoerrorSponsorBanner onOpenStore={goStore} />
+
+            {/* ── 지금 뜨는 경기 — 맨 아래 (진짜 방이다) ── */}
+            <section>
+                <SectionHeader
+                    title="지금 뜨는 경기"
+                    sub={liveRooms.some(r => r.playingNow > 0) ? 'Live Now' : 'Open Rooms'}
+                    onMoreClick={() => navigate('/game')}
+                />
+                <div className="space-y-3">
+                    {roomsLoading ? (
+                        <><SkeletonCard /><SkeletonCard /></>
+                    ) : liveRooms.length > 0 ? (
+                        liveRooms.map(room => (
+                            <RoomCard
+                                key={room.id}
+                                room={room}
+                                onEnter={() => navigate(`/room/${room.id}`)}
+                                onToggleFavorite={toggleRoomFavorite}
+                            />
+                        ))
+                    ) : (
+                        <button
+                            onClick={() => navigate('/game')}
+                            className="w-full flex flex-col items-center justify-center text-center p-8 rounded-2xl bg-card border border-dashed border-white/10 active:scale-[0.99] transition-transform"
+                        >
+                            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-3">
+                                <Archive className="w-6 h-6 text-volt" />
+                            </div>
+                            <p className="text-sm font-black text-txt mb-1">아직 열린 경기방이 없어요</p>
+                            <p className="text-xs text-dim font-medium mb-4">첫 번째 방을 만들어보세요.</p>
+                            <span className="inline-flex items-center gap-1 px-4 py-2 rounded-full bg-volt text-ink text-xs font-black">
+                                <Plus size={14} /> 경기방 만들기
+                            </span>
+                        </button>
+                    )}
+                </div>
+            </section>
 
             {FETCHED_AT && (
                 <p className="text-center text-[10px] text-muted/70 font-bold">

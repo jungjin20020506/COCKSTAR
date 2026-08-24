@@ -22,7 +22,9 @@ import { ShareModal, CourtSelectionModal, EditGamesModal, AdminCodeModal } from 
 import { MatchOptionsModal } from '../components/MatchOptionsModal';
 import { RoomEntryFX } from '../features/room/RoomEntryFX';
 import { MatchTimelineModal } from '../features/room/MatchTimelineModal';
+import { NoticeModal } from '../features/room/NoticeModal';
 import { ReportModal } from '../features/room/ReportModal';
+import { timeAgo } from '../lib/time';
 import { LoadingSpinner } from '../components/ui/Feedback';
 import {
     ArrowLeft, Share2, Edit3, GripVertical, FlaskConical, Users, Lock,
@@ -37,6 +39,71 @@ import { verifyPassword, hasPassword } from '../lib/roomPassword';
 import { computeBragStat } from '../lib/bragCard';
 import { toast } from '../lib/toast';
 import { logError } from '../lib/errorLog';
+
+// ===================================================================================
+// 공지 바 — 방 상단 고정. 탭하면 펼쳐지고, 새 공지에는 NEW 표시가 붙는다.
+// -----------------------------------------------------------------------------------
+// '봤다' 기준: 펼쳐 보거나 8초 동안 화면에 있었으면 본 것 (기기 저장).
+// 관리자는 오른쪽 연필로 바로 수정한다.
+// ===================================================================================
+function RoomNoticeBar({ roomId, notice, updatedAt, isAdmin, onEdit }) {
+    const seenKey = `cockstar-notice-seen-${roomId}`;
+    const [expanded, setExpanded] = useState(false);
+    const [isNew, setIsNew] = useState(false);
+
+    // 공지 내용이 바뀌면 접고, NEW 여부를 다시 계산한다
+    useEffect(() => {
+        setExpanded(false);
+        try { setIsNew(localStorage.getItem(seenKey) !== notice); }
+        catch { setIsNew(false); }
+    }, [notice, seenKey]);
+
+    const markSeen = useCallback(() => {
+        try { localStorage.setItem(seenKey, notice); } catch { /* noop */ }
+        setIsNew(false);
+    }, [seenKey, notice]);
+
+    // 8초 동안 화면에 있었으면 본 것으로 친다
+    useEffect(() => {
+        if (!isNew) return undefined;
+        const t = setTimeout(markSeen, 8000);
+        return () => clearTimeout(t);
+    }, [isNew, markSeen]);
+
+    return (
+        <div key={notice} className="flex-shrink-0 flex items-start gap-2.5 px-4 py-2.5 bg-white/[0.04] border-b border-white/[0.06] notice-in">
+            <span className="text-sm shrink-0 notice-megaphone mt-px" aria-hidden="true">📢</span>
+            <button
+                onClick={() => { setExpanded(v => !v); markSeen(); }}
+                className="flex-1 min-w-0 text-left"
+                aria-expanded={expanded}
+                aria-label="공지 펼치기"
+            >
+                <span
+                    className={`block text-[12px] font-black text-txt break-keep leading-snug whitespace-pre-line ${expanded ? '' : 'notice-clamp'}`}
+                    style={{ overflowWrap: 'anywhere' }}
+                >
+                    {notice}
+                </span>
+                {expanded && updatedAt && (
+                    <span className="block text-[10px] font-bold text-muted mt-1">{timeAgo(updatedAt)} 등록</span>
+                )}
+            </button>
+            {isNew && (
+                <span className="shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded bg-volt text-ink mt-0.5 animate-pulse">NEW</span>
+            )}
+            {isAdmin && (
+                <button
+                    onClick={onEdit}
+                    aria-label="공지 수정"
+                    className="shrink-0 p-1 -mr-1 text-muted hover:text-volt transition-colors"
+                >
+                    <Edit3 size={13} />
+                </button>
+            )}
+        </div>
+    );
+}
 
 // ===================================================================================
 // 경기방 화면
@@ -93,6 +160,10 @@ export function GameRoomPage({ onLoginClick }) {
     const [showAutoGuide, setShowAutoGuide] = useState(false);
     const [showTimeline, setShowTimeline] = useState(false);
     const [showReport, setShowReport] = useState(false);
+    const [showNotice, setShowNotice] = useState(false);
+    // 내가 방금 저장한 공지에는 "공지가 업데이트됐어요" 토스트를 안 띄운다 (저장 토스트와 중복)
+    const noticeSavedByMeRef = useRef(false);
+    const prevNoticeRef = useRef(null);
 
     const me = myUid ? players[myUid] : null;
     const joined = !!me;
@@ -348,6 +419,17 @@ export function GameRoomPage({ onLoginClick }) {
         });
         if (roomData) courtFirstRenderRef.current = false;
     });
+
+    // ── 접속 중에 공지가 바뀌면 알려준다 (내가 방금 저장한 경우는 제외) ──
+    useEffect(() => {
+        if (!roomData) return;
+        const cur = roomData.notice || '';
+        const prev = prevNoticeRef.current;
+        prevNoticeRef.current = cur;
+        if (prev === null || prev === cur) return;
+        if (noticeSavedByMeRef.current) { noticeSavedByMeRef.current = false; return; }
+        if (cur) toast('📢 공지가 업데이트되었습니다');
+    }, [roomData]);
 
     // ── 시뮬레이션 (슈퍼 관리자 전용) ──
     useEffect(() => {
@@ -637,19 +719,28 @@ export function GameRoomPage({ onLoginClick }) {
 
             <GameBanner onNavigate={navigate} />
 
-            {/* ── 공지 — 채팅보다 먼저 필요한 한 줄. 내용이 바뀌면 반짝하고 다시 올라온다 ── */}
-            {roomData.notice && (
+            {/* ── 공지 — 채팅보다 먼저 필요한 한 줄. 탭하면 펼쳐지고, 새 공지엔 NEW ── */}
+            {roomData.notice ? (
+                <RoomNoticeBar
+                    roomId={roomId}
+                    notice={roomData.notice}
+                    updatedAt={roomData.noticeUpdatedAt}
+                    isAdmin={isAdmin}
+                    onEdit={() => setShowNotice(true)}
+                />
+            ) : isAdmin ? (
+                /* 공지가 없을 때 — 관리자에게만 보이는 등록 유도 (참가자 화면은 깨끗하게) */
                 <button
-                    key={roomData.notice}
-                    onClick={isAdmin ? () => setShowEditInfo(true) : undefined}
-                    className="flex-shrink-0 w-full flex items-center gap-2.5 px-4 py-2.5 bg-white/[0.04] border-b border-white/[0.06] notice-in text-left"
-                    title={isAdmin ? '누르면 공지를 수정합니다' : undefined}
+                    onClick={() => setShowNotice(true)}
+                    className="flex-shrink-0 w-full flex items-center gap-2 px-4 py-2 bg-transparent border-b border-dashed border-white/[0.08] text-left"
                 >
-                    <span className="text-sm shrink-0 notice-megaphone">📢</span>
-                    <span className="flex-1 text-[12px] font-black text-txt break-keep leading-snug">{roomData.notice}</span>
-                    {isAdmin && <Edit3 size={12} className="text-muted shrink-0" />}
+                    <span className="text-xs" aria-hidden="true">📢</span>
+                    <span className="flex-1 text-[11px] font-bold text-muted">
+                        공지를 등록해보세요 — 입장하는 모두에게 보여요
+                    </span>
+                    <span className="text-[9px] font-black text-muted/60 label shrink-0">관리자만 보임</span>
                 </button>
-            )}
+            ) : null}
 
             {/* 탭 — 데스크톱(lg)에서는 두 화면을 나란히 펼치므로 탭이 필요 없다 */}
             <div className="flex bg-surface px-2 border-b border-white/[0.06] lg:hidden">
@@ -981,6 +1072,7 @@ export function GameRoomPage({ onLoginClick }) {
                 roomData={roomData}
                 players={players}
                 onSave={room.saveSettings}
+                onEditNotice={() => { setShowSettings(false); setShowNotice(true); }}
                 onManageAdmins={() => { setShowSettings(false); setShowAdmins(true); }}
                 canManagePassword={isAdmin}
                 staleCount={staleList.length}
@@ -1080,6 +1172,17 @@ export function GameRoomPage({ onLoginClick }) {
                 isOpen={showTimeline}
                 onClose={() => setShowTimeline(false)}
                 players={players}
+            />
+
+            <NoticeModal
+                isOpen={showNotice}
+                onClose={() => setShowNotice(false)}
+                notice={roomData.notice || ''}
+                onSave={async (text) => {
+                    noticeSavedByMeRef.current = true;   // 스냅샷이 저장보다 먼저 오므로 미리 표시
+                    try { await room.saveNotice(text); }
+                    catch (e) { noticeSavedByMeRef.current = false; throw e; }
+                }}
             />
 
             <ReportModal

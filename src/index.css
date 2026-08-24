@@ -528,6 +528,9 @@ input, textarea {
   text-align: left; font-size: 13px; font-weight: 800; line-height: 1.5; color: #F3F5F8;
   background: rgba(205,251,71,.1); border: 1px solid rgba(205,251,71,.35);
   border-radius: 14px; padding: 10px 14px;
+  white-space: pre-line;          /* 공지의 줄바꿈을 살린다 */
+  overflow-wrap: anywhere;
+  max-height: 30vh; overflow: hidden;
   animation: entryfxRise .55s cubic-bezier(.2,.8,.2,1) .75s both;
 }
 .entryfx-notice-icon { animation: entryfxRing 1s ease .9s 2; display: inline-block; }
@@ -559,6 +562,14 @@ input, textarea {
   100% { opacity: 1; transform: none; }
 }
 .notice-megaphone { animation: entryfxRing 1.1s ease .3s 2; display: inline-block; }
+
+/* 공지 접힘 상태 — 2줄까지만, 탭하면 펼친다 */
+.notice-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
 /* ── 빈 코트 펄스 — 올릴 경기가 있는데 코트가 놀고 있을 때 관리자 시선 유도 ── */
 .court-empty-pulse {

@@ -60,7 +60,7 @@ function Stepper({ label, value, onAdjust, min = 1, hint }) {
 // ===================================================================================
 export function SettingsModal({
     isOpen, onClose, roomData, players, onSave,
-    onReset, onKickAll, onReplayGuide, onManageAdmins,
+    onReset, onKickAll, onReplayGuide, onManageAdmins, onEditNotice,
     isGhost, onToggleGhost, staleCount, onCleanStale, canManagePassword,
 }) {
     const [settings, setSettings] = useState({
@@ -163,6 +163,28 @@ export function SettingsModal({
             )}
         >
             <div className="space-y-6">
+                {/* ── 공지사항 — 가장 자주 쓰는 운영 도구라 맨 위에 둔다 ── */}
+                {onEditNotice && (
+                    <div>
+                        <span className="text-[11px] font-black label text-dim mb-2 block">공지사항</span>
+                        <button
+                            onClick={onEditNotice}
+                            className="w-full py-3 bg-volt/10 text-volt font-black rounded-xl text-sm hover:bg-volt/20 transition-colors flex justify-center items-center gap-2"
+                        >
+                            📢 {(roomData?.notice || '').trim() ? '공지 수정하기' : '공지 등록하기'}
+                        </button>
+                        {(roomData?.notice || '').trim() ? (
+                            <p className="text-[11px] text-muted font-medium mt-2 leading-relaxed break-keep truncate">
+                                현재 공지: {roomData.notice}
+                            </p>
+                        ) : (
+                            <p className="text-[11px] text-muted font-medium mt-2 leading-relaxed break-keep">
+                                방 상단에 고정되고, 새로 입장하는 사람은 입장 화면에서도 봅니다.
+                            </p>
+                        )}
+                    </div>
+                )}
+
                 {/* ── 운영 모드 ── */}
                 <div>
                     <span className="text-[11px] font-black label text-dim mb-2 block">운영 모드</span>

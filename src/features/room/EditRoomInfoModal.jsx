@@ -17,7 +17,7 @@ export function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete,
     const [form, setForm] = useState({
         name: '', location: '', address: '', coords: null,
         description: '', maxPlayers: 20, levelLimit: 'N조',
-        notice: '', themeColor: null,
+        themeColor: null,
     });
 
     useEffect(() => {
@@ -30,7 +30,6 @@ export function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete,
             description: roomData.description || '',
             maxPlayers: roomData.maxPlayers || 20,
             levelLimit: roomData.levelLimit || 'N조',
-            notice: roomData.notice || '',
             themeColor: roomData.themeColor || null,
         });
     }, [isOpen, roomData]);
@@ -134,16 +133,7 @@ export function EditRoomInfoModal({ isOpen, onClose, roomData, onSave, onDelete,
                     />
                 </div>
 
-                {/* 공지 — 방 화면 맨 위에 고정되는 한 줄. 채팅보다 먼저 필요한 것 */}
-                <div>
-                    <label className={LABEL_CLS} htmlFor="er-notice">📢 공지 (방 상단 고정)</label>
-                    <input
-                        id="er-notice" type="text" name="notice" maxLength={80}
-                        placeholder="예: 오늘 셔틀콕 각자 지참 · 21시 마감"
-                        value={form.notice} onChange={change} className={FIELD_CLS}
-                    />
-                    <p className="text-[10px] text-muted font-bold mt-1 ml-1">비워두면 공지가 사라집니다. 새 공지는 모든 참가자 화면에서 반짝하고 올라와요.</p>
-                </div>
+                {/* 공지는 여기 없다 — 환경 설정 → 📢 공지사항 전용 창에서 (NoticeModal) */}
 
                 {/* 방 포인트 색 — 내 방이라는 소속감 */}
                 <div>
