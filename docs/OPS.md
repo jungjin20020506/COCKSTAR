@@ -53,7 +53,29 @@ Firebase 비용 폭탄은 코드가 아니라 콘솔에서 막는다. 5분 걸�
 - 실패하면 저장소에 `store-sync` 라벨 이슈가 열리고 GitHub 이 메일을 보낸다.
 - 수동 실행: GitHub → Actions → "상품 데이터 자동 갱신" → Run workflow
 
-## 5. Firestore 일일 백업 (권장)
+## 5. 슈퍼 관리자 권한 (아이디 #82)
+
+슈퍼 관리자는 두 겹이다:
+
+| 층 | 어디서 판정 | 주는 것 | 붙이는 법 |
+|---|---|---|---|
+| 화면 | `src/lib/superAdmin.ts` 이메일 목록 | 시뮬레이션 랩·신고 검토 메뉴 등 UI | 목록에 이메일 추가 |
+| 서버 | Firestore 규칙 `isSuper()` — 커스텀 클레임 | 신고 열람·처리, config/app 쓰기, 남의 방 삭제 | 아래 스크립트 |
+
+**클레임 붙이기 (진짜 권한):**
+```bash
+npm i -D firebase-admin
+# 콘솔 → 프로젝트 설정 → 서비스 계정 → 새 비공개 키 생성 후
+$env:GOOGLE_APPLICATION_CREDENTIALS="C:\경로\serviceAccount.json"
+node scripts/set-super-admin.mjs domain@cockstar.app
+```
+- 계정이 없다는 오류가 나면: 콘솔 → Authentication → **사용자 추가**로
+  `domain@cockstar.app` 를 먼저 만든다 (아이디 로그인 'domain' 이 이 이메일로 변환된다).
+- 확인: `node scripts/set-super-admin.mjs --list` / 해제: `--revoke 이메일`
+- 적용은 해당 계정 재로그인 또는 토큰 갱신(최대 1시간) 후.
+- ⚠️ 서비스 계정 JSON 은 절대 저장소에 커밋하지 말 것.
+
+## 6. Firestore 일일 백업 (권장)
 
 ```bash
 gcloud firestore export gs://noerror-14ce3-backup --project noerror-14ce3

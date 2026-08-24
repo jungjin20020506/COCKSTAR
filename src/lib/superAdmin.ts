@@ -18,6 +18,8 @@
 import type { User } from 'firebase/auth';
 
 const SUPER_ADMIN_EMAILS = [
+    // 아이디 로그인 'domain' — convertToEmail 이 @cockstar.app 을 붙인다
+    'domain@cockstar.app',
     'domain@special.user',
     'jung22459369@gmail.com',
 ];

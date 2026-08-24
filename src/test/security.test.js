@@ -3,6 +3,7 @@ import { hashPassword, verifyPassword, hasPassword, isLegacyPassword } from '../
 import {
     createInvite, inviteMatches, isInviteValid, normalizeCode, isRoomAdmin,
 } from '../lib/adminInvite';
+import { isSuperAdmin } from '../lib/superAdmin';
 import { checkJoinable } from '../features/room/JoinGate';
 
 // ===================================================================================
@@ -47,6 +48,24 @@ describe('방 비밀번호', () => {
 
     it('빈 비밀번호는 잠그지 않은 것으로 본다', async () => {
         expect(await hashPassword('   ')).toBeNull();
+    });
+});
+
+describe('슈퍼 관리자 판별', () => {
+    it('아이디 로그인 계정(domain → domain@cockstar.app)을 인정한다', () => {
+        expect(isSuperAdmin({ uid: 'u1', email: 'domain@cockstar.app' })).toBe(true);
+        expect(isSuperAdmin({ uid: 'u1', email: 'Domain@Cockstar.app' })).toBe(true); // 대소문자 무시
+    });
+
+    it('접두사 사칭은 막는다 (예전 startsWith 사고 재발 방지)', () => {
+        expect(isSuperAdmin({ uid: 'u1', email: 'domain1@cockstar.app' })).toBe(false);
+        expect(isSuperAdmin({ uid: 'u1', email: 'domain@evil.com' })).toBe(false);
+        expect(isSuperAdmin({ uid: 'u1', email: 'domain@cockstar.app.evil.com' })).toBe(false);
+    });
+
+    it('로그인 안 한 사람·이메일 없는 계정은 아니다', () => {
+        expect(isSuperAdmin(null)).toBe(false);
+        expect(isSuperAdmin({ uid: 'u1', email: '' })).toBe(false);
     });
 });
 
