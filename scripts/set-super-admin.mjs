@@ -22,7 +22,8 @@
 // ===================================================================================
 
 const DEFAULT_EMAILS = [
-    'domain@cockstar.app',
+    // 아이디 'domain' 의 실제 Auth 계정 (구버전 특수 매핑 — constants.js 참고)
+    'domain@special.user',
     'jung22459369@gmail.com',
 ];
 
