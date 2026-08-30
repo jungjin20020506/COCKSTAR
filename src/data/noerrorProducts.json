@@ -1,13 +1,13 @@
 {
- "fetchedAt": "2026-08-20T07:22:24.341Z",
+ "fetchedAt": "2026-08-30T20:11:44.207Z",
  "source": "https://www.pjbsports.com",
- "count": 190,
+ "count": 195,
  "byCategory": {
-  "2026SS": 25,
+  "배드민턴라켓": 13,
   "Acc": 20,
+  "2026SS": 28,
   "배드민턴 의류": 70,
   "셔틀콕": 4,
-  "배드민턴라켓": 11,
   "배드민턴 가방": 35,
   "배드민턴화": 5,
   "🔥OUTLET🔥": 20
@@ -75,7 +75,6 @@
   1101,
   1102,
   1105,
-  1108,
   1117,
   1118,
   1127,
@@ -197,10 +196,150 @@
   1547,
   1548,
   1549,
-  1554,
-  1555
+  1555,
+  1570,
+  1571,
+  1572,
+  1573,
+  1574,
+  1575,
+  1576,
+  1579,
+  1580,
+  1583,
+  1584
  ],
  "products": [
+  {
+   "idx": 1582,
+   "name": "APOLLON V.2 / 아폴론 V.2",
+   "modelCode": "APOLLON V.2 / 아폴론 V.2",
+   "brand": "NOERROR",
+   "category": "배드민턴라켓",
+   "color": null,
+   "size": null,
+   "price": 175000,
+   "originalPrice": 250000,
+   "soldOut": false,
+   "images": [
+    "https://cdn.imweb.me/thumbnail/20260828/d959a0942e8a4a4f.jpg",
+    "https://cdn.imweb.me/thumbnail/20260828/b50a2f03dc184b3b.jpg",
+    "https://cdn.imweb.me/thumbnail/20260828/b1d4cdedfda7415e.jpg"
+   ],
+   "description": "[ 제품 스펙 ]제품명 : APOLLON V.2 (아폴론 V.2)프레임 : H.M. CARBON GRAPHITE샤프트 : H.M. CARBON GRAPHITE밸런스 : HEAD HEAVY(B.P-2...",
+   "url": "https://www.pjbsports.com/shop_view/1582"
+  },
+  {
+   "idx": 1581,
+   "name": "TRACER 99 / 트레이서 99",
+   "modelCode": "TRACER 99 / 트레이서 99",
+   "brand": "NOERROR",
+   "category": "배드민턴라켓",
+   "color": null,
+   "size": null,
+   "price": 210000,
+   "originalPrice": 300000,
+   "soldOut": false,
+   "images": [
+    "https://cdn.imweb.me/thumbnail/20260828/7c76970633874084.jpg",
+    "https://cdn.imweb.me/thumbnail/20260828/a4fbfa289d0f4df7.jpg",
+    "https://cdn.imweb.me/thumbnail/20260828/2e86005845cb45c3.jpg"
+   ],
+   "description": "[ 제품 스펙 ]제품명 : TRACER 99 (트레이서 99)프레임 : H.M. CARBON GRAPHITE WOVEN 샤프트 : H.M. CARBON GRAPHITE WOVEN 밸런스 : HEAD...",
+   "url": "https://www.pjbsports.com/shop_view/1581"
+  },
+  {
+   "idx": 1578,
+   "name": "SC-W04  스포츠양말(여)",
+   "modelCode": "SC-W04  스포츠양말(여)",
+   "brand": "NOERROR",
+   "category": "Acc",
+   "color": "WHITE",
+   "size": "220mm~250mm",
+   "price": 4000,
+   "originalPrice": 4500,
+   "soldOut": false,
+   "images": [
+    "https://cdn.imweb.me/thumbnail/20260825/6a2b873200584fad.jpg",
+    "https://cdn.imweb.me/thumbnail/20260825/a032022949b7440d.jpg",
+    "https://cdn.imweb.me/thumbnail/20260825/30d07c4d1a6349ca.jpg"
+   ],
+   "description": "[ 제품 설명 ]색 상 : WHITE사이즈 : 220mm~250mm원 단 : 면, 나일론, 폴리우레탄",
+   "url": "https://www.pjbsports.com/shop_view/1578"
+  },
+  {
+   "idx": 1577,
+   "name": "SC-M04  스포츠양말(남)",
+   "modelCode": "SC-M04  스포츠양말(남)",
+   "brand": "NOERROR",
+   "category": "Acc",
+   "color": "WHITE",
+   "size": "250mm~280mm",
+   "price": 4000,
+   "originalPrice": 4500,
+   "soldOut": false,
+   "images": [
+    "https://cdn.imweb.me/thumbnail/20260825/da35f260c11c4f06.jpg",
+    "https://cdn.imweb.me/thumbnail/20260825/01667866375b44a9.jpg",
+    "https://cdn.imweb.me/thumbnail/20260825/fd41e42fc41d4849.jpg"
+   ],
+   "description": "[ 제품 설명 ]색 상 : WHITE사이즈 : 250mm~280mm원 단 : 면, 나일론, 폴리우레탄",
+   "url": "https://www.pjbsports.com/shop_view/1577"
+  },
+  {
+   "idx": 1562,
+   "name": "노에러 오버핏 티셔츠",
+   "modelCode": "NERS-U235 GR (남녀공용)",
+   "brand": "NOERROR",
+   "category": "2026SS",
+   "color": "그린",
+   "size": "80~125 (남녀공용)",
+   "price": 37000,
+   "originalPrice": 49000,
+   "soldOut": false,
+   "images": [
+    "https://cdn.imweb.me/thumbnail/20260814/2b2b1ef589b646f5.jpg",
+    "https://cdn.imweb.me/thumbnail/20260814/110ca1caf9f64884.jpg"
+   ],
+   "description": "[ 제품 설명 ]노에러 오버핏 티셔츠색 상 : 그린사이즈 : 80~125 (남녀공용)원 단 : POLYESTER 100% (코튼라이크)",
+   "url": "https://www.pjbsports.com/shop_view/1562"
+  },
+  {
+   "idx": 1561,
+   "name": "노에러 오버핏 티셔츠",
+   "modelCode": "NERS-U235 WH (남녀공용)",
+   "brand": "NOERROR",
+   "category": "2026SS",
+   "color": "화이트",
+   "size": "80~125 (남녀공용)",
+   "price": 37000,
+   "originalPrice": 49000,
+   "soldOut": false,
+   "images": [
+    "https://cdn.imweb.me/thumbnail/20260814/a20ffd3880c54bb0.jpg",
+    "https://cdn.imweb.me/thumbnail/20260814/b56aefc10e3e4131.jpg"
+   ],
+   "description": "[ 제품 설명 ]노에러 오버핏 티셔츠색 상 : 화이트사이즈 : 80~125 (남녀공용)원 단 : POLYESTER 100% (코튼라이크)",
+   "url": "https://www.pjbsports.com/shop_view/1561"
+  },
+  {
+   "idx": 1560,
+   "name": "노에러 오버핏 티셔츠",
+   "modelCode": "NERS-U235 BK (남녀공용)",
+   "brand": "NOERROR",
+   "category": "2026SS",
+   "color": "블랙",
+   "size": "80~125 (남녀공용)",
+   "price": 37000,
+   "originalPrice": 49000,
+   "soldOut": false,
+   "images": [
+    "https://cdn.imweb.me/thumbnail/20260814/1d009e8f0c33474f.jpg",
+    "https://cdn.imweb.me/thumbnail/20260814/d21689d3e248497d.jpg"
+   ],
+   "description": "[ 제품 설명 ]노에러 오버핏 티셔츠색 상 : 블랙 사이즈 : 80~125 (남녀공용)원 단 : POLYESTER 100% (코튼라이크)",
+   "url": "https://www.pjbsports.com/shop_view/1560"
+  },
   {
    "idx": 1559,
    "name": "노에러 게임 셔츠",
@@ -291,25 +430,6 @@
    ],
    "description": "[ 제품 설명 ]색 상 : WHITE사이즈 : 220mm~250mm원 단 : 면, 나일론, 폴리우레탄",
    "url": "https://www.pjbsports.com/shop_view/1551"
-  },
-  {
-   "idx": 1550,
-   "name": "SC-M03  스포츠양말(남)",
-   "modelCode": "SC-M03  스포츠양말(남)",
-   "brand": "NOERROR",
-   "category": "Acc",
-   "color": "WHITE",
-   "size": "250mm~280mm",
-   "price": 3500,
-   "originalPrice": 4000,
-   "soldOut": false,
-   "images": [
-    "https://cdn.imweb.me/thumbnail/20260713/83a2a1f1f6604ef7.jpg",
-    "https://cdn.imweb.me/thumbnail/20260713/be1c37bb7f994709.jpg",
-    "https://cdn.imweb.me/thumbnail/20260713/6f34c4caaf1b4325.jpg"
-   ],
-   "description": "[ 제품 설명 ]색 상 : WHITE사이즈 : 250mm~280mm원 단 : 면, 나일론, 폴리우레탄",
-   "url": "https://www.pjbsports.com/shop_view/1550"
   },
   {
    "idx": 1546,
@@ -1181,7 +1301,7 @@
    "category": "배드민턴 의류",
    "color": "BLACK",
    "size": "여95~여120",
-   "price": 39500,
+   "price": 55000,
    "originalPrice": 79000,
    "soldOut": false,
    "images": [
@@ -1200,7 +1320,7 @@
    "category": "배드민턴 의류",
    "color": "BLACK",
    "size": "남95~남120",
-   "price": 39500,
+   "price": 55000,
    "originalPrice": 79000,
    "soldOut": false,
    "images": [
@@ -1219,7 +1339,7 @@
    "category": "배드민턴 의류",
    "color": "SKY BLUE 스카이블루",
    "size": "여85~105",
-   "price": 24500,
+   "price": 27000,
    "originalPrice": 49000,
    "soldOut": false,
    "images": [
@@ -1238,7 +1358,7 @@
    "category": "배드민턴 의류",
    "color": "SKY BLUE 스카이블루",
    "size": "남95~120",
-   "price": 24500,
+   "price": 27000,
    "originalPrice": 49000,
    "soldOut": false,
    "images": [
@@ -1257,7 +1377,7 @@
    "category": "배드민턴 의류",
    "color": "BLUE 블루",
    "size": "여85~105",
-   "price": 24500,
+   "price": 34000,
    "originalPrice": 49000,
    "soldOut": false,
    "images": [
@@ -1276,7 +1396,7 @@
    "category": "배드민턴 의류",
    "color": "BLACK 블랙",
    "size": "여85~105",
-   "price": 24500,
+   "price": 34000,
    "originalPrice": 49000,
    "soldOut": false,
    "images": [
@@ -1295,7 +1415,7 @@
    "category": "배드민턴 의류",
    "color": "BLUE 블루",
    "size": "남95~120",
-   "price": 24500,
+   "price": 34000,
    "originalPrice": 49000,
    "soldOut": false,
    "images": [
@@ -1314,7 +1434,7 @@
    "category": "배드민턴 의류",
    "color": "RED 레드",
    "size": "남95~120",
-   "price": 24500,
+   "price": 34000,
    "originalPrice": 49000,
    "soldOut": false,
    "images": [
@@ -1333,7 +1453,7 @@
    "category": "배드민턴 의류",
    "color": "BLACK 블랙",
    "size": "남95~120",
-   "price": 24500,
+   "price": 34000,
    "originalPrice": 49000,
    "soldOut": false,
    "images": [
@@ -1407,7 +1527,7 @@
    "category": "배드민턴 의류",
    "color": "네이비",
    "size": "80~125 (남녀공용)",
-   "price": 24500,
+   "price": 34000,
    "originalPrice": 49000,
    "soldOut": false,
    "images": [
@@ -1426,7 +1546,7 @@
    "category": "배드민턴 의류",
    "color": "화이트",
    "size": "80~125 (남녀공용)",
-   "price": 24500,
+   "price": 34000,
    "originalPrice": 49000,
    "soldOut": false,
    "images": [
@@ -1575,8 +1695,8 @@
    "originalPrice": 50000,
    "soldOut": false,
    "images": [
-    "https://cdn.imweb.me/thumbnail/20240325/3ca0710034d50.jpg",
-    "https://cdn.imweb.me/thumbnail/20240325/cfee5cbeb886f.jpg"
+    "https://cdn.imweb.me/thumbnail/20260826/b9a0dab22dc248eb.jpg",
+    "https://cdn.imweb.me/thumbnail/20260826/795871c437764a2a.jpg"
    ],
    "description": "[ 제품설명 ]트리코트 4부 반바지(남)색 상 : BLACK사이즈 : 남95~120원 단 : NYLON 78%, POLYURETHANE 22%",
    "url": "https://www.pjbsports.com/shop_view/1388"
@@ -2113,7 +2233,7 @@
    "category": "🔥OUTLET🔥",
    "color": "SKY",
    "size": "여85~여105",
-   "price": 24000,
+   "price": 38500,
    "originalPrice": 55000,
    "soldOut": false,
    "images": [
@@ -2131,7 +2251,7 @@
    "category": "🔥OUTLET🔥",
    "color": "RED",
    "size": "여85~여105",
-   "price": 24000,
+   "price": 42000,
    "originalPrice": 60000,
    "soldOut": false,
    "images": [
@@ -2150,7 +2270,7 @@
    "category": "🔥OUTLET🔥",
    "color": "SKYBLUE",
    "size": "여85~여105",
-   "price": 24000,
+   "price": 42000,
    "originalPrice": 60000,
    "soldOut": false,
    "images": [
@@ -2168,7 +2288,7 @@
    "category": "🔥OUTLET🔥",
    "color": "NAVY",
    "size": "여85~여105",
-   "price": 24000,
+   "price": 42000,
    "originalPrice": 60000,
    "soldOut": false,
    "images": [
@@ -2186,7 +2306,7 @@
    "category": "🔥OUTLET🔥",
    "color": "SKY",
    "size": "남95~남120",
-   "price": 24000,
+   "price": 38500,
    "originalPrice": 55000,
    "soldOut": false,
    "images": [
@@ -2204,7 +2324,7 @@
    "category": "🔥OUTLET🔥",
    "color": "RED",
    "size": "남95~남120",
-   "price": 24000,
+   "price": 42000,
    "originalPrice": 60000,
    "soldOut": false,
    "images": [
@@ -2223,7 +2343,7 @@
    "category": "🔥OUTLET🔥",
    "color": "SKYBLUE",
    "size": "남95~남120",
-   "price": 24000,
+   "price": 42000,
    "originalPrice": 60000,
    "soldOut": false,
    "images": [
@@ -2241,7 +2361,7 @@
    "category": "🔥OUTLET🔥",
    "color": "NAVY",
    "size": "남95~남120",
-   "price": 24000,
+   "price": 42000,
    "originalPrice": 60000,
    "soldOut": false,
    "images": [
@@ -2277,7 +2397,7 @@
    "category": "🔥OUTLET🔥",
    "color": "WHITE",
    "size": "85~120(남녀공용)",
-   "price": 45000,
+   "price": 66500,
    "originalPrice": 95000,
    "soldOut": false,
    "images": [
@@ -2295,7 +2415,7 @@
    "category": "🔥OUTLET🔥",
    "color": "BLACK",
    "size": "85~120(남녀공용)",
-   "price": 40000,
+   "price": 59500,
    "originalPrice": 85000,
    "soldOut": false,
    "images": [
@@ -2407,7 +2527,7 @@
    "category": "배드민턴 의류",
    "color": "BLACK",
    "size": "남95~남120",
-   "price": 29500,
+   "price": 41000,
    "originalPrice": 59000,
    "soldOut": false,
    "images": [
@@ -2426,7 +2546,7 @@
    "category": "배드민턴 의류",
    "color": "BLACK",
    "size": "여95~여120",
-   "price": 29500,
+   "price": 41000,
    "originalPrice": 59000,
    "soldOut": false,
    "images": [
@@ -2445,7 +2565,7 @@
    "category": "배드민턴 의류",
    "color": "MINT 민트",
    "size": "여85~105",
-   "price": 24500,
+   "price": 27000,
    "originalPrice": 49000,
    "soldOut": false,
    "images": [
@@ -2464,7 +2584,7 @@
    "category": "배드민턴 의류",
    "color": "RED 레드",
    "size": "여85~105",
-   "price": 24500,
+   "price": 34000,
    "originalPrice": 49000,
    "soldOut": false,
    "images": [
@@ -2483,7 +2603,7 @@
    "category": "배드민턴 의류",
    "color": "MINT민트",
    "size": "남95~120",
-   "price": 24500,
+   "price": 27000,
    "originalPrice": 49000,
    "soldOut": false,
    "images": [
@@ -2502,7 +2622,7 @@
    "category": "배드민턴 의류",
    "color": "연핑크",
    "size": "여85~120",
-   "price": 27500,
+   "price": 33000,
    "originalPrice": 55000,
    "soldOut": false,
    "images": [
@@ -2521,7 +2641,7 @@
    "category": "배드민턴 의류",
    "color": "블랙",
    "size": "여85~105",
-   "price": 30000,
+   "price": 36000,
    "originalPrice": 60000,
    "soldOut": false,
    "images": [
@@ -2540,7 +2660,7 @@
    "category": "배드민턴 의류",
    "color": "네이비",
    "size": "여85~120",
-   "price": 27500,
+   "price": 33000,
    "originalPrice": 55000,
    "soldOut": false,
    "images": [
@@ -2559,7 +2679,7 @@
    "category": "배드민턴 의류",
    "color": "핑크",
    "size": "여85~120",
-   "price": 27500,
+   "price": 33000,
    "originalPrice": 55000,
    "soldOut": false,
    "images": [
@@ -2578,7 +2698,7 @@
    "category": "배드민턴 의류",
    "color": "블랙",
    "size": "여85~105",
-   "price": 30000,
+   "price": 36000,
    "originalPrice": 60000,
    "soldOut": false,
    "images": [
@@ -2597,7 +2717,7 @@
    "category": "배드민턴 의류",
    "color": "연핑크",
    "size": "남95~120",
-   "price": 27500,
+   "price": 33000,
    "originalPrice": 55000,
    "soldOut": false,
    "images": [
@@ -2616,7 +2736,7 @@
    "category": "배드민턴 의류",
    "color": "블랙",
    "size": "남95~120",
-   "price": 30000,
+   "price": 36000,
    "originalPrice": 60000,
    "soldOut": false,
    "images": [
@@ -2635,7 +2755,7 @@
    "category": "배드민턴 의류",
    "color": "네이비",
    "size": "남95~120",
-   "price": 27500,
+   "price": 33000,
    "originalPrice": 55000,
    "soldOut": false,
    "images": [
@@ -2654,7 +2774,7 @@
    "category": "배드민턴 의류",
    "color": "핑크",
    "size": "남95~120",
-   "price": 27500,
+   "price": 33000,
    "originalPrice": 55000,
    "soldOut": false,
    "images": [
@@ -2673,7 +2793,7 @@
    "category": "배드민턴 의류",
    "color": "블랙",
    "size": "남95~120",
-   "price": 30000,
+   "price": 36000,
    "originalPrice": 60000,
    "soldOut": false,
    "images": [
@@ -2692,7 +2812,7 @@
    "category": "배드민턴 의류",
    "color": "화이트 / 블랙",
    "size": "80~120 (남녀공용)",
-   "price": 15000,
+   "price": 20000,
    "originalPrice": 29000,
    "soldOut": false,
    "images": [
@@ -2711,7 +2831,7 @@
    "category": "배드민턴 의류",
    "color": "블랙",
    "size": "80~120 (남녀공용)",
-   "price": 24500,
+   "price": 34000,
    "originalPrice": 49000,
    "soldOut": false,
    "images": [
@@ -2730,7 +2850,7 @@
    "category": "배드민턴 의류",
    "color": "화이트",
    "size": "80~120 (남녀공용)",
-   "price": 24500,
+   "price": 27000,
    "originalPrice": 49000,
    "soldOut": false,
    "images": [
@@ -3531,24 +3651,6 @@
    ],
    "description": "[ 제품 설명 ]색 상 : WHITE사이즈 : 250~280mm원 단 : Cotton, Polyurethane, Polyester, Nylon",
    "url": "https://www.pjbsports.com/shop_view/1156"
-  },
-  {
-   "idx": 1106,
-   "name": "NEW 코오롱제약 리얼아미노워터(체리/레몬)",
-   "modelCode": "NEW 코오롱제약 리얼아미노워터(체리/레몬)",
-   "brand": "NOERROR",
-   "category": "Acc",
-   "color": null,
-   "size": null,
-   "price": 18000,
-   "originalPrice": null,
-   "soldOut": false,
-   "images": [
-    "https://cdn.imweb.me/thumbnail/20240529/42b116455b329.jpg",
-    "https://cdn.imweb.me/thumbnail/20240529/aa443434aa585.jpg"
-   ],
-   "description": "제품영문명 : Real Energy Water주요성분 : 아미노산, 오르니틴, 수박과피추출물성상 : 파우더분류 : 스포츠뉴트리션포장단위 : 7g×10포/박스용법 &middot; 용법 ...",
-   "url": "https://www.pjbsports.com/shop_view/1106"
   },
   {
    "idx": 593,
