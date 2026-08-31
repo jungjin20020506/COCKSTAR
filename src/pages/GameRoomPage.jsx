@@ -11,7 +11,7 @@ import { AutoMatchGuide } from '../features/tutorial/AutoMatchGuide';
 import { PlayerCard, LeftPlayerCard, EmptySlot, CourtTimer } from '../features/room/PlayerCard';
 import { AutoMatchSection } from '../features/room/AutoMatchSection';
 import { GameBanner } from '../features/room/GameBanner';
-import { MyTurnBanner } from '../features/room/MyTurnBanner';
+import { MyTurnBanner, NotiPermissionBanner } from '../features/room/MyTurnBanner';
 import { JoinGate } from '../features/room/JoinGate';
 import { SettingsModal } from '../features/room/SettingsModal';
 import { EditRoomInfoModal } from '../features/room/EditRoomInfoModal';
@@ -246,6 +246,7 @@ export function GameRoomPage({ onLoginClick }) {
             toast('참가했습니다. 대기 명단에 올라갔어요!');
             // 참가 직후 알림 권한을 한 번 권한다 — "내 차례" 알림의 가치가 가장 와닿는 순간이다.
             // 이미 물어봤거나 권한이 정해진 기기에서는 조용히 넘어간다.
+            // (이미 참가된 채로 들어온 사람은 아래 입장 effect 가 같은 일을 한다)
             if (shouldAskNotification()) setTimeout(() => setShowNotiAsk(true), 900);
         } catch (e) {
             logError('방 참가', e);
@@ -407,6 +408,17 @@ export function GameRoomPage({ onLoginClick }) {
         () => (me ? computeBragStat(me, players, roomData?.name) : null),
         [me, players, roomData],
     );
+
+    // ── 이미 참가된 채로 방에 들어온 사람에게도 알림 권한을 한 번 권한다 ──
+    // 참가 버튼(handleJoin)만 믿으면, 이미 명단에 있는 대부분의 사용자는
+    // 권한 요청을 영영 못 본다 — 실제로 "허용 문구가 안 나왔다"는 신고의 원인이었다.
+    useEffect(() => {
+        if (loading || !joined || locked) return undefined;
+        if (!shouldAskNotification()) return undefined;
+        if (showAdminGuide || showAutoGuide) return undefined;   // 안내와 겹치면 둘 다 못 쓴다
+        const t = setTimeout(() => setShowNotiAsk(true), 1200);
+        return () => clearTimeout(t);
+    }, [loading, joined, locked, showAdminGuide, showAutoGuide]);
 
     // ── 빈 코트 펄스 — "지금 올릴 수 있는 경기"가 있는데 코트가 놀고 있을 때 ──
     // 휴식 중인 선수가 낀 경기도 시작할 수 있으므로 휴식은 따지지 않는다.
@@ -691,6 +703,9 @@ export function GameRoomPage({ onLoginClick }) {
             </header>
 
             <GameBanner onNavigate={navigate} />
+
+            {/* 알림 권한이 없으면 상단에 계속 보인다 — 허용해야 경기 안내가 폰에 닿는다 */}
+            {joined && <NotiPermissionBanner onNeedInstall={() => setShowInstallGuide(true)} />}
 
             {/* ── 공지 — 채팅보다 먼저 필요한 한 줄. 탭하면 펼쳐지고, 새 공지엔 NEW ── */}
             {roomData.notice ? (

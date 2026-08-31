@@ -22,6 +22,7 @@ import { QrModal, NotiPermissionModal, EditGamesModal, shouldAskNotification } f
 import { AutoMatchSection } from '../features/room/AutoMatchSection';
 import { RoomEntryFX } from '../features/room/RoomEntryFX';
 import { InstallNudgeModal, withInstallFlag } from '../components/ui/InstallPrompt';
+import { NotiPermissionBanner } from '../features/room/MyTurnBanner';
 import { repairMatchQueues } from '../lib/matchQueues';
 
 beforeEach(() => {
@@ -175,6 +176,51 @@ describe('입장 연출 (RoomEntryFX) — 방마다 하루 한 번만', () => {
         const other = render(<RoomEntryFX roomId="fx-other" roomName="목요 게스트전" />);
         expect(other.container.textContent).toContain('목요 게스트전');
         other.unmount();
+    });
+});
+
+describe('알림 권한 상단 배너 (NotiPermissionBanner)', () => {
+    it('권한을 아직 안 물어본 상태 — 배너가 보이고, 켜기를 누르면 권한 창이 뜬다', async () => {
+        const requestPermission = vi.fn(() => Promise.resolve('granted'));
+        vi.stubGlobal('Notification', { permission: 'default', requestPermission });
+
+        const { getByText, container } = render(<NotiPermissionBanner />);
+        expect(container.textContent).toContain('알림을 허용해야 내 차례·경기 시작 안내를 받을 수 있어요');
+
+        await act(async () => { fireEvent.click(getByText('켜기')); });
+        expect(requestPermission).toHaveBeenCalled();
+        // 허용되면 배너가 사라진다
+        expect(container.textContent).not.toContain('알림을 허용해야');
+        vi.unstubAllGlobals();
+    });
+
+    it('이미 허용된 상태 — 배너가 아예 없다', () => {
+        vi.stubGlobal('Notification', { permission: 'granted', requestPermission: vi.fn() });
+        const { container } = render(<NotiPermissionBanner />);
+        expect(container.innerHTML).toBe('');
+        vi.unstubAllGlobals();
+    });
+
+    it('아이폰 사파리(알림 API 없음) — 홈 화면 추가 안내로 잇는다', () => {
+        const original = window.Notification;
+        delete window.Notification;
+        vi.stubGlobal('navigator', { ...window.navigator, userAgent: 'iPhone', maxTouchPoints: 5 });
+
+        const onNeedInstall = vi.fn();
+        const { getByText, container } = render(<NotiPermissionBanner onNeedInstall={onNeedInstall} />);
+        expect(container.textContent).toContain('홈 화면에 추가하면 내 차례 알림을 받을 수 있어요');
+        fireEvent.click(getByText('방법 보기'));
+        expect(onNeedInstall).toHaveBeenCalled();
+
+        vi.unstubAllGlobals();
+        if (original) window.Notification = original;
+    });
+
+    it('거부된 상태 — 설정에서 여는 길을 안내한다', () => {
+        vi.stubGlobal('Notification', { permission: 'denied', requestPermission: vi.fn() });
+        const { container } = render(<NotiPermissionBanner />);
+        expect(container.textContent).toContain('알림이 꺼져 있어요');
+        vi.unstubAllGlobals();
     });
 });
 

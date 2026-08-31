@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Instagram, Timer, Activity, Trophy, Bell } from '../../components/ui/icons';
+import { Instagram, Timer, Activity, Trophy, BellRing } from '../../components/ui/icons';
 import {
     notify, notificationsSupported, notificationPermission, requestNotificationPermission,
 } from '../../lib/notify';
+import { getInAppBrowser, escapeInAppBrowser, isIOS, isStandalone } from '../../components/ui/InstallPrompt';
+import { toast } from '../../lib/toast';
 
 // ===================================================================================
 // 내 차례 — 선수가 이 방에서 가장 궁금한 한 가지
@@ -44,17 +46,83 @@ function waitText(matchesAhead, courts) {
     return low <= 0 ? `약 ${high}분 이내` : `약 ${low}~${high}분`;
 }
 
-const NOTI_NUDGE_KEY = 'cockstar-noti-nudge-dismissed';
+// ===================================================================================
+// 알림 권한 상태 배너 — 방 상단 고정
+// -----------------------------------------------------------------------------------
+// 알림 권한이 없으면 "내 차례" 안내가 화면 배너로만 온다 — 주머니 속 폰에는 안 닿는다.
+// 그래서 권한이 허용되기 전까지 방 상단에 얇은 배너를 계속 둔다.
+// 상태마다 '지금 할 수 있는 딱 한 가지'로 이어준다.
+//
+//   · 아직 안 물어봄(default) → [켜기] 한 번에 브라우저 권한 창
+//   · 거부됨(denied)          → 브라우저 설정에서 여는 길을 알려준다 (재요청은 브라우저가 막는다)
+//   · 카톡 인앱               → 알림 자체가 안 되는 곳 — 브라우저로 탈출
+//   · 아이폰 사파리(비설치)    → 홈 화면에 추가해야 알림이 된다 — 설치 안내로
+//   · 허용됨(granted)         → 배너 없음
+// ===================================================================================
+
+export function NotiPermissionBanner({ onNeedInstall }) {
+    const [perm, setPerm] = useState(() => notificationPermission());
+
+    // 설정에서 바꾸고 돌아온 경우를 따라잡는다 (권한 값은 이벤트를 안 쏘므로 직접 다시 읽는다)
+    useEffect(() => {
+        const sync = () => setPerm(notificationPermission());
+        document.addEventListener('visibilitychange', sync);
+        window.addEventListener('focus', sync);
+        return () => {
+            document.removeEventListener('visibilitychange', sync);
+            window.removeEventListener('focus', sync);
+        };
+    }, []);
+
+    if (perm === 'granted') return null;
+
+    const inApp = getInAppBrowser();
+    const supported = notificationsSupported();
+
+    let text; let cta; let onClick;
+    if (!supported && inApp) {
+        text = '카톡 안에서는 경기 알림을 받을 수 없어요';
+        cta = '브라우저로 열기';
+        onClick = () => { if (!escapeInAppBrowser()) onNeedInstall?.(); };
+    } else if (!supported && isIOS() && !isStandalone()) {
+        text = '홈 화면에 추가하면 내 차례 알림을 받을 수 있어요';
+        cta = '방법 보기';
+        onClick = () => onNeedInstall?.();
+    } else if (!supported) {
+        return null;   // 알림이 아예 없는 환경 — 배너로 조를 방법도 없다
+    } else if (perm === 'denied') {
+        text = '알림이 꺼져 있어요 — 허용해야 경기 안내를 받을 수 있어요';
+        cta = '여는 법';
+        onClick = () => toast('브라우저 주소창 옆 자물쇠(또는 설정 → 알림)에서 콕스타 알림을 허용해주세요.');
+    } else {
+        // default — 켜기 버튼을 누른 '그 순간'에만 권한 창을 띄울 수 있다 (브라우저 규칙)
+        text = '알림을 허용해야 내 차례·경기 시작 안내를 받을 수 있어요';
+        cta = '켜기';
+        onClick = async () => {
+            const result = await requestNotificationPermission();
+            setPerm(result);
+            if (result === 'granted') {
+                notify({ title: '알림이 켜졌습니다 🔔', body: '내 차례가 오면 진동·소리와 함께 알려드릴게요.', tag: 'noti-test' });
+            }
+        };
+    }
+
+    return (
+        <button
+            onClick={onClick}
+            className="flex-shrink-0 w-full flex items-center gap-2.5 px-4 py-2 bg-volt/10 border-b border-volt/25 text-left"
+        >
+            <BellRing size={14} className="text-volt shrink-0" />
+            <span className="flex-1 min-w-0 text-[11px] font-bold text-txt break-keep leading-snug">{text}</span>
+            <span className="shrink-0 px-3 py-1.5 rounded-full bg-volt text-ink text-[10px] font-black">{cta}</span>
+        </button>
+    );
+}
 
 export function MyTurnBanner({
     me, roomData, players, inProgressPlayerIds, courtIndexByPlayer, onOpenBrag,
 }) {
     const prevStateRef = useRef(null);
-    const [showNudge, setShowNudge] = useState(() => {
-        if (!notificationsSupported() || notificationPermission() !== 'default') return false;
-        try { return localStorage.getItem(NOTI_NUDGE_KEY) !== '1'; }
-        catch { return true; }
-    });
 
     const info = useMemo(() => {
         if (!me) return null;
@@ -156,19 +224,6 @@ export function MyTurnBanner({
 
     const Icon = tone.Icon;
 
-    const enableNoti = async () => {
-        const result = await requestNotificationPermission();
-        setShowNudge(false);
-        try { localStorage.setItem(NOTI_NUDGE_KEY, '1'); } catch { /* noop */ }
-        if (result === 'granted') {
-            notify({ title: '알림이 켜졌습니다 🔔', body: '내 차례가 오면 알려드릴게요.', tag: 'noti-test' });
-        }
-    };
-    const dismissNudge = () => {
-        setShowNudge(false);
-        try { localStorage.setItem(NOTI_NUDGE_KEY, '1'); } catch { /* noop */ }
-    };
-
     return (
         <div className="space-y-2">
             <section
@@ -201,15 +256,8 @@ export function MyTurnBanner({
                 </div>
             </section>
 
-            {/* 알림 권한 유도 — 한 번 닫으면 다시 안 나온다. 권한 창은 버튼을 누른 직후에만 뜰 수 있다 */}
-            {showNudge && info.state !== 'playing' && (
-                <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] animate-fade-in">
-                    <Bell size={14} className="text-volt shrink-0" />
-                    <p className="flex-1 text-[11px] font-bold text-dim break-keep">내 차례가 오면 진동·알림으로 알려드릴까요?</p>
-                    <button onClick={enableNoti} className="shrink-0 px-3 py-1.5 rounded-full bg-volt text-ink text-[11px] font-black">켜기</button>
-                    <button onClick={dismissNudge} aria-label="알림 안내 닫기" className="shrink-0 p-1 text-muted text-[11px] font-bold">닫기</button>
-                </div>
-            )}
+            {/* 알림 권한 유도는 방 상단의 NotiPermissionBanner 가 맡는다 —
+                허용될 때까지 계속 보이는 배너가 여기 있던 일회성 안내보다 확실하다 */}
         </div>
     );
 }
