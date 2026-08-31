@@ -20,6 +20,7 @@ vi.mock('qrcode', () => ({
 
 import { QrModal, NotiPermissionModal, EditGamesModal, shouldAskNotification } from '../features/room/SmallModals';
 import { AutoMatchSection } from '../features/room/AutoMatchSection';
+import { RoomEntryFX } from '../features/room/RoomEntryFX';
 import { repairMatchQueues } from '../lib/matchQueues';
 
 beforeEach(() => {
@@ -155,6 +156,24 @@ describe('자동 매칭 — 휴식 선수 정책', () => {
             />,
         );
         expect(getByText('정리중').disabled).toBe(true);
+    });
+});
+
+describe('입장 연출 (RoomEntryFX) — 방마다 하루 한 번만', () => {
+    it('처음 열면 나오고, 새로고침(재마운트) 후에는 안 나온다', () => {
+        const first = render(<RoomEntryFX roomId="fx-room" roomName="화요 정기전" />);
+        expect(first.container.textContent).toContain('화요 정기전');
+        first.unmount();
+
+        // 새로고침을 흉내 낸다 — 컴포넌트를 처음부터 다시 마운트
+        const second = render(<RoomEntryFX roomId="fx-room" roomName="화요 정기전" />);
+        expect(second.container.textContent).not.toContain('화요 정기전');
+        second.unmount();
+
+        // 다른 방은 그 방의 첫 입장이므로 나온다
+        const other = render(<RoomEntryFX roomId="fx-other" roomName="목요 게스트전" />);
+        expect(other.container.textContent).toContain('목요 게스트전');
+        other.unmount();
     });
 });
 
