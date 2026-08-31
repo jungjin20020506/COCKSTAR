@@ -68,12 +68,9 @@ export function MyTurnBanner({
             return { state: 'playing', courtNo, title: `지금 ${courtNo}번 코트에서 경기 중`, sub: '끝나면 관리자가 종료를 눌러줍니다' };
         }
 
-        // ② 휴식 중
-        if (me.isResting) {
-            return { state: 'resting', title: '휴식 중', sub: '위의 복귀 버튼을 누르면 다시 매칭에 들어가요' };
-        }
-
-        // ③ 다음 경기가 잡혀 있다 (자동 매칭 · 경기 배정 둘 다 확인)
+        // ② 다음 경기가 잡혀 있다 (자동 매칭 · 경기 배정 둘 다 확인)
+        //    휴식 판정보다 먼저 본다 — 휴식 중이어도 관리자가 경기에 넣을 수 있고,
+        //    그때는 "다음 경기는 나" 알림이 휴식 안내보다 중요하다.
         const autoEntries = Object.entries(roomData?.autoMatches || {})
             .filter(([, m]) => Array.isArray(m))
             .sort((a, b) => Number(a[0]) - Number(b[0]));
@@ -103,6 +100,11 @@ export function MyTurnBanner({
                     ? `${blockers.join('·')}님 경기가 끝나면 시작 (${waitText(ahead, courts)})`
                     : `${waitText(ahead, courts)} 뒤 예상`,
             };
+        }
+
+        // ③ 휴식 중 (잡힌 경기가 없을 때만)
+        if (me.isResting) {
+            return { state: 'resting', title: '휴식 중', sub: '위의 복귀 버튼을 누르면 다시 매칭에 들어가요' };
         }
 
         // ④ 그냥 대기 중

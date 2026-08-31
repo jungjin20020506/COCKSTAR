@@ -111,9 +111,11 @@ export function AutoMatchSection({
 
                 // 이 경기를 지금 시작할 수 있는지 판단한다.
                 //  · onCourt : 아직 코트에서 뛰는 중 (그 경기가 끝나야 시작 가능)
-                //  · broken  : 나갔거나 휴식으로 바뀜 (자리를 채우거나 경기를 지워야 함)
+                //  · broken  : 방에서 나감 (곧 자동으로 정리된다)
+                //  ★ 휴식은 여기서 세지 않는다 — 휴식 중이어도 관리자가 그대로 시작할 수 있다.
                 const onCourtIds = ids.filter(id => inProgressPlayerIds.has(id));
-                const brokenIds = ids.filter(id => !players[id] || players[id].isResting);
+                const brokenIds = ids.filter(id => !players[id]);
+                const restingIds = ids.filter(id => players[id]?.isResting);
                 const canStart = ids.length === PLAYERS_PER_MATCH && onCourtIds.length === 0 && brokenIds.length === 0;
 
                 const waitCourts = [...new Set(
@@ -127,47 +129,36 @@ export function AutoMatchSection({
                 } else if (onCourtIds.length > 0) {
                     const courtText = waitCourts.length ? `${waitCourts.map(c => c + 1).join('·')}번 코트` : '진행 중인 경기';
                     note = { broken: false, text: `${courtText}가 끝나면 시작 — 경기중: ${onCourtIds.map(nameOf).join('·')}` };
+                } else if (restingIds.length > 0) {
+                    note = { broken: false, text: `😴 ${restingIds.map(nameOf).join('·')} 휴식 중 — 그래도 시작할 수 있어요` };
                 }
 
                 const isNewDeal = newDealSigs.has(matchSig(match));
 
                 return (
                     <div key={`auto-${matchIndex}`} className={`auto-row ${isNewDeal ? 'auto-deal' : ''}`}>
-                        {note && (
-                            <div className={`auto-wait-note ${note.broken ? 'broken' : ''}`}>
-                                <span>{note.broken ? '⚠️' : '⏳'}</span>
-                                <span className="truncate">{note.text}</span>
-                            </div>
-                        )}
-                        <div className="flex items-center w-full gap-1.5">
+                        {/* 번호·안내·시작 버튼을 윗줄로 빼서, 선수 카드가 대기 명단과 같은
+                            전체 폭을 쓰게 한다 — 카드가 좁아 이름이 잘리던 문제의 해결책 */}
+                        <div className="flex items-center w-full gap-2">
                             <div
-                                className="flex-shrink-0 w-7 text-center select-none cursor-pointer"
+                                className="flex-shrink-0 min-w-[28px] px-1 text-center select-none cursor-pointer"
                                 onMouseDown={() => handlePressStart(matchIndex)}
                                 onMouseUp={handlePressEnd} onMouseLeave={handlePressEnd}
                                 onTouchStart={() => handlePressStart(matchIndex)}
                                 onTouchEnd={handlePressEnd} onTouchCancel={handlePressEnd}
                                 title={isAdmin ? '길게 누르면 이 경기가 삭제됩니다' : undefined}
                             >
-                                <p className="font-black text-lg text-txt tabular">{Number(matchIndex) + 1}</p>
+                                <p className="font-black text-lg text-txt tabular leading-none">{Number(matchIndex) + 1}</p>
                             </div>
-                            <div className="grid grid-cols-4 gap-1.5 flex-1 min-w-0">
-                                {match.map((pid, sIdx) => (
-                                    pid && players[pid] ? (
-                                        <PlayerCard
-                                            key={`${pid}-${matchIndex}-${sIdx}`}
-                                            player={players[pid]}
-                                            isAdmin={isAdmin}
-                                            isCurrentUser={currentUserId === pid}
-                                            isPlaying={inProgressPlayerIds.has(pid)}
-                                            isResting={players[pid].isResting}
-                                            onDeleteClick={() => onRemovePlayer(matchIndex, sIdx)}
-                                        />
-                                    ) : (
-                                        <LeftPlayerCard key={`auto-left-${matchIndex}-${sIdx}`} isAdmin={false} />
-                                    )
-                                ))}
-                            </div>
-                            <div className="flex-shrink-0 w-16">
+                            {note ? (
+                                <div className={`auto-wait-note flex-1 min-w-0 ${note.broken ? 'broken' : ''}`}>
+                                    <span>{note.broken ? '⚠️' : restingIds.length > 0 && onCourtIds.length === 0 ? '' : '⏳'}</span>
+                                    <span className="truncate">{note.text}</span>
+                                </div>
+                            ) : (
+                                <div className="flex-1" />
+                            )}
+                            <div className="flex-shrink-0 w-[76px]">
                                 {isAdmin ? (
                                     <button
                                         type="button"
@@ -183,6 +174,23 @@ export function AutoMatchSection({
                                     </span>
                                 )}
                             </div>
+                        </div>
+                        <div className="grid grid-cols-4 gap-1.5 w-full">
+                            {match.map((pid, sIdx) => (
+                                pid && players[pid] ? (
+                                    <PlayerCard
+                                        key={`${pid}-${matchIndex}-${sIdx}`}
+                                        player={players[pid]}
+                                        isAdmin={isAdmin}
+                                        isCurrentUser={currentUserId === pid}
+                                        isPlaying={inProgressPlayerIds.has(pid)}
+                                        isResting={players[pid].isResting}
+                                        onDeleteClick={() => onRemovePlayer(matchIndex, sIdx)}
+                                    />
+                                ) : (
+                                    <LeftPlayerCard key={`auto-left-${matchIndex}-${sIdx}`} isAdmin={false} />
+                                )
+                            ))}
                         </div>
                     </div>
                 );

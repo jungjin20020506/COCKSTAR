@@ -72,6 +72,8 @@ import {
     EyeOff as EyeOffRaw,
     Undo2 as Undo2Raw,
     ShieldAlert as ShieldAlertRaw,
+    QrCode as QrCodeRaw,
+    BellRing as BellRingRaw,
 } from 'lucide-react';
 
 const wrap = (Icon) => {
@@ -143,6 +145,8 @@ export const Eye = wrap(EyeRaw);
 export const EyeOff = wrap(EyeOffRaw);
 export const Undo2 = wrap(Undo2Raw);
 export const ShieldAlert = wrap(ShieldAlertRaw);
+export const QrCode = wrap(QrCodeRaw);
+export const BellRing = wrap(BellRingRaw);
 
 // 원본 아이콘도 몇 개는 그대로 필요하다 (배경 장식으로 얇게 그릴 때)
 export { ZapRaw, FlameRaw, TrophyRaw, MapRaw, HomeRaw, XRaw, ChevronRightRaw, Edit3Raw, UsersRaw, ArchiveRaw };

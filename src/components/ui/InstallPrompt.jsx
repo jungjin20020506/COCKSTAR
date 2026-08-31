@@ -246,7 +246,7 @@ export function InstallBanner() {
             // 띄우는 조건: 설치 방법이 있거나(네이티브 창/아이폰/안드로이드 수동),
             //   인앱 브라우저라서 '탈출 안내'가 필요하거나.
             if (!canPrompt && !ios && !isAndroid() && !inApp) return;
-            const t = setTimeout(() => setShow(true), 2500);         // 화면을 잠깐 보고 나서
+            const t = setTimeout(() => setShow(true), 1500);         // 화면을 잠깐 보고 나서
             return () => clearTimeout(t);
         } catch { /* localStorage 를 못 쓰면 그냥 안 띄운다 */ }
     }, [installed, canPrompt, ios, inApp]);
@@ -291,19 +291,21 @@ export function InstallBanner() {
 
     return (
         <>
-            <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 bg-volt/10 border-t border-volt/25 animate-fade-in-up">
-                <CockstarMark size={30} plate className="rounded-lg shrink-0" />
+            <div className="flex-shrink-0 flex items-center gap-3 px-4 py-3 bg-volt/10 border-t border-volt/25 animate-fade-in-up">
+                <CockstarMark size={34} plate className="rounded-lg shrink-0" />
                 <div className="flex-1 min-w-0">
-                    <p className="text-[12px] font-black text-txt leading-tight">홈 화면에 콕스타 추가</p>
+                    <p className="text-[13px] font-black text-txt leading-tight">콕스타 앱으로 설치하기</p>
                     <p className="text-[10px] text-dim font-bold truncate">
-                        {ios ? '공유 버튼 한 번이면 끝나요' : '한 번 설치하면 더 빠르게 열려요'}
+                        {canPrompt
+                            ? '버튼 한 번이면 홈 화면에 설치돼요'
+                            : ios ? '공유 버튼 한 번이면 끝나요 · 알림도 받을 수 있어요' : '한 번 설치하면 더 빠르게 열려요'}
                     </p>
                 </div>
                 <button
                     onClick={() => { if (canPrompt) promptInstall().then(dismiss); else setShowGuide(true); }}
-                    className="px-3.5 py-2 rounded-full bg-volt text-ink text-[11px] font-black shrink-0 flex items-center gap-1"
+                    className="px-4 py-2.5 rounded-full bg-volt text-ink text-[12px] font-black shrink-0 flex items-center gap-1.5 shadow-volt active:scale-95 transition-transform"
                 >
-                    <Download size={13} /> 설치
+                    <Download size={14} /> {canPrompt ? '바로 설치' : '설치'}
                 </button>
                 <button
                     onClick={dismiss}

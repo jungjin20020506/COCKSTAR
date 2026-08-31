@@ -55,3 +55,31 @@ try {
 }
 
 export const db = firestore;
+
+// ── Firestore 내부 오류 자동 복구 ──
+// 일부 기기(특히 아이폰 사파리)에서 IndexedDB 캐시가 꼬이면 SDK 가
+// "INTERNAL ASSERTION FAILED" 를 던지며 실시간 구독이 통째로 멈춘다.
+// 화면은 떠 있는데 아무것도 갱신되지 않는 '먹통' — 사용자에게는 튕김으로 보인다.
+//
+// 이 오류는 잡아서 고칠 수 있는 것이 아니라서, 감지 즉시 새로고침 한 번으로
+// SDK 를 다시 세운다. 무한 새로고침이 되지 않게 30초에 한 번만 허용한다.
+if (typeof window !== 'undefined') {
+    const RECOVER_KEY = 'cockstar-firestore-recovered-at';
+    const isFirestoreAssertion = (msg) =>
+        typeof msg === 'string' && msg.includes('FIRESTORE') && msg.includes('INTERNAL ASSERTION FAILED');
+
+    const recover = () => {
+        let last = 0;
+        try { last = Number(sessionStorage.getItem(RECOVER_KEY) || '0'); } catch { /* noop */ }
+        if (Date.now() - last < 30 * 1000) return;   // 방금 복구했는데 또 터짐 — 루프 방지
+        try { sessionStorage.setItem(RECOVER_KEY, String(Date.now())); } catch { /* noop */ }
+        window.location.reload();
+    };
+
+    window.addEventListener('error', (e) => {
+        if (isFirestoreAssertion(e?.message || e?.error?.message)) recover();
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+        if (isFirestoreAssertion(e?.reason?.message)) recover();
+    });
+}

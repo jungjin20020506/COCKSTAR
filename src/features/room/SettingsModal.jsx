@@ -389,7 +389,8 @@ export function SettingsModal({
                             <Users size={16} /> 자리 비운 {staleCount}명 내보내기
                         </button>
                         <p className="text-[11px] text-muted font-medium mt-2 leading-relaxed break-keep">
-                            {STALE_MINUTES}분 넘게 앱을 열지 않은 사람이에요. 이미 휴식으로 바뀌어 매칭에는 안 들어갑니다.
+                            {STALE_MINUTES}분 넘게 앱을 열지 않은 사람이에요. 정말 갔는지 확인하고 눌러주세요 —
+                            상태는 자동으로 바뀌지 않아요.
                         </p>
                     </div>
                 )}

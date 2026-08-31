@@ -8,7 +8,7 @@ import { PLAYERS_PER_MATCH } from '../../constants';
 import { getDailyResetKey } from '../../lib/time';
 import { repairMatchQueues } from '../../lib/matchQueues';
 import { isRoomAdmin, inviteMatches } from '../../lib/adminInvite';
-import { findAutoRestTargets, findStalePlayers } from '../../lib/presence';
+import { findStalePlayers } from '../../lib/presence';
 import { toast } from '../../lib/toast';
 import { logError } from '../../lib/errorLog';
 
@@ -240,25 +240,20 @@ export function useGameRoom({ roomId, user, superAdmin }) {
     }, [isAdmin, roomData, players, roomRef]);
 
     // ===============================================================================
-    // 자리 비움 자동 처리
+    // 자리 비움 목록
     // -------------------------------------------------------------------------------
-    // 45분 넘게 앱을 안 연 사람을 '휴식'으로 바꾼다. 명단에서 지우지는 않는다 —
-    // 화면이 꺼져 있거나 지하에서 신호가 끊긴 것뿐일 수 있고, 지웠다가 돌아오면
-    // 오늘 기록이 사라져 있다. 실제로 내보내는 건 관리자가 눌러 확인한다.
+    // 45분 넘게 앱을 안 연 사람의 '목록'만 만든다. 예전에는 이 목록을 자동으로
+    // '휴식'으로 바꿨는데, 그게 사고의 근원이었다 — 경기 중에 화면을 꺼둔 사람이
+    // 경기가 끝나는 순간 영문도 모른 채 휴식으로 바뀌었다.
+    //
+    // ★ 이제 휴식 상태는 절대 자동으로 바뀌지 않는다.
+    //   본인이 휴식 버튼을 누르거나, 관리자가 카드를 길게 눌러 바꾸는 것뿐이다.
+    //   자리 비운 사람 정리는 관리자가 설정에서 목록을 보고 직접 내보낸다.
     // ===============================================================================
     const staleList = useMemo(
         () => findStalePlayers(players, { exclude: inProgressPlayerIds }),
         [players, inProgressPlayerIds],
     );
-
-    useEffect(() => {
-        if (!isAdmin) return;
-        const targets = findAutoRestTargets(players, { exclude: inProgressPlayerIds });
-        if (targets.length === 0) return;
-        const batch = writeBatch(db);
-        targets.forEach(p => batch.update(doc(playersRef, p.id), { isResting: true }));
-        batch.commit().catch(e => logError('자리 비움 자동 휴식', e));
-    }, [isAdmin, players, inProgressPlayerIds, playersRef]);
 
     // ===============================================================================
     // 동작들
@@ -336,30 +331,11 @@ export function useGameRoom({ roomId, user, superAdmin }) {
             ? { ...prev, [user.uid]: { ...prev[user.uid], isResting: goingToRest } }
             : prev));
         try {
+            // 휴식은 이제 '표시'일 뿐이다 — 새 자동 매칭 후보에서만 빠지고,
+            // 이미 잡혀 있는 예약 경기는 그대로 둔다 (관리자가 그대로 시작할 수 있다).
+            // 예전에는 휴식을 켜는 순간 예약에서 빼냈는데, 그 자동 정리가
+            // "내가 안 눌렀는데 경기가 사라졌다"는 혼란의 원인이었다.
             await updateDoc(doc(playersRef, user.uid), { isResting: goingToRest, lastSeen: serverTimestamp() });
-            if (!goingToRest) return;
-
-            // 휴식을 켤 때는 잡혀 있던 다음 경기에서 먼저 빼낸다. 안 빼면 그 경기는 영원히
-            // 시작 못 하는 상태로 남고, 본인은 계속 '다음 경기가 잡힌 사람'으로 분류되어
-            // 새 매칭 후보에서도 빠진다. (관리자 화면의 자동 정리가 결국 치워주지만,
-            // 관리자가 없을 수도 있으므로 본인이 누른 이 순간에 정리하는 게 확실하다)
-            //
-            // 지금 코트에서 뛰는 중이라면 코트에서는 빼지 않는다 — 관리자가 경기 종료를
-            // 눌러 기록을 남길 수 있어야 하기 때문이다.
-            await runTransaction(db, async (t) => {
-                const snap = await t.get(roomRef);
-                if (!snap.exists()) return;
-                const data = snap.data();
-                const { changed, newState } = repairMatchQueues(
-                    { autoMatches: data.autoMatches || {}, scheduledMatches: data.scheduledMatches || {} },
-                    { ...players, [user.uid]: { ...players[user.uid], isResting: true } },
-                );
-                if (!changed) return;
-                t.update(roomRef, {
-                    autoMatches: newState.autoMatches,
-                    scheduledMatches: newState.scheduledMatches,
-                });
-            });
         } catch (e) {
             // 낙관적으로 바꿔둔 화면을 원래대로 되돌린다
             setPlayers(prev => (prev[user.uid]
@@ -368,7 +344,21 @@ export function useGameRoom({ roomId, user, superAdmin }) {
             logError('휴식 상태 변경', e);
             toast.error('상태 변경에 실패했습니다.');
         }
-    }, [user, players, playersRef, roomRef]);
+    }, [user, players, playersRef]);
+
+    /**
+     * [관리자] 다른 선수의 휴식 상태를 바꾼다 — 선수 카드를 길게 눌러 연 창에서.
+     * 본인 폰이 꺼져 있거나 두고 온 사람을 관리자가 대신 쉬게 하거나 복귀시킨다.
+     */
+    const setPlayerResting = useCallback(async (playerId, resting) => {
+        try {
+            await updateDoc(doc(playersRef, playerId), { isResting: !!resting });
+            toast(resting ? '휴식으로 변경했습니다. 😴' : '복귀 처리했습니다. 🏸');
+        } catch (e) {
+            logError('휴식 상태 변경(관리자)', e);
+            toast.error('상태 변경에 실패했습니다.');
+        }
+    }, [playersRef]);
 
     /** 선수를 예약 슬롯으로 옮기거나 서로 자리를 바꾼다 */
     const swapPlayers = useCallback(async (sourceIds, targetPlayerId, targetMatchIndex, targetSlotIndex) => {
@@ -953,23 +943,6 @@ export function useGameRoom({ roomId, user, superAdmin }) {
         catch (e) { logError('자동 매칭 전체 삭제', e); toast.error('삭제에 실패했습니다.'); }
     }, [roomRef]);
 
-    const createBots = useCallback(async (count, gender) => {
-        try {
-            const batch = writeBatch(db);
-            for (let i = 0; i < count; i += 1) {
-                const botId = `bot_${Date.now()}_${Math.floor(Math.random() * 1000)}_${i}`;
-                const level = ['A조', 'B조', 'C조', 'D조'][Math.floor(Math.random() * 4)];
-                batch.set(doc(playersRef, botId), {
-                    name: `Bot ${Math.floor(Math.random() * 1000)}`,
-                    level, gender, isBot: true,
-                    entryTime: serverTimestamp(), lastSeen: serverTimestamp(),
-                    todayGames: 0, isResting: false, matchHistory: [], todayRecentGames: [],
-                });
-            }
-            await batch.commit();
-        } catch (e) { logError('봇 생성', e); toast.error('봇 생성에 실패했습니다.'); }
-    }, [playersRef]);
-
     /** 비밀번호 확인용으로 방 문서를 한 번 읽는다 (구독 값이 아직 없을 때) */
     const fetchRoomOnce = useCallback(async () => {
         const snap = await getDoc(roomRef);
@@ -982,10 +955,10 @@ export function useGameRoom({ roomId, user, superAdmin }) {
         waitingPlayers, courtIndexByPlayer, staleList,
         roomRef, playersRef,
         // 동작
-        join, leave, toggleRest, swapPlayers, fillSlot, removeFromSchedule,
+        join, leave, toggleRest, setPlayerResting, swapPlayers, fillSlot, removeFromSchedule,
         startMatch, endMatch, undoEndMatch, saveGames, kickPlayer, cleanStale,
         appointAdmin, removeAdmin, createInviteCode, revokeInvite, redeemInvite,
         saveSettings, saveRoomInfo, saveNotice, resetSystem, kickAll, deleteRoom,
-        addAutoMatch, deleteAutoMatch, clearAutoMatches, createBots, fetchRoomOnce,
+        addAutoMatch, deleteAutoMatch, clearAutoMatches, fetchRoomOnce,
     };
 }

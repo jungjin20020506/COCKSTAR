@@ -174,9 +174,12 @@ console.log('\n[4] 이중 배정 방지 — 이미 예약된 사람은 후보에
 }
 
 // ───────────────────────────────────────────────────────────────────────────────────
-console.log('\n[5] 교착 해소 — 나가거나 쉬는 사람이 낀 예약 정리');
+console.log('\n[5] 교착 해소 — 나간 사람이 낀 예약 정리 (휴식은 해체 사유가 아니다)');
 {
-    // 남3이 방을 나갔다(문서 없음), 남6은 휴식으로 바꿨다
+    // 남3이 방을 나갔다(문서 없음), 남6은 휴식으로 바꿨다.
+    // ★ 정책 변경(2026-08-31): 휴식은 '표시'일 뿐 예약을 해체하지 않는다 —
+    //   관리자가 휴식 중인 선수를 그대로 경기에 올릴 수 있어야 하기 때문.
+    //   해체 대상은 '나간 사람'이 낀 경기뿐이다.
     const players = asMap([
         player('남1'), player('남2'), player('남4'), player('남5'),
         player('남6', { isResting: true }), player('남7'), player('남8'),
@@ -188,9 +191,10 @@ console.log('\n[5] 교착 해소 — 나가거나 쉬는 사람이 낀 예약 �
     const { changed, newState, dissolvedCount } = repairMatchQueues(queues, players);
 
     check('5-1. 고칠 게 있다고 판단한다', changed === true);
-    check('5-2. 자동 매칭은 경기를 통째로 해체한다', dissolvedCount === 2, `${dissolvedCount}경기 해체`);
-    check('5-3. 해체 후 번호를 조밀하게 다시 매긴다',
-        Object.keys(newState.autoMatches).length === 0,
+    check('5-2. 나간 사람이 낀 자동 매칭만 통째로 해체한다', dissolvedCount === 1, `${dissolvedCount}경기 해체`);
+    check('5-3. 휴식 선수가 낀 경기는 남고, 번호가 조밀하게 다시 매겨진다',
+        Object.keys(newState.autoMatches).length === 1
+        && JSON.stringify(newState.autoMatches['0']) === JSON.stringify(['남5', '남6', '남7', '남8']),
         JSON.stringify(newState.autoMatches));
     check('5-4. 경기 예정은 해당 칸만 비운다 (관리자 배치 존중)',
         newState.scheduledMatches['0'][0] === '남1' && newState.scheduledMatches['0'][1] === null,

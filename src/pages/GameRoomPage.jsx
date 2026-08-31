@@ -17,8 +17,11 @@ import { SettingsModal } from '../features/room/SettingsModal';
 import { EditRoomInfoModal } from '../features/room/EditRoomInfoModal';
 import { AdminManagerModal } from '../features/room/AdminManagerModal';
 import { BragCardModal } from '../features/room/BragCardModal';
-import { TestLabModal } from '../features/room/TestLabModal';
-import { ShareModal, CourtSelectionModal, EditGamesModal, AdminCodeModal } from '../features/room/SmallModals';
+import {
+    ShareModal, CourtSelectionModal, EditGamesModal, AdminCodeModal,
+    QrModal, NotiPermissionModal, shouldAskNotification,
+} from '../features/room/SmallModals';
+import { InstallGuideModal } from '../components/ui/InstallPrompt';
 import { MatchOptionsModal } from '../components/MatchOptionsModal';
 import { RoomEntryFX } from '../features/room/RoomEntryFX';
 import { MatchTimelineModal } from '../features/room/MatchTimelineModal';
@@ -27,7 +30,7 @@ import { ReportModal } from '../features/room/ReportModal';
 import { timeAgo } from '../lib/time';
 import { LoadingSpinner } from '../components/ui/Feedback';
 import {
-    ArrowLeft, Share2, Edit3, GripVertical, FlaskConical, Users, Lock,
+    ArrowLeft, Share2, Edit3, GripVertical, QrCode, Users, Lock,
     Trophy, KeyRound, Crown, LogOut, Clock, ShieldAlert,
 } from '../components/ui/icons';
 import { PLAYERS_PER_MATCH, FIELD_CLS } from '../constants';
@@ -142,11 +145,12 @@ export function GameRoomPage({ onLoginClick }) {
     const [showEditInfo, setShowEditInfo] = useState(false);
     const [showAdmins, setShowAdmins] = useState(false);
     const [showShare, setShowShare] = useState(false);
-    const [showTestLab, setShowTestLab] = useState(false);
+    const [showQr, setShowQr] = useState(false);
     const [showBrag, setShowBrag] = useState(false);
     const [showAdminCode, setShowAdminCode] = useState(false);
     const [editGamePlayer, setEditGamePlayer] = useState(null);
-    const [isAutoPlay, setIsAutoPlay] = useState(false);
+    const [showNotiAsk, setShowNotiAsk] = useState(false);
+    const [showInstallGuide, setShowInstallGuide] = useState(false);
 
     const [courtModal, setCourtModal] = useState(null);   // { matchIndex, source, courts }
     const [matchOptions, setMatchOptions] = useState(null);
@@ -240,6 +244,9 @@ export function GameRoomPage({ onLoginClick }) {
         try {
             await room.join(userData);
             toast('참가했습니다. 대기 명단에 올라갔어요!');
+            // 참가 직후 알림 권한을 한 번 권한다 — "내 차례" 알림의 가치가 가장 와닿는 순간이다.
+            // 이미 물어봤거나 권한이 정해진 기기에서는 조용히 넘어간다.
+            if (shouldAskNotification()) setTimeout(() => setShowNotiAsk(true), 900);
         } catch (e) {
             logError('방 참가', e);
             toast.error('참가에 실패했습니다.');
@@ -402,13 +409,14 @@ export function GameRoomPage({ onLoginClick }) {
     );
 
     // ── 빈 코트 펄스 — "지금 올릴 수 있는 경기"가 있는데 코트가 놀고 있을 때 ──
+    // 휴식 중인 선수가 낀 경기도 시작할 수 있으므로 휴식은 따지지 않는다.
     const hasStartable = useMemo(() => {
         const schedOk = Object.values(roomData?.scheduledMatches || {})
             .some(m => (m || []).filter(Boolean).length === PLAYERS_PER_MATCH
-                && (m || []).every(id => !id || (!inProgressPlayerIds.has(id) && players[id] && !players[id].isResting)));
+                && (m || []).every(id => !id || (!inProgressPlayerIds.has(id) && players[id])));
         const autoOk = Object.values(roomData?.autoMatches || {})
             .some(m => Array.isArray(m) && m.filter(Boolean).length === PLAYERS_PER_MATCH
-                && m.every(id => !inProgressPlayerIds.has(id) && players[id] && !players[id].isResting));
+                && m.every(id => !inProgressPlayerIds.has(id) && players[id]));
         return schedOk || autoOk;
     }, [roomData, players, inProgressPlayerIds]);
 
@@ -430,37 +438,6 @@ export function GameRoomPage({ onLoginClick }) {
         if (noticeSavedByMeRef.current) { noticeSavedByMeRef.current = false; return; }
         if (cur) toast('📢 공지가 업데이트되었습니다');
     }, [roomData]);
-
-    // ── 시뮬레이션 (슈퍼 관리자 전용) ──
-    useEffect(() => {
-        if (!isAutoPlay || !isAdmin || !roomData) return undefined;
-        const id = setInterval(() => {
-            const courts = roomData.inProgressCourts || [];
-            const occupied = courts.map((c, i) => (c ? i : -1)).filter(i => i >= 0);
-            const empty = [];
-            for (let i = 0; i < roomData.numInProgressCourts; i += 1) if (!courts[i]) empty.push(i);
-
-            if (occupied.length > 0 && Math.random() < 0.3) {
-                room.endMatch(occupied[Math.floor(Math.random() * occupied.length)]);
-                return;
-            }
-            const full = Object.entries(roomData.scheduledMatches || {})
-                .filter(([, m]) => m && m.filter(Boolean).length === PLAYERS_PER_MATCH)
-                .map(([k]) => parseInt(k, 10));
-            if (full.length > 0 && empty.length > 0 && Math.random() < 0.5) {
-                room.startMatch(full[0], empty[0]);
-                return;
-            }
-            if (waitingPlayers.length > 0) {
-                for (let m = 0; m < roomData.numScheduledMatches; m += 1) {
-                    const match = roomData.scheduledMatches?.[m] || Array(PLAYERS_PER_MATCH).fill(null);
-                    const slot = match.indexOf(null);
-                    if (slot !== -1) { room.fillSlot(m, slot, [waitingPlayers[0].id]); return; }
-                }
-            }
-        }, 700);
-        return () => clearInterval(id);
-    }, [isAutoPlay, isAdmin, roomData, waitingPlayers, room]);
 
     // ── 화면 ──
     // 읽기 권한이 없다 = 로그인이 필요하다 (공유 링크를 받은 사람의 기본 경로다)
@@ -648,6 +625,16 @@ export function GameRoomPage({ onLoginClick }) {
                 </div>
 
                 <div className="flex items-center gap-1 flex-shrink-0">
+                    {/* QR 초대 — 예전 '실험실' 자리. 누구나 누르면 이 방의 QR이 뜨고,
+                        스캔한 사람은 바로 /room/:id 로 들어온다 */}
+                    <button
+                        onClick={() => setShowQr(true)}
+                        aria-label="QR 코드로 초대"
+                        title="QR 코드로 초대"
+                        className="w-9 h-9 flex items-center justify-center rounded-full text-dim hover:text-volt hover:bg-white/5 transition-all"
+                    >
+                        <QrCode size={19} />
+                    </button>
                     <button
                         onClick={() => setShowShare(true)}
                         aria-label="경기방 공유"
@@ -692,27 +679,13 @@ export function GameRoomPage({ onLoginClick }) {
                     )}
 
                     {isAdmin && (
-                        <>
-                            {/* 시뮬레이션 랩은 개발자(슈퍼 관리자)에게만.
-                                예전에는 방 관리자면 누구나 볼 수 있어서 실제 운영 중인 방에
-                                봇을 쏟아붓는 사고가 날 수 있었다. */}
-                            {superAdmin && (
-                                <button
-                                    onClick={() => setShowTestLab(true)}
-                                    aria-label="시뮬레이션 랩"
-                                    className={`w-9 h-9 flex items-center justify-center rounded-full transition-all ${isAutoPlay ? 'bg-coral/20 text-coral animate-pulse' : 'text-dim hover:text-volt hover:bg-white/5'}`}
-                                >
-                                    <FlaskConical size={19} />
-                                </button>
-                            )}
-                            <button
-                                onClick={() => setShowSettings(true)}
-                                aria-label="방 설정"
-                                className="w-9 h-9 flex items-center justify-center rounded-full text-dim hover:text-txt hover:bg-white/5 transition-all"
-                            >
-                                <GripVertical size={19} />
-                            </button>
-                        </>
+                        <button
+                            onClick={() => setShowSettings(true)}
+                            aria-label="방 설정"
+                            className="w-9 h-9 flex items-center justify-center rounded-full text-dim hover:text-txt hover:bg-white/5 transition-all"
+                        >
+                            <GripVertical size={19} />
+                        </button>
                     )}
                 </div>
             </header>
@@ -1064,7 +1037,23 @@ export function GameRoomPage({ onLoginClick }) {
                 room={roomData}
                 roomId={roomId}
                 roomName={roomData.name}
+                onShowQr={() => setShowQr(true)}
             />
+
+            <QrModal
+                isOpen={showQr}
+                onClose={() => setShowQr(false)}
+                roomId={roomId}
+                roomName={roomData.name}
+            />
+
+            {/* 참가 직후 한 번 — 알림 권한 유도 (거절해도 모든 기능 그대로) */}
+            <NotiPermissionModal
+                isOpen={showNotiAsk}
+                onClose={() => setShowNotiAsk(false)}
+                onNeedInstall={() => setShowInstallGuide(true)}
+            />
+            <InstallGuideModal isOpen={showInstallGuide} onClose={() => setShowInstallGuide(false)} />
 
             <SettingsModal
                 isOpen={showSettings}
@@ -1158,8 +1147,11 @@ export function GameRoomPage({ onLoginClick }) {
             <EditGamesModal
                 isOpen={!!editGamePlayer}
                 onClose={() => setEditGamePlayer(null)}
-                player={editGamePlayer}
+                // 길게 누른 순간의 스냅샷이 아니라 '지금' 데이터를 보여준다 —
+                // 휴식 토글이 모달 안에서 바로 반영되게
+                player={editGamePlayer ? (players[editGamePlayer.id] || editGamePlayer) : null}
                 onSave={(id, count) => { room.saveGames(id, count); setEditGamePlayer(null); }}
+                onToggleRest={(p) => room.setPlayerResting(p.id, !p.isResting)}
             />
 
             <BragCardModal
@@ -1192,16 +1184,6 @@ export function GameRoomPage({ onLoginClick }) {
                 roomId={roomId}
                 roomName={roomData.name}
             />
-
-            {superAdmin && (
-                <TestLabModal
-                    isOpen={showTestLab}
-                    onClose={() => setShowTestLab(false)}
-                    onCreateBots={room.createBots}
-                    isAutoPlay={isAutoPlay}
-                    setIsAutoPlay={setIsAutoPlay}
-                />
-            )}
 
             {matchOptions && (
                 <MatchOptionsModal
