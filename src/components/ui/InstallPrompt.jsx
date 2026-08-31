@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Modal } from './Modal';
 import { CockstarMark } from './Logo';
-import { X, Download } from './icons';
+import { X, Download, Lock, Copy, Star, Edit3, Home, ShieldCheck, ChevronDown } from './icons';
 import { getDailyResetKey } from '../../lib/time';
 
 // ===================================================================================
@@ -186,35 +186,295 @@ export function useInstallState() {
     return { installed, canPrompt: !!deferred, promptInstall, isIOS: isIOS() };
 }
 
-/** 설치 안내 — 어디를 눌러야 하는지 그림으로 (인앱 브라우저면 탈출 방법부터) */
+// ===================================================================================
+// 설치 튜토리얼 — 실제 화면을 본뜬 그림으로 '정확히 어디를 누르는지' 보여준다
+// -----------------------------------------------------------------------------------
+// 글로 된 안내("메뉴에서 앱 설치를 누르세요")는 그 메뉴가 어디 있는지 모르는 사람을
+// 돕지 못한다. 그래서 브라우저 화면을 목업으로 그리고, 눌러야 할 곳을 라임색으로
+// 켠 뒤 화살표를 얹는다. 한 장에 한 동작 — 튜토리얼처럼 다음을 눌러 진행한다.
+//
+//   · 아이폰 사파리   : 공유 버튼 → "홈 화면에 추가" → "추가"
+//   · 안드로이드 크롬 : ⋮ 메뉴 → "앱 설치" → "설치"
+//   · 삼성 인터넷 등  : ⋮ 메뉴 → "현재 페이지 추가/앱으로 설치" → 구글 경고에서
+//                       "세부정보 더보기" → "무시하고 설치"  (+ 크롬 지름길 버튼)
+// ===================================================================================
+
+/** 아이폰 공유 아이콘 (네모에서 화살표가 위로) — 시스템 글리프는 폰트 밖이라 직접 그린다 */
+function IosShareGlyph({ size = 22 }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 15V3" />
+            <path d="M8 6l4-3.5L16 6" />
+            <path d="M8 10H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-2" />
+        </svg>
+    );
+}
+
+/** 목업 공통 틀 — '이건 진짜 화면이 아니라 그림'이라는 느낌의 폰 프레임 */
+function MockFrame({ children }) {
+    return (
+        <div className="rounded-2xl bg-[#0d1016] border border-white/10 p-3 select-none" aria-hidden="true">
+            {children}
+        </div>
+    );
+}
+
+/** 눌러야 할 곳 위에 얹는 화살표 */
+function TapArrow() {
+    return <span className="absolute -top-7 left-1/2 -translate-x-1/2 text-lg animate-bounce">👇</span>;
+}
+
+// ── 아이폰 사파리 3장 ──
+function MockIosToolbar() {
+    return (
+        <MockFrame>
+            <div className="mx-1 mb-4 h-8 rounded-xl bg-white/[0.07] flex items-center justify-center gap-1.5 text-[11px] font-bold text-dim">
+                <Lock size={11} /> cockstar.vercel.app
+            </div>
+            <div className="flex items-center justify-around pt-3 pb-1 text-muted">
+                <span className="text-xl font-bold">‹</span>
+                <span className="text-xl font-bold">›</span>
+                <span className="relative flex flex-col items-center">
+                    <TapArrow />
+                    <span className="w-11 h-11 rounded-2xl bg-volt text-ink flex items-center justify-center shadow-volt ring-4 ring-volt/25">
+                        <IosShareGlyph size={22} />
+                    </span>
+                </span>
+                <Star size={19} />
+                <Copy size={19} />
+            </div>
+        </MockFrame>
+    );
+}
+
+function MockIosShareSheet() {
+    const Row = ({ icon: Icon, label, hot }) => (
+        <div className={`relative flex items-center justify-between px-3.5 py-2.5 rounded-xl text-[12px] font-bold ${hot ? 'bg-volt text-ink font-black ring-4 ring-volt/25' : 'bg-white/[0.05] text-dim'}`}>
+            {hot && <TapArrow />}
+            <span>{label}</span>
+            <Icon size={15} />
+        </div>
+    );
+    return (
+        <MockFrame>
+            <div className="mx-auto w-10 h-1 rounded-full bg-white/15 mb-3" />
+            <div className="space-y-1.5 pt-4">
+                <Row icon={Copy} label="복사" />
+                <Row icon={Star} label="즐겨찾기에 추가" />
+                <Row icon={Home} label="홈 화면에 추가" hot />
+                <Row icon={Edit3} label="마크업" />
+            </div>
+        </MockFrame>
+    );
+}
+
+function MockIosAddConfirm() {
+    return (
+        <MockFrame>
+            <div className="flex items-center justify-between text-[12px] font-bold text-dim px-1 pt-5 mb-4">
+                <span>취소</span>
+                <span className="text-txt font-black">홈 화면에 추가</span>
+                <span className="relative">
+                    <TapArrow />
+                    <span className="px-3 py-1.5 rounded-lg bg-volt text-ink font-black ring-4 ring-volt/25">추가</span>
+                </span>
+            </div>
+            <div className="flex items-center gap-3 p-2.5 rounded-xl bg-white/[0.06]">
+                <CockstarMark size={38} plate className="rounded-xl shrink-0" />
+                <div className="min-w-0">
+                    <p className="text-[13px] font-black text-txt">COCKSTAR</p>
+                    <p className="text-[10px] text-muted font-medium truncate">https://cockstar.vercel.app</p>
+                </div>
+            </div>
+        </MockFrame>
+    );
+}
+
+// ── 안드로이드 크롬 3장 ──
+function MockChromeTopBar() {
+    return (
+        <MockFrame>
+            <div className="flex items-center gap-2 pt-5">
+                <div className="flex-1 h-9 rounded-full bg-white/[0.07] flex items-center px-3.5 gap-1.5 text-[11px] font-bold text-dim">
+                    <Lock size={11} /> cockstar.vercel.app
+                </div>
+                <span className="relative flex flex-col items-center shrink-0">
+                    <TapArrow />
+                    <span className="w-9 h-9 rounded-full bg-volt text-ink font-black text-lg leading-none flex items-center justify-center ring-4 ring-volt/25 pb-0.5">⋮</span>
+                </span>
+            </div>
+            <div className="mt-3 mx-1 h-10 rounded-xl bg-white/[0.03]" />
+        </MockFrame>
+    );
+}
+
+function MockChromeMenu() {
+    const Row = ({ icon: Icon, label, hot }) => (
+        <div className={`relative flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[12px] font-bold ${hot ? 'bg-volt text-ink font-black ring-4 ring-volt/25' : 'text-dim'}`}>
+            {hot && <TapArrow />}
+            {Icon && <Icon size={14} />}
+            <span>{label}</span>
+        </div>
+    );
+    return (
+        <MockFrame>
+            <div className="ml-auto w-[78%] rounded-2xl bg-white/[0.06] border border-white/10 p-1.5 space-y-0.5 mt-4">
+                <Row label="새 탭" />
+                <Row label="방문 기록" />
+                <Row icon={Download} label="앱 설치" hot />
+                <Row label="공유..." />
+                <Row label="데스크톱 사이트" />
+            </div>
+        </MockFrame>
+    );
+}
+
+function MockChromeInstallDialog() {
+    return (
+        <MockFrame>
+            <div className="p-3.5 rounded-2xl bg-white/[0.06] border border-white/10 mt-3">
+                <div className="flex items-center gap-3 mb-5">
+                    <CockstarMark size={38} plate className="rounded-xl shrink-0" />
+                    <div className="min-w-0">
+                        <p className="text-[13px] font-black text-txt">COCKSTAR 설치</p>
+                        <p className="text-[10px] text-muted font-medium truncate">cockstar.vercel.app</p>
+                    </div>
+                </div>
+                <div className="flex justify-end items-center gap-2 text-[12px] font-black">
+                    <span className="px-3 py-1.5 text-dim">취소</span>
+                    <span className="relative">
+                        <TapArrow />
+                        <span className="px-4 py-1.5 rounded-lg bg-volt text-ink ring-4 ring-volt/25">설치</span>
+                    </span>
+                </div>
+            </div>
+        </MockFrame>
+    );
+}
+
+// ── 삼성 인터넷 4장 (구글 경고 통과까지) ──
+function MockSamsungBottomBar() {
+    return (
+        <MockFrame>
+            <div className="mx-1 mb-4 h-8 rounded-xl bg-white/[0.07] flex items-center justify-center gap-1.5 text-[11px] font-bold text-dim">
+                <Lock size={11} /> cockstar.vercel.app
+            </div>
+            <div className="flex items-center justify-around pt-3 pb-1 text-muted">
+                <span className="text-xl font-bold">‹</span>
+                <span className="text-xl font-bold">›</span>
+                <Home size={19} />
+                <Star size={19} />
+                <span className="w-5 h-5 rounded border-2 border-current text-[9px] font-black flex items-center justify-center">41</span>
+                <span className="relative flex flex-col items-center">
+                    <TapArrow />
+                    <span className="w-9 h-9 rounded-full bg-volt text-ink font-black text-lg leading-none flex items-center justify-center ring-4 ring-volt/25 pb-0.5">⋮</span>
+                </span>
+            </div>
+        </MockFrame>
+    );
+}
+
+function MockSamsungMenu() {
+    const Row = ({ icon: Icon, label, hot }) => (
+        <div className={`relative flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[12px] font-bold ${hot ? 'bg-volt text-ink font-black ring-4 ring-volt/25' : 'text-dim'}`}>
+            {hot && <TapArrow />}
+            {Icon && <Icon size={14} />}
+            <span>{label}</span>
+        </div>
+    );
+    return (
+        <MockFrame>
+            <div className="mx-auto w-[86%] rounded-2xl bg-white/[0.06] border border-white/10 p-1.5 space-y-0.5 mt-4">
+                <Row label="다운로드" />
+                <Row label="방문 기록" />
+                <Row icon={Download} label="현재 페이지 추가" hot />
+                <Row label="텍스트 크기" />
+            </div>
+            <p className="text-center text-[10px] text-muted font-bold mt-2">
+                이어서 <b className="text-dim">"홈 화면"</b> 또는 <b className="text-dim">"앱으로 설치"</b>를 고르세요
+            </p>
+        </MockFrame>
+    );
+}
+
+function MockPlayProtectDialog({ expanded }) {
+    return (
+        <MockFrame>
+            <div className="p-4 rounded-2xl bg-white/[0.08] border border-white/10 mt-2 text-center">
+                <ShieldCheck size={22} className="mx-auto mb-1.5 text-blue-400" />
+                <p className="text-[10px] font-bold text-dim mb-1">Google Play 프로텍트</p>
+                <p className="text-[13px] font-black text-txt mb-3 break-keep">안전하지 않은 앱 차단됨</p>
+                {expanded ? (
+                    <div className="space-y-1.5">
+                        <div className="px-3 py-2 rounded-xl text-[11px] font-bold text-dim bg-white/[0.05]">확인 (설치 취소)</div>
+                        <div className="relative px-3 py-2 rounded-xl text-[12px] font-black bg-volt text-ink ring-4 ring-volt/25">
+                            <TapArrow />
+                            무시하고 설치
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        <div className="relative inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-volt text-ink text-[12px] font-black ring-4 ring-volt/25 mb-3">
+                            <TapArrow />
+                            세부정보 더보기 <ChevronDown size={13} />
+                        </div>
+                        <div className="px-3 py-2.5 rounded-xl text-[12px] font-bold text-dim bg-blue-500/20">확인 ← 누르지 마세요!</div>
+                    </>
+                )}
+            </div>
+        </MockFrame>
+    );
+}
+
+/** 브라우저별 튜토리얼 슬라이드 정의 */
+const IOS_SLIDES = [
+    { title: '화면 아래 공유 버튼을 누르세요', desc: '네모에서 화살표가 위로 올라가는 버튼이에요. 사파리 화면 아래 한가운데 있어요.', visual: <MockIosToolbar /> },
+    { title: '"홈 화면에 추가"를 누르세요', desc: '메뉴가 올라오면 살짝 위로 쓸어올려 "홈 화면에 추가"를 찾으세요.', visual: <MockIosShareSheet /> },
+    { title: '오른쪽 위 "추가"를 누르면 끝!', desc: '홈 화면에 콕스타 아이콘이 생겨요. 다음부터는 앱처럼 전체 화면으로 열립니다.', visual: <MockIosAddConfirm /> },
+];
+
+const CHROME_SLIDES = [
+    { title: '오른쪽 위 ⋮ 메뉴를 누르세요', desc: '주소창 오른쪽 끝, 세로 점 세 개예요.', visual: <MockChromeTopBar /> },
+    { title: '"앱 설치"를 누르세요', desc: '크롬 버전에 따라 "홈 화면에 추가"로 보이기도 해요.', visual: <MockChromeMenu /> },
+    { title: '"설치"를 누르면 끝!', desc: '확인 창에서 설치 한 번이면 홈 화면에 콕스타가 생깁니다. 경고 창 없이 바로 설치돼요.', visual: <MockChromeInstallDialog /> },
+];
+
+const SAMSUNG_SLIDES = [
+    { title: '오른쪽 아래 ⋮ 메뉴를 누르세요', desc: '화면 맨 아래 오른쪽 끝이에요.', visual: <MockSamsungBottomBar /> },
+    { title: '"현재 페이지 추가"를 누르세요', desc: '이어서 "홈 화면" 또는 "앱으로 설치"를 고르면 설치가 시작돼요.', visual: <MockSamsungMenu /> },
+    { title: '경고 창이 떠도 놀라지 마세요', desc: '크롬이 아닌 브라우저의 설치에 구글이 항상 띄우는 표준 경고예요. "확인"을 누르면 취소되니, 대신 "세부정보 더보기"를 누르세요.', visual: <MockPlayProtectDialog /> },
+    { title: '"무시하고 설치"를 누르면 끝!', desc: '콕스타는 개인정보를 수집하는 앱 파일이 아니에요. 설치 후 홈 화면에 아이콘이 생깁니다.', visual: <MockPlayProtectDialog expanded /> },
+];
+
+/** 설치 안내 — 브라우저별 화면 목업 튜토리얼 (인앱 브라우저면 탈출 방법부터) */
 export function InstallGuideModal({ isOpen, onClose }) {
     const ios = isIOS();
     const inApp = getInAppBrowser();
+    const [step, setStep] = useState(0);
 
-    return (
-        <Modal
-            open={isOpen}
-            onClose={onClose}
-            title={inApp ? '브라우저로 열기' : '홈 화면에 추가하기'}
-            subtitle={inApp ? '카톡·인앱 브라우저에서는 설치가 안 돼요' : ios ? '아이폰 · 아이패드' : '한 번만 하면 됩니다'}
-            size="max-w-xs"
-            variant="center"
-            zIndex="z-[160]"
-            footer={(
-                <button
-                    data-autofocus
-                    onClick={onClose}
-                    className="w-full py-3.5 bg-volt text-ink font-black rounded-full text-sm"
-                >
-                    알겠어요
-                </button>
-            )}
-        >
-            <div className="flex justify-center mb-5">
-                <CockstarMark size={64} plate className="rounded-2xl shadow-volt" />
-            </div>
+    // 열 때마다 첫 장부터
+    useEffect(() => { if (isOpen) setStep(0); }, [isOpen]);
 
-            {inApp ? (
+    // ── 인앱 브라우저: 설치 이전에 탈출부터 ──
+    if (inApp) {
+        return (
+            <Modal
+                open={isOpen}
+                onClose={onClose}
+                title="브라우저로 열기"
+                subtitle="카톡·인앱 브라우저에서는 설치가 안 돼요"
+                size="max-w-xs"
+                variant="center"
+                zIndex="z-[160]"
+                footer={(
+                    <button data-autofocus onClick={onClose} className="w-full py-3.5 bg-volt text-ink font-black rounded-full text-sm">
+                        알겠어요
+                    </button>
+                )}
+            >
+                <div className="flex justify-center mb-5">
+                    <CockstarMark size={64} plate className="rounded-2xl shadow-volt" />
+                </div>
                 <div className="space-y-3">
                     <button
                         onClick={() => { if (!escapeInAppBrowser()) { /* 아래 수동 안내가 이미 보인다 */ } }}
@@ -229,9 +489,7 @@ export function InstallGuideModal({ isOpen, onClose }) {
                             { n: 3, t: '열린 뒤 설치 안내를 따라주세요', d: '거기서는 홈 화면 설치와 알림이 됩니다.' },
                         ].map(s => (
                             <li key={s.n} className="flex gap-3 p-3 rounded-xl bg-white/[0.04] border border-white/[0.07]">
-                                <span className="w-6 h-6 rounded-full bg-volt text-ink text-xs font-black flex items-center justify-center shrink-0">
-                                    {s.n}
-                                </span>
+                                <span className="w-6 h-6 rounded-full bg-volt text-ink text-xs font-black flex items-center justify-center shrink-0">{s.n}</span>
                                 <div className="min-w-0">
                                     <p className="text-[13px] font-black text-txt break-keep">{s.t}</p>
                                     <p className="text-[11px] text-muted font-medium mt-0.5 break-keep">{s.d}</p>
@@ -240,63 +498,81 @@ export function InstallGuideModal({ isOpen, onClose }) {
                         ))}
                     </ol>
                 </div>
-            ) : ios ? (
-                <ol className="space-y-3">
-                    {[
-                        { n: 1, t: '아래 공유 버튼을 누르세요', d: '사각형에서 화살표가 위로 나오는 아이콘이에요.', icon: '􀈂' },
-                        { n: 2, t: '“홈 화면에 추가”를 찾으세요', d: '메뉴를 조금 내리면 있어요.', icon: '➕' },
-                        { n: 3, t: '“추가”를 누르면 끝!', d: '홈 화면에 콕스타 아이콘이 생깁니다.', icon: '✅' },
-                    ].map(s => (
-                        <li key={s.n} className="flex gap-3 p-3 rounded-xl bg-white/[0.04] border border-white/[0.07]">
-                            <span className="w-6 h-6 rounded-full bg-volt text-ink text-xs font-black flex items-center justify-center shrink-0">
-                                {s.n}
-                            </span>
-                            <div className="min-w-0">
-                                <p className="text-[13px] font-black text-txt break-keep">{s.t}</p>
-                                <p className="text-[11px] text-muted font-medium mt-0.5 break-keep">{s.d}</p>
-                            </div>
-                        </li>
-                    ))}
-                </ol>
-            ) : isAndroid() && !isAndroidChrome() ? (
-                /* 삼성 인터넷 등 — 여기서 설치하면 구글 경고가 뜬다. 크롬이 정답이고,
-                   굳이 여기서 하겠다면 경고를 넘어가는 길을 정확히 알려준다 */
-                <div className="space-y-3">
-                    <button
-                        onClick={openInChrome}
-                        className="w-full py-3.5 bg-volt text-ink font-black rounded-2xl text-sm active:scale-[0.98] transition-transform"
-                    >
-                        Chrome으로 열어 경고 없이 설치하기
-                    </button>
-                    <ol className="space-y-3">
-                        {[
-                            { n: 1, t: '이 브라우저에서 설치하려면', d: '메뉴(⋮ 또는 ≡)에서 "앱으로 설치" 또는 "현재 페이지 추가"를 누르세요.' },
-                            { n: 2, t: '"안전하지 않은 앱" 창이 뜨면', d: '"세부정보 더보기"를 누른 뒤 "무시하고 설치"를 선택하세요. 크롬이 아닌 브라우저의 설치에 구글이 띄우는 표준 경고로, 콕스타는 개인정보를 수집하는 앱 파일이 아니에요.' },
-                            { n: 3, t: '홈 화면에 아이콘이 생기면 끝!', d: '다음부터 전체 화면으로 빠르게 열립니다.' },
-                        ].map(s => (
-                            <li key={s.n} className="flex gap-3 p-3 rounded-xl bg-white/[0.04] border border-white/[0.07]">
-                                <span className="w-6 h-6 rounded-full bg-volt text-ink text-xs font-black flex items-center justify-center shrink-0">
-                                    {s.n}
-                                </span>
-                                <div className="min-w-0">
-                                    <p className="text-[13px] font-black text-txt break-keep">{s.t}</p>
-                                    <p className="text-[11px] text-muted font-medium mt-0.5 break-keep">{s.d}</p>
-                                </div>
-                            </li>
-                        ))}
-                    </ol>
-                </div>
-            ) : (
+            </Modal>
+        );
+    }
+
+    // ── 브라우저별 슬라이드 선택 ──
+    const samsungLike = isAndroid() && !isAndroidChrome();
+    const slides = ios ? IOS_SLIDES : samsungLike ? SAMSUNG_SLIDES : isAndroid() ? CHROME_SLIDES : null;
+
+    // 데스크톱 등 — 목업을 그릴 화면이 마땅치 않은 환경은 한 줄 안내로
+    if (!slides) {
+        return (
+            <Modal open={isOpen} onClose={onClose} title="홈 화면에 추가하기" size="max-w-xs" variant="center" zIndex="z-[160]"
+                footer={<button data-autofocus onClick={onClose} className="w-full py-3.5 bg-volt text-ink font-black rounded-full text-sm">알겠어요</button>}
+            >
                 <p className="text-sm text-dim font-medium leading-relaxed break-keep text-center">
                     브라우저 주소창 옆의 <b className="text-txt">설치</b> 아이콘을 누르거나,
                     메뉴에서 <b className="text-txt">앱 설치</b>를 고르면 됩니다.
                 </p>
+            </Modal>
+        );
+    }
+
+    const cur = slides[Math.min(step, slides.length - 1)];
+    const last = step >= slides.length - 1;
+
+    return (
+        <Modal
+            open={isOpen}
+            onClose={onClose}
+            title="홈 화면에 추가하기"
+            subtitle={ios ? '아이폰 · 아이패드 사파리' : samsungLike ? '삼성 인터넷 등' : '안드로이드 크롬'}
+            size="max-w-sm"
+            variant="center"
+            zIndex="z-[160]"
+            footer={(
+                <div className="flex items-center gap-2">
+                    {step > 0 && (
+                        <button onClick={() => setStep(s => s - 1)} className="px-5 py-3.5 bg-white/5 text-dim font-black rounded-full text-sm">
+                            이전
+                        </button>
+                    )}
+                    <button
+                        data-autofocus
+                        onClick={() => (last ? onClose() : setStep(s => s + 1))}
+                        className="flex-1 py-3.5 bg-volt text-ink font-black rounded-full text-sm shadow-volt"
+                    >
+                        {last ? '다 했어요! 🎉' : '다음'}
+                    </button>
+                </div>
+            )}
+        >
+            {/* 삼성 인터넷에는 항상 지름길을 함께 — 크롬이면 경고 없이 원버튼이다 */}
+            {samsungLike && (
+                <button
+                    onClick={openInChrome}
+                    className="w-full py-3 mb-4 bg-white/[0.05] border border-volt/40 text-volt font-black rounded-2xl text-[12px] active:scale-[0.98] transition-transform"
+                >
+                    ⚡ Chrome으로 열면 경고 없이 버튼 한 번에 설치돼요
+                </button>
             )}
 
-            <p className="text-[11px] text-muted font-medium mt-5 leading-relaxed break-keep text-center">
-                설치해도 용량은 거의 들지 않아요. 주소창 없이 전체 화면으로 열리고,
-                다음부터 훨씬 빨리 뜹니다.
+            <p className="text-center text-[11px] font-black label text-muted mb-2 tabular">
+                STEP {Math.min(step + 1, slides.length)} / {slides.length}
             </p>
+            <h4 className="text-center text-[15px] font-black text-txt kern-tight mb-1 break-keep">{cur.title}</h4>
+            <p className="text-center text-[12px] text-dim font-medium leading-relaxed break-keep mb-4 px-1">{cur.desc}</p>
+
+            {cur.visual}
+
+            {/* 진행 점 */}
+            <div className="flex justify-center gap-1.5 mt-4">
+                {slides.map((_, i) => (
+                    <span key={i} className={`h-1.5 rounded-full transition-all ${i === step ? 'w-5 bg-volt' : 'w-1.5 bg-white/15'}`} />
+                ))}
+            </div>
         </Modal>
     );
 }

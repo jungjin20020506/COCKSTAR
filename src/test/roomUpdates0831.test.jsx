@@ -21,7 +21,7 @@ vi.mock('qrcode', () => ({
 import { QrModal, NotiPermissionModal, EditGamesModal, shouldAskNotification } from '../features/room/SmallModals';
 import { AutoMatchSection } from '../features/room/AutoMatchSection';
 import { RoomEntryFX } from '../features/room/RoomEntryFX';
-import { InstallNudgeModal, withInstallFlag, isAndroidChrome } from '../components/ui/InstallPrompt';
+import { InstallNudgeModal, InstallGuideModal, withInstallFlag, isAndroidChrome } from '../components/ui/InstallPrompt';
 import { NotiPermissionBanner } from '../features/room/MyTurnBanner';
 import { repairMatchQueues } from '../lib/matchQueues';
 
@@ -293,6 +293,57 @@ describe('설치 유도 모달 (InstallNudgeModal)', () => {
         window.history.replaceState(null, '', '/');
         vi.unstubAllGlobals();
         vi.useRealTimers();
+    });
+});
+
+describe('설치 튜토리얼 (InstallGuideModal) — 브라우저별 화면 목업', () => {
+    const iphoneUA = { ...window.navigator, userAgent: 'Mozilla/5.0 (iPhone) Safari', maxTouchPoints: 5 };
+    const chromeUA = { ...window.navigator, userAgent: 'Mozilla/5.0 (Linux; Android 14) Chrome/126.0.0.0 Mobile Safari/537.36' };
+    const samsungUA = { ...window.navigator, userAgent: 'Mozilla/5.0 (Linux; Android 14) SamsungBrowser/25.0 Chrome/121.0 Mobile Safari/537.36' };
+
+    it('아이폰 사파리 — 공유 → 홈 화면에 추가 → 추가, 3장을 끝까지 넘긴다', () => {
+        vi.stubGlobal('navigator', iphoneUA);
+        const onClose = vi.fn();
+        const { getByText, container } = render(<InstallGuideModal isOpen onClose={onClose} />);
+
+        expect(container.textContent).toContain('STEP 1 / 3');
+        expect(container.textContent).toContain('공유 버튼을 누르세요');
+        fireEvent.click(getByText('다음'));
+        expect(container.textContent).toContain('홈 화면에 추가');
+        fireEvent.click(getByText('다음'));
+        expect(container.textContent).toContain('"추가"를 누르면 끝');
+        fireEvent.click(getByText('다 했어요! 🎉'));
+        expect(onClose).toHaveBeenCalled();
+        vi.unstubAllGlobals();
+    });
+
+    it('안드로이드 크롬 — ⋮ 메뉴 → 앱 설치 → 설치 3장', () => {
+        vi.stubGlobal('navigator', chromeUA);
+        const { getByText, container } = render(<InstallGuideModal isOpen onClose={() => {}} />);
+
+        expect(container.textContent).toContain('안드로이드 크롬');
+        expect(container.textContent).toContain('⋮ 메뉴를 누르세요');
+        fireEvent.click(getByText('다음'));
+        expect(container.textContent).toContain('앱 설치');
+        fireEvent.click(getByText('다음'));
+        expect(container.textContent).toContain('"설치"를 누르면 끝');
+        vi.unstubAllGlobals();
+    });
+
+    it('삼성 인터넷 — 구글 경고 통과(세부정보 더보기 → 무시하고 설치)까지 4장 + 크롬 지름길', () => {
+        vi.stubGlobal('navigator', samsungUA);
+        const { getByText, container } = render(<InstallGuideModal isOpen onClose={() => {}} />);
+
+        expect(container.textContent).toContain('STEP 1 / 4');
+        expect(container.textContent).toContain('Chrome으로 열면 경고 없이');   // 지름길 버튼
+        fireEvent.click(getByText('다음'));
+        expect(container.textContent).toContain('현재 페이지 추가');
+        fireEvent.click(getByText('다음'));
+        expect(container.textContent).toContain('세부정보 더보기');
+        expect(container.textContent).toContain('누르지 마세요');               // 확인 버튼 경고
+        fireEvent.click(getByText('다음'));
+        expect(container.textContent).toContain('무시하고 설치');
+        vi.unstubAllGlobals();
     });
 });
 
