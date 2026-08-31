@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Modal } from './Modal';
 import { CockstarMark } from './Logo';
 import { X, Download } from './icons';
+import { getDailyResetKey } from '../../lib/time';
 
 // ===================================================================================
 // 홈 화면에 설치하기
@@ -73,15 +74,31 @@ export function getInAppBrowser() {
 }
 
 /**
+ * 지금 주소에 install=1 표시를 붙인다.
+ * 인앱 브라우저에서 탈출한 사람이 크롬/사파리에 도착하는 순간, 이 표시를 보고
+ * 설치 안내(InstallNudgeModal)가 자동으로 열린다 — "버튼 한 번 → 브라우저 이동 →
+ * 바로 설치"로 이어지는 다리다.
+ */
+export function withInstallFlag(url) {
+    try {
+        const u = new URL(url);
+        u.searchParams.set('install', '1');
+        return u.toString();
+    } catch { return url; }
+}
+
+/**
  * 인앱 브라우저에서 기본 브라우저(크롬/사파리)로 탈출을 시도한다.
+ * 탈출 주소에는 install=1 이 붙어, 도착하자마자 설치 안내가 이어진다.
  * @returns {boolean} 자동 탈출을 시도했으면 true, 수동 안내가 필요하면 false
  */
 export function escapeInAppBrowser() {
     const kind = getInAppBrowser();
     if (!kind || typeof window === 'undefined') return false;
-    const url = window.location.href;
+    const url = withInstallFlag(window.location.href);
     try {
         if (kind === 'kakao') {
+            // 카카오톡 공식 스킴 — 안드로이드는 크롬, 아이폰은 사파리로 열린다
             window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(url)}`;
             return true;
         }
@@ -221,6 +238,154 @@ export function InstallGuideModal({ isOpen, onClose }) {
                 설치해도 용량은 거의 들지 않아요. 주소창 없이 전체 화면으로 열리고,
                 다음부터 훨씬 빨리 뜹니다.
             </p>
+        </Modal>
+    );
+}
+
+// ===================================================================================
+// 강한 설치 유도 — 화면 가운데 모달, 하루 한 번
+// -----------------------------------------------------------------------------------
+// 얇은 배너만으로는 설치율이 오르지 않았다. 그래서 하루 한 번, 환경에 맞는
+// '가장 짧은 설치 경로'를 큰 버튼 하나로 내민다.
+//
+//   · 카톡 등 인앱  → "브라우저로 열고 설치하기" (탈출 주소에 install=1 을 붙여
+//                     크롬/사파리 도착 즉시 이 모달이 다시 이어받는다)
+//   · 안드로이드 크롬 → "지금 설치하기" (네이티브 설치창이 바로 뜬다)
+//   · 아이폰 사파리  → 그림 단계 안내가 바로 열린다 (애플 정책상 버튼 설치 불가 —
+//                     공유 → 홈 화면에 추가, 두 번이면 끝)
+//
+// [지킨 선]
+//   닫기는 언제나 한 번에 되고, 안 깔아도 모든 기능이 그대로 된다.
+//   같은 날 다시 열어도 또 뜨지 않는다 (운영일 기준 1회). 설치되면 영영 안 뜬다.
+// ===================================================================================
+
+const PUSH_KEY = 'cockstar-install-push-day';
+
+/**
+ * 인앱 탈출로 도착했다는 표시(install=1)를 앱이 뜨자마자 딱 한 번 읽고 주소에서 지운다.
+ * ★ effect 안에서 읽으면 안 된다 — StrictMode 가 effect 를 두 번 돌리는데,
+ *   첫 번째 실행이 파라미터를 지워버리면 두 번째(실제) 실행은 아무것도 못 본다.
+ */
+function consumeInstallFlag() {
+    if (typeof window === 'undefined') return false;
+    try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('install') !== '1') return false;
+        params.delete('install');
+        const q = params.toString();
+        window.history.replaceState(
+            null, '',
+            window.location.pathname + (q ? `?${q}` : '') + window.location.hash,
+        );
+        return true;
+    } catch { return false; }
+}
+const arrivedFromEscape = consumeInstallFlag();
+
+export function InstallNudgeModal() {
+    const { installed, canPrompt, promptInstall } = useInstallState();
+    const [show, setShow] = useState(false);
+    const [showGuide, setShowGuide] = useState(false);
+    const inApp = getInAppBrowser();
+    const ios = isIOS();
+
+    useEffect(() => {
+        if (installed) return undefined;
+
+        // 인앱에서 탈출해 방금 도착한 경우(install=1) — 하루 1회 제한 없이 바로 잇는다
+        const fromEscape = arrivedFromEscape;
+
+        try {
+            if (!fromEscape && localStorage.getItem(PUSH_KEY) === getDailyResetKey()) return undefined;
+        } catch { /* noop */ }
+
+        // 권할 방법이 하나도 없는 환경(구형 데스크톱 브라우저 등)은 조용히
+        if (!fromEscape && !inApp && !ios && !isAndroid() && !canPrompt) return undefined;
+
+        // 경기방으로 바로 들어온 사람은 지금 '참가'가 목적이다 — 참가 확인·알림 권한
+        // 흐름 위에 설치 모달까지 끼어들면 그냥 나가버린다. 방 화면에서는 띄우지 않는다.
+        // (단, '브라우저로 열고 설치하기'를 직접 누르고 온 경우는 설치가 목적이므로 예외)
+        if (!fromEscape && window.location.pathname.startsWith('/room/')) return undefined;
+
+        const t = setTimeout(() => setShow(true), fromEscape ? 400 : 1800);
+        return () => clearTimeout(t);
+    }, [installed, canPrompt, inApp, ios]);
+
+    const dismiss = () => {
+        setShow(false);
+        setShowGuide(false);
+        try { localStorage.setItem(PUSH_KEY, getDailyResetKey()); } catch { /* noop */ }
+    };
+
+    if (!show || installed) return null;
+
+    // ── 아이폰 사파리: 그림 단계 안내를 바로 연다 (이게 곧 설치 화면이다) ──
+    if (!inApp && ios) {
+        return <InstallGuideModal isOpen onClose={dismiss} />;
+    }
+
+    // 탈출 실패(아이폰 인스타 인앱 등) 시 수동 안내로
+    if (showGuide) {
+        return <InstallGuideModal isOpen onClose={dismiss} />;
+    }
+
+    const appName = inApp
+        ? ({ kakao: '카카오톡', line: '라인', instagram: '인스타그램', facebook: '페이스북', naver: '네이버', daum: '다음' }[inApp] || '인앱 브라우저')
+        : null;
+
+    return (
+        <Modal open onClose={dismiss} variant="center" size="max-w-xs" ariaLabel="앱 설치 안내" zIndex="z-[150]">
+            <div className="text-center mb-5 pt-2">
+                <div className="flex justify-center mb-4">
+                    <CockstarMark size={64} plate className="rounded-2xl shadow-volt animate-pop" />
+                </div>
+                <h3 className="text-lg font-black text-txt kern-tight mb-2">
+                    {inApp ? '앱으로 설치하고 쓰세요' : '콕스타를 앱으로 설치하세요'}
+                </h3>
+                <p className="text-sm text-dim font-medium leading-relaxed break-keep">
+                    {inApp
+                        ? <>{appName} 안에서는 설치와 알림이 안 돼요.<br />버튼 한 번이면 브라우저로 열리고,<br />바로 설치까지 이어집니다.</>
+                        : <>홈 화면에서 전체 화면으로 열리고<br /><b className="text-txt">내 차례 알림</b>까지 받을 수 있어요.</>}
+                </p>
+            </div>
+
+            <div className="space-y-2">
+                {inApp ? (
+                    <>
+                        <button
+                            data-autofocus
+                            onClick={() => { if (!escapeInAppBrowser()) setShowGuide(true); }}
+                            className="w-full py-4 bg-volt text-ink font-black rounded-full shadow-volt text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                        >
+                            <Download size={17} /> 브라우저로 열고 설치하기
+                        </button>
+                        {/* 스킴이 막힌 일부 기기 — 버튼이 조용히 실패하면 이 줄이 유일한 출구다 */}
+                        <button
+                            onClick={() => setShowGuide(true)}
+                            className="w-full py-1 text-[11px] text-muted font-bold break-keep"
+                        >
+                            버튼이 안 되면? <span className="underline text-dim">⋯ 메뉴로 여는 방법 보기</span>
+                        </button>
+                    </>
+                ) : (
+                    <button
+                        data-autofocus
+                        onClick={() => {
+                            if (canPrompt) promptInstall().then(dismiss);
+                            else setShowGuide(true);
+                        }}
+                        className="w-full py-4 bg-volt text-ink font-black rounded-full shadow-volt text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                    >
+                        <Download size={17} /> {canPrompt ? '지금 설치하기' : '설치 방법 보기'}
+                    </button>
+                )}
+                <button onClick={dismiss} className="w-full py-2.5 text-muted text-sm font-bold">
+                    괜찮아요, 그냥 볼게요
+                </button>
+                <p className="text-[10px] text-muted font-medium text-center break-keep">
+                    설치하지 않아도 모든 기능을 그대로 쓸 수 있어요.
+                </p>
+            </div>
         </Modal>
     );
 }

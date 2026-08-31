@@ -8,7 +8,7 @@ import { ConfirmProvider } from './components/ui/confirm';
 import { Toaster } from './lib/toast';
 import { LoadingSpinner, OfflineBanner } from './components/ui/Feedback';
 import { CockstarLogo } from './components/ui/Logo';
-import { InstallBanner, InstallGuideModal, countVisit } from './components/ui/InstallPrompt';
+import { InstallBanner, InstallGuideModal, InstallNudgeModal, countVisit } from './components/ui/InstallPrompt';
 import { UpdateBanner } from './components/ui/UpdateBanner';
 import { NotificationCenter, useNotiBadge } from './components/ui/NotificationCenter';
 import { checkVersionGate, forceUpdate } from './lib/appConfig';
@@ -244,6 +244,8 @@ function Shell() {
 
             <UpdateBanner />
             <InstallBanner />
+            {/* 하루 한 번, 환경별 최단 설치 경로를 큰 버튼으로 — 인앱 탈출(install=1) 후속도 여기서 받는다 */}
+            <InstallNudgeModal />
             <TabBar onNeedAuth={() => setAuthOpen(true)} />
 
             {needsProfile && <InitialProfileModal user={user} />}

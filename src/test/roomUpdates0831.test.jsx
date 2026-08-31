@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, fireEvent, waitFor } from '@testing-library/react';
+import { render, fireEvent, waitFor, act } from '@testing-library/react';
 
 // ===================================================================================
 // 2026-08-31 업데이트 검증
@@ -21,6 +21,7 @@ vi.mock('qrcode', () => ({
 import { QrModal, NotiPermissionModal, EditGamesModal, shouldAskNotification } from '../features/room/SmallModals';
 import { AutoMatchSection } from '../features/room/AutoMatchSection';
 import { RoomEntryFX } from '../features/room/RoomEntryFX';
+import { InstallNudgeModal, withInstallFlag } from '../components/ui/InstallPrompt';
 import { repairMatchQueues } from '../lib/matchQueues';
 
 beforeEach(() => {
@@ -174,6 +175,51 @@ describe('입장 연출 (RoomEntryFX) — 방마다 하루 한 번만', () => {
         const other = render(<RoomEntryFX roomId="fx-other" roomName="목요 게스트전" />);
         expect(other.container.textContent).toContain('목요 게스트전');
         other.unmount();
+    });
+});
+
+describe('설치 유도 모달 (InstallNudgeModal)', () => {
+    it('탈출 주소에 install=1 표시가 붙는다', () => {
+        expect(withInstallFlag('https://cockstar.vercel.app/room/abc')).toBe(
+            'https://cockstar.vercel.app/room/abc?install=1',
+        );
+        // 기존 쿼리가 있어도 보존된다
+        expect(withInstallFlag('https://cockstar.vercel.app/room/abc?x=1')).toContain('x=1');
+        expect(withInstallFlag('https://cockstar.vercel.app/room/abc?x=1')).toContain('install=1');
+    });
+
+    it('카카오톡 인앱 — "브라우저로 열고 설치하기" 버튼 하나를 내민다', async () => {
+        vi.useFakeTimers();
+        vi.stubGlobal('navigator', { ...window.navigator, userAgent: 'Mozilla/5.0 KAKAOTALK', maxTouchPoints: 5 });
+
+        const { container, getByText } = render(<InstallNudgeModal />);
+        await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+        expect(getByText('브라우저로 열고 설치하기')).toBeTruthy();
+        expect(container.textContent).toContain('카카오톡 안에서는 설치와 알림이 안 돼요');
+
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+    });
+
+    it('인앱 탈출 후 도착(install=1) — 아이폰 사파리에서 설치 안내가 바로 열리고 주소가 정리된다', async () => {
+        vi.useFakeTimers();
+        vi.stubGlobal('navigator', { ...window.navigator, userAgent: 'Mozilla/5.0 iPhone Safari', maxTouchPoints: 5 });
+        window.history.replaceState(null, '', '/?install=1');
+
+        // install=1 은 '앱이 뜨는 순간'(모듈 로드 시점)에 한 번만 읽힌다 —
+        // 실제 앱 시작을 흉내 내려면 모듈을 새로 불러와야 한다
+        vi.resetModules();
+        const { InstallNudgeModal: FreshNudge } = await import('../components/ui/InstallPrompt');
+
+        const { container } = render(<FreshNudge />);
+        await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+        expect(container.textContent).toContain('홈 화면에 추가');
+        // 주소의 install=1 은 바로 지워진다 (새로고침해도 또 뜨지 않게)
+        expect(window.location.search).not.toContain('install');
+
+        window.history.replaceState(null, '', '/');
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
     });
 });
 
