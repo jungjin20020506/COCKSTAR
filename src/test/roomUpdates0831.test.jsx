@@ -21,7 +21,7 @@ vi.mock('qrcode', () => ({
 import { QrModal, NotiPermissionModal, EditGamesModal, shouldAskNotification } from '../features/room/SmallModals';
 import { AutoMatchSection } from '../features/room/AutoMatchSection';
 import { RoomEntryFX } from '../features/room/RoomEntryFX';
-import { InstallNudgeModal, withInstallFlag } from '../components/ui/InstallPrompt';
+import { InstallNudgeModal, withInstallFlag, isAndroidChrome } from '../components/ui/InstallPrompt';
 import { NotiPermissionBanner } from '../features/room/MyTurnBanner';
 import { repairMatchQueues } from '../lib/matchQueues';
 
@@ -242,6 +242,33 @@ describe('설치 유도 모달 (InstallNudgeModal)', () => {
         await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
         expect(getByText('브라우저로 열고 설치하기')).toBeTruthy();
         expect(container.textContent).toContain('카카오톡 안에서는 설치와 알림이 안 돼요');
+
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+    });
+
+    it('삼성 인터넷과 크롬을 정확히 가른다 (Play 프로텍트 경고 회피의 근거)', () => {
+        const samsung = 'Mozilla/5.0 (Linux; Android 14; SM-S921N) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/25.0 Chrome/121.0.0.0 Mobile Safari/537.36';
+        const chrome = 'Mozilla/5.0 (Linux; Android 14; SM-S921N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36';
+
+        vi.stubGlobal('navigator', { ...window.navigator, userAgent: samsung });
+        expect(isAndroidChrome()).toBe(false);
+        vi.stubGlobal('navigator', { ...window.navigator, userAgent: chrome });
+        expect(isAndroidChrome()).toBe(true);
+        vi.unstubAllGlobals();
+    });
+
+    it('삼성 인터넷 — 설치 대신 "Chrome으로 열고 설치하기"를 내민다', async () => {
+        vi.useFakeTimers();
+        vi.stubGlobal('navigator', {
+            ...window.navigator,
+            userAgent: 'Mozilla/5.0 (Linux; Android 14) SamsungBrowser/25.0 Chrome/121.0 Mobile Safari/537.36',
+        });
+
+        const { container, getByText } = render(<InstallNudgeModal />);
+        await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+        expect(getByText('Chrome으로 열고 설치하기')).toBeTruthy();
+        expect(container.textContent).toContain('경고 없이 설치');
 
         vi.unstubAllGlobals();
         vi.useRealTimers();

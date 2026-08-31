@@ -7,7 +7,7 @@ import { useTutorial } from '../features/tutorial/useTutorial';
 import { ALL_GUIDE_KEYS } from '../features/tutorial/guideKeys';
 import { EditProfileModal } from '../features/auth/EditProfileModal';
 import { FeedbackModal } from '../features/feedback/FeedbackModal';
-import { InstallGuideModal, useInstallState } from '../components/ui/InstallPrompt';
+import { InstallGuideModal, useInstallState, isAndroid, isAndroidChrome } from '../components/ui/InstallPrompt';
 import { ReportQueueModal } from '../features/room/ReportModal';
 import { ProductCardGrid } from '../components/ProductCards';
 import { EmptyState } from '../components/ui/Feedback';
@@ -246,7 +246,11 @@ export function MyInfoPage({ onLoginClick }) {
                         icon={Download}
                         label="홈 화면에 앱 설치하기"
                         sub="한 번 설치하면 전체 화면으로 더 빠르게 열려요"
-                        onClick={() => { if (canPrompt) promptInstall(); else setShowInstall(true); }}
+                        onClick={() => {
+                            // 삼성 인터넷 등은 설치 시 구글 경고가 뜬다 — 안내(크롬 이동 포함)로
+                            if (isAndroid() && !isAndroidChrome()) { setShowInstall(true); return; }
+                            if (canPrompt) promptInstall(); else setShowInstall(true);
+                        }}
                     />
                 )}
                 {superAdmin && (

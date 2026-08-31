@@ -50,6 +50,37 @@ export function isAndroid() {
     return /Android/i.test(navigator.userAgent);
 }
 
+/**
+ * 안드로이드의 '진짜 크롬'인가.
+ *
+ * 왜 가르나 — PWA 설치 결과물이 브라우저마다 다르다.
+ *   · 크롬: 구글 서버가 서명한 WebAPK — 설치창 한 번이면 끝, 경고 없음
+ *   · 삼성 인터넷 등: 자체 생성 패키지가 구버전 SDK 를 타깃해서 Play 프로텍트가
+ *     "안전하지 않은 앱 차단됨" 경고를 띄운다 (실사용자 스크린샷으로 확인).
+ * 그래서 안드로이드인데 크롬이 아니면, 설치 대신 '크롬으로 열기'를 권한다.
+ *
+ * 삼성 인터넷·엣지·웨일 등도 UA 에 "Chrome/"을 넣으므로 자기 이름으로 걸러낸다.
+ */
+export function isAndroidChrome() {
+    if (!isAndroid()) return false;
+    const ua = navigator.userAgent || '';
+    return /Chrome\/\d+/.test(ua)
+        && !/SamsungBrowser|EdgA|EdgW|OPR\/|Whale|NAVER|UCBrowser|MiuiBrowser|Firefox/i.test(ua);
+}
+
+/**
+ * 지금 페이지를 크롬으로 다시 연다 (install=1 을 붙여 도착 즉시 설치로 잇는다).
+ * 크롬이 없는 기기는 fallback 주소로 그냥 남는다.
+ */
+export function openInChrome() {
+    if (typeof window === 'undefined') return;
+    const flagged = withInstallFlag(window.location.href);
+    const noProto = flagged.replace(/^https?:\/\//, '');
+    try {
+        window.location.href = `intent://${noProto}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(flagged)};end`;
+    } catch { /* 인텐트가 막힌 환경 — 아무 일도 안 일어난다 */ }
+}
+
 // ===================================================================================
 // 인앱 브라우저 — 콕스타 유입의 대부분은 카카오톡 링크인데, 카톡이 여는 내장
 // 브라우저에서는 PWA 설치가 '원래' 불가능하다 (설치 이벤트도, 사파리 공유 버튼도 없다).
@@ -227,6 +258,34 @@ export function InstallGuideModal({ isOpen, onClose }) {
                         </li>
                     ))}
                 </ol>
+            ) : isAndroid() && !isAndroidChrome() ? (
+                /* 삼성 인터넷 등 — 여기서 설치하면 구글 경고가 뜬다. 크롬이 정답이고,
+                   굳이 여기서 하겠다면 경고를 넘어가는 길을 정확히 알려준다 */
+                <div className="space-y-3">
+                    <button
+                        onClick={openInChrome}
+                        className="w-full py-3.5 bg-volt text-ink font-black rounded-2xl text-sm active:scale-[0.98] transition-transform"
+                    >
+                        Chrome으로 열어 경고 없이 설치하기
+                    </button>
+                    <ol className="space-y-3">
+                        {[
+                            { n: 1, t: '이 브라우저에서 설치하려면', d: '메뉴(⋮ 또는 ≡)에서 "앱으로 설치" 또는 "현재 페이지 추가"를 누르세요.' },
+                            { n: 2, t: '"안전하지 않은 앱" 창이 뜨면', d: '"세부정보 더보기"를 누른 뒤 "무시하고 설치"를 선택하세요. 크롬이 아닌 브라우저의 설치에 구글이 띄우는 표준 경고로, 콕스타는 개인정보를 수집하는 앱 파일이 아니에요.' },
+                            { n: 3, t: '홈 화면에 아이콘이 생기면 끝!', d: '다음부터 전체 화면으로 빠르게 열립니다.' },
+                        ].map(s => (
+                            <li key={s.n} className="flex gap-3 p-3 rounded-xl bg-white/[0.04] border border-white/[0.07]">
+                                <span className="w-6 h-6 rounded-full bg-volt text-ink text-xs font-black flex items-center justify-center shrink-0">
+                                    {s.n}
+                                </span>
+                                <div className="min-w-0">
+                                    <p className="text-[13px] font-black text-txt break-keep">{s.t}</p>
+                                    <p className="text-[11px] text-muted font-medium mt-0.5 break-keep">{s.d}</p>
+                                </div>
+                            </li>
+                        ))}
+                    </ol>
+                </div>
             ) : (
                 <p className="text-sm text-dim font-medium leading-relaxed break-keep text-center">
                     브라우저 주소창 옆의 <b className="text-txt">설치</b> 아이콘을 누르거나,
@@ -304,10 +363,13 @@ export function InstallNudgeModal() {
 
         // 경기방으로 바로 들어온 사람은 지금 '참가'가 목적이다 — 참가 확인·알림 권한
         // 흐름 위에 설치 모달까지 끼어들면 그냥 나가버린다. 방 화면에서는 띄우지 않는다.
-        // (단, '브라우저로 열고 설치하기'를 직접 누르고 온 경우는 설치가 목적이므로 예외)
-        if (!fromEscape && window.location.pathname.startsWith('/room/')) return undefined;
+        // 예외 둘: ① install=1 로 도착(설치가 목적) ② 카톡 등 인앱(여기 계속 있으면
+        // 설치도 알림도 영영 안 되므로, 방을 충분히 본 뒤 탈출 안내를 띄운다)
+        const onRoomPage = window.location.pathname.startsWith('/room/');
+        if (!fromEscape && !inApp && onRoomPage) return undefined;
 
-        const t = setTimeout(() => setShow(true), fromEscape ? 400 : 1800);
+        const delay = fromEscape ? 400 : (inApp && onRoomPage ? 3500 : 1800);
+        const t = setTimeout(() => setShow(true), delay);
         return () => clearTimeout(t);
     }, [installed, canPrompt, inApp, ios]);
 
@@ -333,6 +395,10 @@ export function InstallNudgeModal() {
         ? ({ kakao: '카카오톡', line: '라인', instagram: '인스타그램', facebook: '페이스북', naver: '네이버', daum: '다음' }[inApp] || '인앱 브라우저')
         : null;
 
+    // 안드로이드인데 크롬이 아니다(삼성 인터넷 등) — 여기서 설치하면 Play 프로텍트가
+    // "안전하지 않은 앱" 경고를 띄운다. 크롬으로 한 번 옮겨서 경고 없이 설치시킨다.
+    const androidNonChrome = !inApp && isAndroid() && !isAndroidChrome();
+
     return (
         <Modal open onClose={dismiss} variant="center" size="max-w-xs" ariaLabel="앱 설치 안내" zIndex="z-[150]">
             <div className="text-center mb-5 pt-2">
@@ -345,7 +411,9 @@ export function InstallNudgeModal() {
                 <p className="text-sm text-dim font-medium leading-relaxed break-keep">
                     {inApp
                         ? <>{appName} 안에서는 설치와 알림이 안 돼요.<br />버튼 한 번이면 브라우저로 열리고,<br />바로 설치까지 이어집니다.</>
-                        : <>홈 화면에서 전체 화면으로 열리고<br /><b className="text-txt">내 차례 알림</b>까지 받을 수 있어요.</>}
+                        : androidNonChrome
+                            ? <>이 브라우저에서 설치하면 구글이<br />경고 창을 띄워요. <b className="text-txt">Chrome으로 열면</b><br />버튼 한 번에 경고 없이 설치됩니다.</>
+                            : <>홈 화면에서 전체 화면으로 열리고<br /><b className="text-txt">내 차례 알림</b>까지 받을 수 있어요.</>}
                 </p>
             </div>
 
@@ -365,6 +433,22 @@ export function InstallNudgeModal() {
                             className="w-full py-1 text-[11px] text-muted font-bold break-keep"
                         >
                             버튼이 안 되면? <span className="underline text-dim">⋯ 메뉴로 여는 방법 보기</span>
+                        </button>
+                    </>
+                ) : androidNonChrome ? (
+                    <>
+                        <button
+                            data-autofocus
+                            onClick={openInChrome}
+                            className="w-full py-4 bg-volt text-ink font-black rounded-full shadow-volt text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+                        >
+                            <Download size={17} /> Chrome으로 열고 설치하기
+                        </button>
+                        <button
+                            onClick={() => setShowGuide(true)}
+                            className="w-full py-1 text-[11px] text-muted font-bold break-keep"
+                        >
+                            그냥 여기서 설치할래요 <span className="underline text-dim">(경고 창 넘어가는 법)</span>
                         </button>
                     </>
                 ) : (
@@ -467,7 +551,11 @@ export function InstallBanner() {
                     </p>
                 </div>
                 <button
-                    onClick={() => { if (canPrompt) promptInstall().then(dismiss); else setShowGuide(true); }}
+                    onClick={() => {
+                        // 삼성 인터넷 등에서 네이티브 설치를 밀면 구글 경고가 뜬다 — 안내(크롬 이동 포함)로
+                        if (isAndroid() && !isAndroidChrome()) { setShowGuide(true); return; }
+                        if (canPrompt) promptInstall().then(dismiss); else setShowGuide(true);
+                    }}
                     className="px-4 py-2.5 rounded-full bg-volt text-ink text-[12px] font-black shrink-0 flex items-center gap-1.5 shadow-volt active:scale-95 transition-transform"
                 >
                     <Download size={14} /> {canPrompt ? '바로 설치' : '설치'}
