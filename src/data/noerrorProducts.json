@@ -1,12 +1,12 @@
 {
- "fetchedAt": "2026-08-30T20:11:44.207Z",
+ "fetchedAt": "2026-09-06T19:42:31.848Z",
  "source": "https://www.pjbsports.com",
- "count": 195,
+ "count": 200,
  "byCategory": {
+  "배드민턴 의류": 76,
   "배드민턴라켓": 13,
-  "Acc": 20,
+  "Acc": 19,
   "2026SS": 28,
-  "배드민턴 의류": 70,
   "셔틀콕": 4,
   "배드민턴 가방": 35,
   "배드민턴화": 5,
@@ -119,7 +119,6 @@
   1230,
   1236,
   1237,
-  1239,
   1243,
   1244,
   1248,
@@ -210,6 +209,114 @@
   1584
  ],
  "products": [
+  {
+   "idx": 1590,
+   "name": "PJB 트리코트 5부 반바지",
+   "modelCode": "PJBHP-M407",
+   "brand": "PJB",
+   "category": "배드민턴 의류",
+   "color": "블랙",
+   "size": "남95~120",
+   "price": 43000,
+   "originalPrice": 55000,
+   "soldOut": false,
+   "images": [
+    "https://cdn.imweb.me/thumbnail/20260902/63e46a3659ea4acb.jpg",
+    "https://cdn.imweb.me/thumbnail/20260902/737307b517bb4c1a.jpg"
+   ],
+   "description": "[ 제품 설명 ]PJB 트리코트 5부 반바지색 상 : 블랙사이즈 : 남95~120원 단 : NYLON 76%, SPANDEX 24%",
+   "url": "https://www.pjbsports.com/shop_view/1590"
+  },
+  {
+   "idx": 1589,
+   "name": "PJB 트리코트 5부 반바지 (여)",
+   "modelCode": "PJBHP-W407",
+   "brand": "PJB",
+   "category": "배드민턴 의류",
+   "color": "블랙",
+   "size": "여85~105",
+   "price": 43000,
+   "originalPrice": 55000,
+   "soldOut": false,
+   "images": [
+    "https://cdn.imweb.me/thumbnail/20260902/f0ffb098d0c64606.jpg",
+    "https://cdn.imweb.me/thumbnail/20260902/7b83780ee2884788.jpg"
+   ],
+   "description": "[ 제품 설명 ]PJB 트리코트 5부 반바지 (여)색 상 : 블랙사이즈 : 여85~105원 단 : NYLON 76%, SPANDEX 24%",
+   "url": "https://www.pjbsports.com/shop_view/1589"
+  },
+  {
+   "idx": 1588,
+   "name": "PJB 트리코트 5부 반바지 (여)",
+   "modelCode": "PJBHP-W406",
+   "brand": "PJB",
+   "category": "배드민턴 의류",
+   "color": "블랙",
+   "size": "여85~105",
+   "price": 43000,
+   "originalPrice": 55000,
+   "soldOut": false,
+   "images": [
+    "https://cdn.imweb.me/thumbnail/20260902/a38c1064596f4f83.jpg",
+    "https://cdn.imweb.me/thumbnail/20260902/e223c7a5a8db41f7.jpg"
+   ],
+   "description": "[ 제품 설명 ]PJB 트리코트 5부 반바지 (여)색 상 : 블랙사이즈 : 여85~105원 단 : NYLON 76%, SPANDEX 24%",
+   "url": "https://www.pjbsports.com/shop_view/1588"
+  },
+  {
+   "idx": 1587,
+   "name": "PJB 트리코트 5부 반바지",
+   "modelCode": "PJBHP-M406",
+   "brand": "PJB",
+   "category": "배드민턴 의류",
+   "color": "블랙",
+   "size": "남95~120",
+   "price": 43000,
+   "originalPrice": 55000,
+   "soldOut": false,
+   "images": [
+    "https://cdn.imweb.me/thumbnail/20260902/be1c2030c0eb4ba5.jpg",
+    "https://cdn.imweb.me/thumbnail/20260902/6b15eb6ced6043c9.jpg"
+   ],
+   "description": "[ 제품 설명 ]PJB 트리코트 5부 반바지색 상 : 블랙사이즈 : 남95~120원 단 : NYLON 76%, SPANDEX 24%",
+   "url": "https://www.pjbsports.com/shop_view/1587"
+  },
+  {
+   "idx": 1586,
+   "name": "프로스펙스 7부바지 (여)",
+   "modelCode": "PT3WH24M951 (여)",
+   "brand": "프로스펙스",
+   "category": "배드민턴 의류",
+   "color": "BLACK",
+   "size": "여85~105",
+   "price": 50000,
+   "originalPrice": 60000,
+   "soldOut": false,
+   "images": [
+    "https://cdn.imweb.me/thumbnail/20260901/f334f5cdcf3e4850.jpg",
+    "https://cdn.imweb.me/thumbnail/20260901/2108ff6c8b4a468e.jpg"
+   ],
+   "description": "[ 제품설명 ] 프로스펙스 7부바지 (여)색 상 : BLACK사이즈 : 여85~105원 단 : NYLON 78%, POLYURETHANE 22%",
+   "url": "https://www.pjbsports.com/shop_view/1586"
+  },
+  {
+   "idx": 1585,
+   "name": "프로스펙스 7부바지 (남)",
+   "modelCode": "PT3MH24M951 (남)",
+   "brand": "프로스펙스",
+   "category": "배드민턴 의류",
+   "color": "BLACK",
+   "size": "남95~120",
+   "price": 50000,
+   "originalPrice": 60000,
+   "soldOut": false,
+   "images": [
+    "https://cdn.imweb.me/thumbnail/20260901/95e24565ebf64f58.jpg",
+    "https://cdn.imweb.me/thumbnail/20260901/63e7167cbabf4e71.jpg"
+   ],
+   "description": "[ 제품설명 ] 프로스펙스 7부바지 (남)색 상 : BLACK사이즈 : 남95~120원 단 : NYLON 78%, POLYURETHANE 22%",
+   "url": "https://www.pjbsports.com/shop_view/1585"
+  },
   {
    "idx": 1582,
    "name": "APOLLON V.2 / 아폴론 V.2",
@@ -1472,7 +1579,7 @@
    "category": "배드민턴 의류",
    "color": "BLACK",
    "size": "남95~120",
-   "price": 38500,
+   "price": 43000,
    "originalPrice": 55000,
    "soldOut": false,
    "images": [
@@ -1490,7 +1597,7 @@
    "category": "배드민턴 의류",
    "color": "BLACK",
    "size": "여85~105",
-   "price": 38500,
+   "price": 43000,
    "originalPrice": 55000,
    "soldOut": false,
    "images": [
@@ -1569,8 +1676,8 @@
    "originalPrice": 50000,
    "soldOut": false,
    "images": [
-    "https://cdn.imweb.me/thumbnail/20240325/2be512e676bb5.jpg",
-    "https://cdn.imweb.me/thumbnail/20240325/6f1a8d3339eba.jpg"
+    "https://cdn.imweb.me/thumbnail/20260831/c3a5047fc6334e53.jpg",
+    "https://cdn.imweb.me/thumbnail/20260831/57841a928da646bd.jpg"
    ],
    "description": "[ 제품설명 ]폴리스판 4부 반바지(여)색 상 : WHITE사이즈 : 여85~105원 단 : POLYESTER 95%, POLYURETHANE 5%",
    "url": "https://www.pjbsports.com/shop_view/1395"
@@ -1587,8 +1694,8 @@
    "originalPrice": 50000,
    "soldOut": false,
    "images": [
-    "https://cdn.imweb.me/thumbnail/20240410/e14a4e86928ca.jpg",
-    "https://cdn.imweb.me/thumbnail/20240410/32cda59612337.jpg"
+    "https://cdn.imweb.me/thumbnail/20260831/b54fe7306b534e3e.jpg",
+    "https://cdn.imweb.me/thumbnail/20260831/96354cd5896b412d.jpg"
    ],
    "description": "[ 제품설명 ]트리코트 4부 반바지(여)색 상 : BLACK사이즈 : 여85~105원 단 : NYLON 78%, POLYURETHANE 22%",
    "url": "https://www.pjbsports.com/shop_view/1394"
@@ -1605,8 +1712,8 @@
    "originalPrice": 50000,
    "soldOut": false,
    "images": [
-    "https://cdn.imweb.me/thumbnail/20240409/1df0cf0e881bb.jpg",
-    "https://cdn.imweb.me/thumbnail/20240409/e11ad4e0c25eb.jpg"
+    "https://cdn.imweb.me/thumbnail/20260831/6dca32fc3ed045e9.jpg",
+    "https://cdn.imweb.me/thumbnail/20260831/16f7f08eb60941f7.jpg"
    ],
    "description": "[ 제품설명 ]트리코트 4부 반바지(여)색 상 : NAVY사이즈 : 여85~105원 단 : NYLON 78%, POLYURETHANE 22%",
    "url": "https://www.pjbsports.com/shop_view/1393"
@@ -1623,8 +1730,8 @@
    "originalPrice": 50000,
    "soldOut": false,
    "images": [
-    "https://cdn.imweb.me/thumbnail/20240325/7a3ca0d8dda5a.jpg",
-    "https://cdn.imweb.me/thumbnail/20240325/39459085cf6d0.jpg"
+    "https://cdn.imweb.me/thumbnail/20260831/5a786863d6824d9e.jpg",
+    "https://cdn.imweb.me/thumbnail/20260831/6dd07e8121624e72.jpg"
    ],
    "description": "[ 제품설명 ]트리코트 4부 반바지(여)색 상 : BLACK사이즈 : 여85~105원 단 : NYLON 78%, POLYURETHANE 22%",
    "url": "https://www.pjbsports.com/shop_view/1392"
@@ -1641,8 +1748,8 @@
    "originalPrice": 50000,
    "soldOut": false,
    "images": [
-    "https://cdn.imweb.me/thumbnail/20240325/cec7ebde7cae0.jpg",
-    "https://cdn.imweb.me/thumbnail/20240325/500b88e4aa61e.jpg"
+    "https://cdn.imweb.me/thumbnail/20260831/c6df538523eb4820.jpg",
+    "https://cdn.imweb.me/thumbnail/20260831/d91230a2e853466b.jpg"
    ],
    "description": "[ 제품설명 ]폴리스판 4부 반바지(남)색 상 : WHITE사이즈 : 남95~120원 단 : POLYESTER 95%, POLYURETHANE 5%",
    "url": "https://www.pjbsports.com/shop_view/1391"
@@ -1659,8 +1766,8 @@
    "originalPrice": 50000,
    "soldOut": false,
    "images": [
-    "https://cdn.imweb.me/thumbnail/20240409/26907e79473e7.jpg",
-    "https://cdn.imweb.me/thumbnail/20240409/32c9fbd93d02d.jpg"
+    "https://cdn.imweb.me/thumbnail/20260831/cdfbeb5ea2434e7a.jpg",
+    "https://cdn.imweb.me/thumbnail/20260831/ce811c56ed5c4492.jpg"
    ],
    "description": "[ 제품설명 ]트리코트 4부 반바지(남)색 상 : BLACK사이즈 : 남95~120원 단 : NYLON 78%, POLYURETHANE 22%",
    "url": "https://www.pjbsports.com/shop_view/1390"
@@ -1677,8 +1784,8 @@
    "originalPrice": 50000,
    "soldOut": false,
    "images": [
-    "https://cdn.imweb.me/thumbnail/20240410/90b168b5dbdc3.jpg",
-    "https://cdn.imweb.me/thumbnail/20240410/ed15ecb299934.jpg"
+    "https://cdn.imweb.me/thumbnail/20260831/dbe1ef3e46134c83.jpg",
+    "https://cdn.imweb.me/thumbnail/20260831/621f7c11a2084553.jpg"
    ],
    "description": "[ 제품설명 ]트리코트 4부 반바지(남)색 상 : NAVY사이즈 : 남95~120원 단 : NYLON 78%, POLYURETHANE 22%",
    "url": "https://www.pjbsports.com/shop_view/1389"
@@ -1692,7 +1799,7 @@
    "color": "BLACK",
    "size": "남95~120",
    "price": 35000,
-   "originalPrice": 50000,
+   "originalPrice": null,
    "soldOut": false,
    "images": [
     "https://cdn.imweb.me/thumbnail/20260826/b9a0dab22dc248eb.jpg",
@@ -3521,23 +3628,6 @@
    ],
    "description": "[ 상품 설명 ]깃 털 : 고급 탈색 거위 깃털코르크 : 2단 합성 코르크구 성 : 12개입5타 이상 무료 배송",
    "url": "https://www.pjbsports.com/shop_view/1251"
-  },
-  {
-   "idx": 1238,
-   "name": "NEW 코오롱제약 리얼아미노워터(레드비트플러스)",
-   "modelCode": "NEW 코오롱제약 리얼아미노워터(레드비트플러스)",
-   "brand": "NOERROR",
-   "category": "Acc",
-   "color": null,
-   "size": null,
-   "price": 20000,
-   "originalPrice": null,
-   "soldOut": false,
-   "images": [
-    "https://cdn.imweb.me/thumbnail/20250530/f37def4cdc8bc.jpg"
-   ],
-   "description": "제 품 명 : REAL AMINO WATER RED BEET+주요성분 : BCAA, L-아르지닌, L-글루타민, 필수 아미노산, 비타 민, 미네랄, 레드비트주스분...",
-   "url": "https://www.pjbsports.com/shop_view/1238"
   },
   {
    "idx": 1231,
