@@ -1,12 +1,12 @@
 {
- "fetchedAt": "2026-09-27T20:33:02.362Z",
+ "fetchedAt": "2026-10-04T20:35:08.345Z",
  "source": "https://www.pjbsports.com",
- "count": 200,
+ "count": 197,
  "byCategory": {
   "배드민턴 의류": 76,
-  "배드민턴라켓": 13,
-  "Acc": 19,
-  "2026SS": 28,
+  "배드민턴라켓": 12,
+  "Acc": 18,
+  "2026SS": 27,
   "셔틀콕": 4,
   "배드민턴 가방": 35,
   "배드민턴화": 5,
@@ -136,7 +136,6 @@
   1414,
   1415,
   1416,
-  1417,
   1418,
   1419,
   1420,
@@ -169,14 +168,12 @@
   1480,
   1483,
   1484,
-  1495,
   1504,
   1505,
   1508,
   1509,
   1512,
   1513,
-  1514,
   1521,
   1522,
   1523,
@@ -919,24 +916,6 @@
    "url": "https://www.pjbsports.com/shop_view/1503"
   },
   {
-   "idx": 1502,
-   "name": "노에러 퍼포먼스 바람막이 자켓",
-   "modelCode": "NEWB-U804 GY (남녀공용)",
-   "brand": "NOERROR",
-   "category": "2026SS",
-   "color": "그레이",
-   "size": "80~120 (남녀공용)",
-   "price": 95000,
-   "originalPrice": 119000,
-   "soldOut": false,
-   "images": [
-    "https://cdn.imweb.me/thumbnail/20260402/87a89e0793b6b.jpg",
-    "https://cdn.imweb.me/thumbnail/20260402/ebf64656610a9.jpg"
-   ],
-   "description": "[ 제품 설명 ]노에러 퍼포먼스 바람막이 자켓색 상 : 그레이사이즈 : 80~120 (남녀공용)원 단 : POLYESTER 80%, SPANDEX 20%",
-   "url": "https://www.pjbsports.com/shop_view/1502"
-  },
-  {
    "idx": 1501,
    "name": "노에러 바람막이 풀오버",
    "modelCode": "NEMT-U306 NV (남녀공용)",
@@ -1028,25 +1007,6 @@
    ],
    "description": "[ 제품 스펙 ]제품명 : Lightning Shock-Z (라이트닝 쇼크 Z)프레임 : H.M GRAPHITE WOVEN샤프트 : H.M GRAPHITE WOVEN 밸런스 : HEAD HEAVY ...",
    "url": "https://www.pjbsports.com/shop_view/1492"
-  },
-  {
-   "idx": 1491,
-   "name": "LAYER 800 / 레이어 800",
-   "modelCode": "LAYER 800 / 레이어 800",
-   "brand": "PJB",
-   "category": "배드민턴라켓",
-   "color": null,
-   "size": null,
-   "price": 180000,
-   "originalPrice": 300000,
-   "soldOut": false,
-   "images": [
-    "https://cdn.imweb.me/thumbnail/20260320/cf69e0c08a758.jpg",
-    "https://cdn.imweb.me/thumbnail/20260320/f705e7deb6c70.jpg",
-    "https://cdn.imweb.me/thumbnail/20260320/b856d0cb83651.jpg"
-   ],
-   "description": "[ 제품 스펙 ]제품명 : LAYER 800 (레이어 800)프레임 : HI-MODULUS GRAPHITE샤프트 : HI-MODULUS GRAPHITE밸런스 : HEAD HEAVY (B.P-295m...",
-   "url": "https://www.pjbsports.com/shop_view/1491"
   },
   {
    "idx": 1490,
@@ -1199,25 +1159,6 @@
    ],
    "description": "[ 제품스펙 ]색 상 : WHITE사이즈 : 230mm ~290mm (5mm 단위)",
    "url": "https://www.pjbsports.com/shop_view/1476"
-  },
-  {
-   "idx": 1475,
-   "name": "TL-ECS01  노에러 미니 스트링 커터 / 릴가위",
-   "modelCode": "TL-ECS01  노에러 미니 스트링 커터 / 릴가위",
-   "brand": "NOERROR",
-   "category": "Acc",
-   "color": "BLACK품 목 : 미니 가위소 재 : 스테인리스, PP",
-   "size": null,
-   "price": 5000,
-   "originalPrice": null,
-   "soldOut": false,
-   "images": [
-    "https://cdn.imweb.me/thumbnail/20260313/cef96f0fe5355.jpg",
-    "https://cdn.imweb.me/thumbnail/20260313/3f6afc3ed0120.jpg",
-    "https://cdn.imweb.me/thumbnail/20260313/969155ef77446.jpg"
-   ],
-   "description": "[ 제품 설명 ]색 상 : BLACK품 목 : 미니 가위소 재 : 스테인리스, PP",
-   "url": "https://www.pjbsports.com/shop_view/1475"
   },
   {
    "idx": 1472,
@@ -3884,7 +3825,7 @@
    "size": null,
    "price": 35000,
    "originalPrice": null,
-   "soldOut": true,
+   "soldOut": false,
    "images": [
     "https://cdn.imweb.me/thumbnail/20250425/be5e59f168e6c.jpg",
     "https://cdn.imweb.me/thumbnail/20250425/f79a3f2262904.jpg"
