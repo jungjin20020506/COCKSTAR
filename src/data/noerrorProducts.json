@@ -1,14 +1,14 @@
 {
- "fetchedAt": "2026-10-11T21:10:02.933Z",
+ "fetchedAt": "2026-10-18T19:47:25.956Z",
  "source": "https://www.pjbsports.com",
- "count": 197,
+ "count": 196,
  "byCategory": {
   "배드민턴 의류": 76,
   "배드민턴라켓": 12,
   "Acc": 18,
   "2026SS": 27,
   "셔틀콕": 4,
-  "배드민턴 가방": 35,
+  "배드민턴 가방": 34,
   "배드민턴화": 5,
   "🔥OUTLET🔥": 20
  },
@@ -80,7 +80,6 @@
   1127,
   1144,
   1145,
-  1146,
   1147,
   1148,
   1149,
@@ -3439,25 +3438,6 @@
    ],
    "description": "[ 제품 설명 ]제품명 : BG-D13 H.P색 상 : HOT PINK 진한 핑크사이즈 : 73cm X 30cm X 24cm원 단 : POLYESTER 60%, POLYURETHANE 4...",
    "url": "https://www.pjbsports.com/shop_view/1280"
-  },
-  {
-   "idx": 1279,
-   "name": "배드민턴 사각 2단 가방",
-   "modelCode": "배드민턴 사각 2단 가방, BG-D13 B.G",
-   "brand": "PJB",
-   "category": "배드민턴 가방",
-   "color": "BLUE GREEN 블루그린",
-   "size": "73cm X 30cm X 24cm",
-   "price": 89000,
-   "originalPrice": 130000,
-   "soldOut": false,
-   "images": [
-    "https://cdn.imweb.me/thumbnail/20240907/d22ff7f5dcbe8.jpg",
-    "https://cdn.imweb.me/thumbnail/20240907/ba191809d0721.jpg",
-    "https://cdn.imweb.me/thumbnail/20240907/ee88403fc5589.jpg"
-   ],
-   "description": "[ 제품 설명 ]제품명 : BG-D13 B.G색 상 : BLUE GREEN 블루그린사이즈 : 73cm X 30cm X 24cm원 단 : POLYESTER 60%, POLYURETHANE ...",
-   "url": "https://www.pjbsports.com/shop_view/1279"
   },
   {
    "idx": 1278,
