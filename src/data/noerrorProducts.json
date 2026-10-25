@@ -1,14 +1,14 @@
 {
- "fetchedAt": "2026-10-18T19:47:25.956Z",
+ "fetchedAt": "2026-10-25T20:05:36.605Z",
  "source": "https://www.pjbsports.com",
- "count": 196,
+ "count": 198,
  "byCategory": {
+  "배드민턴 가방": 35,
   "배드민턴 의류": 76,
   "배드민턴라켓": 12,
-  "Acc": 18,
+  "Acc": 19,
   "2026SS": 27,
   "셔틀콕": 4,
-  "배드민턴 가방": 34,
   "배드민턴화": 5,
   "🔥OUTLET🔥": 20
  },
@@ -167,6 +167,7 @@
   1480,
   1483,
   1484,
+  1495,
   1504,
   1505,
   1508,
@@ -204,9 +205,29 @@
   1583,
   1584,
   1591,
-  1592
+  1592,
+  1595
  ],
  "products": [
+  {
+   "idx": 1593,
+   "name": "노에러 멀티 더블백",
+   "modelCode": "노에러 멀티 더블백, BG-D15 BK",
+   "brand": "NOERROR",
+   "category": "배드민턴 가방",
+   "color": "BLACK 블랙",
+   "size": "74cm X 33cm X 27cm",
+   "price": 110000,
+   "originalPrice": 130000,
+   "soldOut": false,
+   "images": [
+    "https://cdn.imweb.me/thumbnail/20261022/906987a0074b4a3a.jpg",
+    "https://cdn.imweb.me/thumbnail/20261022/0ab652ff9b7440c1.jpg",
+    "https://cdn.imweb.me/thumbnail/20261022/714f59c658db4de4.jpg"
+   ],
+   "description": "[ 제품 설명 ]제품명 : BG-D15 BK색 상 : BLACK 블랙사이즈 : 74cm X 33cm X 27cm원 단 : POLYURETHANE 65%, POLYESTER 35%",
+   "url": "https://www.pjbsports.com/shop_view/1593"
+  },
   {
    "idx": 1590,
    "name": "PJB 트리코트 5부 반바지",
@@ -1160,6 +1181,25 @@
    ],
    "description": "[ 제품스펙 ]색 상 : WHITE사이즈 : 230mm ~290mm (5mm 단위)",
    "url": "https://www.pjbsports.com/shop_view/1476"
+  },
+  {
+   "idx": 1475,
+   "name": "TL-ECS01  노에러 미니 스트링 커터 / 릴가위",
+   "modelCode": "TL-ECS01  노에러 미니 스트링 커터 / 릴가위",
+   "brand": "NOERROR",
+   "category": "Acc",
+   "color": "BLACK품 목 : 미니 가위소 재 : 스테인리스, PP",
+   "size": null,
+   "price": 5000,
+   "originalPrice": null,
+   "soldOut": false,
+   "images": [
+    "https://cdn.imweb.me/thumbnail/20260313/cef96f0fe5355.jpg",
+    "https://cdn.imweb.me/thumbnail/20260313/3f6afc3ed0120.jpg",
+    "https://cdn.imweb.me/thumbnail/20260313/969155ef77446.jpg"
+   ],
+   "description": "[ 제품 설명 ]색 상 : BLACK품 목 : 미니 가위소 재 : 스테인리스, PP",
+   "url": "https://www.pjbsports.com/shop_view/1475"
   },
   {
    "idx": 1472,
